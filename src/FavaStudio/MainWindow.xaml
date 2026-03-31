@@ -58,8 +58,6 @@
                             Command="{Binding RunCurrentCommand}"
                             Style="{StaticResource AccentButton}"
                             ToolTip="Compile and run the currently open file"/>
-                    <Button Content="Run All Tests" Command="{Binding RunAllTestsCommand}"
-                            ToolTip="Execute all test cases from the configured test folders"/>
                 </StackPanel>
 
             </DockPanel>
@@ -98,11 +96,22 @@
                                     ToolTip="New File"
                                     Width="22" Height="22" Padding="0" FontSize="15"
                                     VerticalContentAlignment="Center"/>
-                            <TextBlock Text="PROJECT EXPLORER"
+                            <TextBlock Text="PROJECT"
                                        FontSize="10" FontWeight="Bold"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        VerticalAlignment="Center"/>
                         </DockPanel>
+                    </Border>
+
+                    <Border DockPanel.Dock="Top"
+                            Padding="10,6,8,6"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1">
+                        <TextBlock Text="{Binding CurrentProjectDirectory}"
+                                   FontFamily="Consolas"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   TextWrapping="Wrap"/>
                     </Border>
 
                     <!-- Open-project button anchored to bottom -->
@@ -113,11 +122,19 @@
                             ToolTip="Select a folder — all .fava files inside will appear here"/>
 
                     <!-- File list (filename only; tooltip shows full path) -->
-                    <ListBox ItemsSource="{Binding ProjectFiles}"
-                             SelectedItem="{Binding SelectedFile}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Margin="4,4,4,0">
+                     <ListBox ItemsSource="{Binding ProjectFiles}"
+                              SelectedItem="{Binding SelectedFile}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Margin="4,4,4,0">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Add">
+                                    <MenuItem Header="New Fava File"
+                                              Command="{Binding PlacementTarget.DataContext.NewFileCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                </MenuItem>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -142,171 +159,131 @@
                           Background="{StaticResource BorderBrush}"/>
 
             <!-- ─────────────────────────────────────────────────────── -->
-            <!-- Content area: tabs                                      -->
+            <!-- Content area: editor + diagnostics + output             -->
             <!-- ─────────────────────────────────────────────────────── -->
-            <TabControl Grid.Column="2">
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="4*"/>
+                    <RowDefinition Height="5"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <!-- ══════ EDITOR TAB ══════ -->
-                <TabItem Header="  Editor  ">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="5"/>
-                            <RowDefinition Height="130" MinHeight="40"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                <Border Grid.Row="0"
+                        Background="{StaticResource BgPanelAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="10,5">
+                    <TextBlock Text="{Binding CurrentFileName}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontFamily="Consolas"
+                               FontSize="12"/>
+                </Border>
 
-                        <!-- Current-file path bar -->
-                        <Border Grid.Row="0"
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="4*"/>
+                        <ColumnDefinition Width="5"/>
+                        <ColumnDefinition Width="280" MinWidth="180"/>
+                    </Grid.ColumnDefinitions>
+
+                    <avalonedit:TextEditor Grid.Column="0"
+                                           x:Name="Editor"
+                                           FontFamily="Consolas"
+                                           FontSize="14"
+                                           ShowLineNumbers="True"
+                                           Background="{StaticResource BgMainBrush}"
+                                           Foreground="{StaticResource TextMainBrush}"/>
+
+                    <GridSplitter Grid.Column="1" Width="5"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"
+                                  ResizeDirection="Columns"
+                                  Background="{StaticResource BorderBrush}"/>
+
+                    <Border Grid.Column="2"
+                            Background="{StaticResource BgPanelBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1,0,0,0">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,6"
+                                    Background="{StaticResource BgPanelAltBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1">
+                                <TextBlock Text="{Binding DiagnosticsHeader}"
+                                           FontSize="11"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                            </Border>
+                            <ListBox ItemsSource="{Binding Diagnostics}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     FontFamily="Consolas"
+                                     FontSize="12"
+                                     Margin="4,2">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock TextWrapping="Wrap">
+                                            <Run Text="⚠ "  Foreground="Orange"/>
+                                            <Run Text="{Binding Severity}"  Foreground="Orange"/>
+                                            <Run Text="  "/>
+                                            <Run Text="{Binding Line}"   Foreground="{StaticResource TextMainBrush}"/>
+                                            <Run Text=":"/>
+                                            <Run Text="{Binding Column}" Foreground="{StaticResource TextMainBrush}"/>
+                                            <Run Text="  "/>
+                                            <Run Text="{Binding Message}" Foreground="{StaticResource TextMainBrush}"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+
+                <GridSplitter Grid.Row="2" Height="5"
+                              HorizontalAlignment="Stretch"
+                              ResizeDirection="Rows"
+                              Background="{StaticResource BorderBrush}"/>
+
+                <Border Grid.Row="3"
+                        Background="{StaticResource BgPanelBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,1,0,0">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top"
+                                Padding="10,6"
                                 Background="{StaticResource BgPanelAltBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,0,0,1"
-                                Padding="10,5">
-                            <TextBlock Text="{Binding CurrentFileName}"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       FontFamily="Consolas" FontSize="12"/>
+                                BorderThickness="0,0,0,1">
+                            <TextBlock Text="OUTPUT"
+                                       FontSize="11"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
                         </Border>
+                        <TextBox x:Name="ConsoleBox"
+                                 Text="{Binding ConsoleOutput, Mode=OneWay}"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 Background="{StaticResource BgMainBrush}"
+                                 Foreground="{StaticResource TextMainBrush}"
+                                 BorderThickness="0"
+                                 Padding="10"
+                                 VerticalScrollBarVisibility="Auto"/>
+                    </DockPanel>
+                </Border>
 
-                        <!-- Code editor -->
-                        <avalonedit:TextEditor Grid.Row="1"
-                                               x:Name="Editor"
-                                               FontFamily="Consolas"
-                                               FontSize="14"
-                                               ShowLineNumbers="True"
-                                               Background="{StaticResource BgMainBrush}"
-                                               Foreground="{StaticResource TextMainBrush}"/>
-
-                        <!-- Row splitter -->
-                        <GridSplitter Grid.Row="2" Height="5"
-                                      HorizontalAlignment="Stretch"
-                                      ResizeDirection="Rows"
-                                      Background="{StaticResource BorderBrush}"/>
-
-                        <!-- Errors / diagnostics panel -->
-                        <Border Grid.Row="3"
-                                Background="{StaticResource BgPanelBrush}">
-                            <DockPanel>
-                                <Border DockPanel.Dock="Top"
-                                        Padding="10,6"
-                                        Background="{StaticResource BgPanelAltBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="0,1,0,1">
-                                    <TextBlock Text="{Binding DiagnosticsHeader}"
-                                               FontSize="11" FontWeight="Bold"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
-                                </Border>
-                                <ListBox ItemsSource="{Binding Diagnostics}"
-                                         Background="Transparent"
-                                         BorderThickness="0"
-                                         FontFamily="Consolas"
-                                         FontSize="12"
-                                         Margin="4,2">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock>
-                                                <Run Text="⚠ "  Foreground="Orange"/>
-                                                <Run Text="{Binding Severity}"  Foreground="Orange"/>
-                                                <Run Text="  "/>
-                                                <Run Text="{Binding Line}"   Foreground="{StaticResource TextMainBrush}"/>
-                                                <Run Text=":"/>
-                                                <Run Text="{Binding Column}" Foreground="{StaticResource TextMainBrush}"/>
-                                                <Run Text="  "/>
-                                                <Run Text="{Binding Message}" Foreground="{StaticResource TextMainBrush}"/>
-                                            </TextBlock>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </DockPanel>
-                        </Border>
-
-                        <!-- Inline status -->
-                        <Border Grid.Row="4"
-                                Background="{StaticResource BgPanelAltBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,1,0,0"
-                                Padding="10,5">
-                            <TextBlock Text="{Binding StatusText}"
-                                       Foreground="{Binding StatusColor}"
-                                       FontWeight="SemiBold" FontSize="12"/>
-                        </Border>
-                    </Grid>
-                </TabItem>
-
-                <!-- ══════ TESTS TAB ══════ -->
-                <TabItem Header="  Tests  ">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Tests toolbar -->
-                        <Border Grid.Row="0"
-                                Background="{StaticResource BgPanelBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,0,0,1"
-                                Padding="8,6">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="▶  Run All Tests"
-                                        Command="{Binding RunAllTestsCommand}"
-                                        Style="{StaticResource AccentButton}"
-                                        ToolTip="Run every test case in the configured folders"/>
-                                <Button Content="Run Selected"
-                                        Command="{Binding RunSelectedTestsCommand}"
-                                        ToolTip="Re-run only the test case highlighted in the list"/>
-                                <CheckBox Content="Show Output"
-                                          IsChecked="{Binding ShowTestOutput}"
-                                          Margin="14,0,0,0"
-                                          VerticalAlignment="Center"
-                                          ToolTip="Display raw compiler output alongside each test result"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Test results grid -->
-                        <DataGrid Grid.Row="1"
-                                  ItemsSource="{Binding TestResults}"
-                                  AutoGenerateColumns="False"
-                                  SelectedItem="{Binding SelectedTestResult}">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Test Name" Binding="{Binding Name}"    Width="200"/>
-                                <DataGridTextColumn Header="Status"    Binding="{Binding Status}"  Width="100"/>
-                                <DataGridTextColumn Header="Details"   Binding="{Binding Message}" Width="*"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
-
-                        <!-- Test summary bar -->
-                        <Border Grid.Row="2"
-                                Background="{StaticResource BgPanelAltBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,1,0,0"
-                                Padding="10,5">
-                            <TextBlock Text="{Binding TestSummary}"
-                                       Foreground="{Binding StatusColor}"
-                                       FontWeight="SemiBold" FontSize="12"/>
-                        </Border>
-                    </Grid>
-                </TabItem>
-
-                <!-- ══════ CONSOLE TAB ══════ -->
-                <TabItem Header="  Console  ">
-                    <TextBox x:Name="ConsoleBox"
-                             Text="{Binding ConsoleOutput, Mode=OneWay}"
-                             IsReadOnly="True"
-                             TextWrapping="Wrap"
-                             FontFamily="Consolas"
-                             FontSize="12"
-                             Background="{StaticResource BgMainBrush}"
-                             Foreground="{StaticResource TextMainBrush}"
-                             BorderThickness="0"
-                             Padding="10"
-                             VerticalScrollBarVisibility="Auto"/>
-                </TabItem>
-
-                <!-- ══════ SETTINGS TAB ══════ -->
-                <TabItem Header="  ⚙ Settings  ">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20">
+                <!-- Settings -->
+                <Expander Grid.Row="4"
+                          Header="⚙ Settings"
+                          Margin="0,0,0,0"
+                          Background="{StaticResource BgPanelBrush}"
+                          BorderBrush="{StaticResource BorderBrush}"
+                          BorderThickness="0,1,0,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" MaxHeight="340">
                         <StackPanel MaxWidth="620">
 
                             <!-- Page header -->
@@ -405,54 +382,6 @@
                                 </Grid>
                             </Border>
 
-                            <!-- ── TEST FOLDERS section ── -->
-                            <TextBlock Text="TEST FOLDERS" FontSize="10" FontWeight="Bold"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       Margin="0,0,0,6"/>
-                            <Border BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="6"
-                                    Padding="14,12" Margin="0,0,0,28"
-                                    Background="{StaticResource BgPanelBrush}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="10"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                               Text="Inputs Folder"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,10,0"/>
-                                    <TextBox Grid.Row="0" Grid.Column="1"
-                                             Text="{Binding Settings.InputsDir}"
-                                             ToolTip="Folder that contains .fava test input files"/>
-                                    <Button Grid.Row="0" Grid.Column="2"
-                                            Content="Browse…"
-                                            Command="{Binding BrowseInputsDirCommand}"
-                                            ToolTip="Open folder browser to select the test inputs folder"
-                                            Margin="6,0,0,0"/>
-
-                                    <TextBlock Grid.Row="2" Grid.Column="0"
-                                               Text="Outputs Folder"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,10,0"/>
-                                    <TextBox Grid.Row="2" Grid.Column="1"
-                                             Text="{Binding Settings.OutputsDir}"
-                                             ToolTip="Folder that contains the expected output files for each test"/>
-                                    <Button Grid.Row="2" Grid.Column="2"
-                                            Content="Browse…"
-                                            Command="{Binding BrowseOutputsDirCommand}"
-                                            ToolTip="Open folder browser to select the test outputs folder"
-                                            Margin="6,0,0,0"/>
-                                </Grid>
-                            </Border>
-
                             <!-- Save -->
                             <Button Content="  Save Settings  "
                                     Command="{Binding SaveSettingsCommand}"
@@ -463,9 +392,8 @@
 
                         </StackPanel>
                     </ScrollViewer>
-                </TabItem>
-
-            </TabControl>
+                </Expander>
+            </Grid>
         </Grid>
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -492,4 +420,3 @@
 
     </Grid>
 </Window>
-

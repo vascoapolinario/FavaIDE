@@ -49,6 +49,10 @@ public class MainViewModel : INotifyPropertyChanged
 
     public string FooterText => "Fava Studio • built for your Fava compiler";
 
+    public string CurrentProjectDirectory => string.IsNullOrWhiteSpace(Settings.ProjectRoot)
+        ? "Project directory: (not set)"
+        : Settings.ProjectRoot;
+
     public string CurrentFileName => string.IsNullOrWhiteSpace(_currentFile)
         ? "No file open"
         : Path.GetFileName(_currentFile);
@@ -118,29 +122,23 @@ public class MainViewModel : INotifyPropertyChanged
         BrowseInputsDirCommand = new RelayCommand(_ => BrowseFolder(v => Settings.InputsDir = v, "Test Inputs Folder"));
         BrowseOutputsDirCommand = new RelayCommand(_ => BrowseFolder(v => Settings.OutputsDir = v, "Test Outputs Folder"));
 
-        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
-        {
-            LoadProject(Settings.ProjectRoot);
-        }
+        EnsureProjectDirectory();
+        LoadProject(Settings.ProjectRoot);
     }
 
     private void OpenProject()
     {
-        var dialog = new OpenFileDialog
-        {
-            CheckFileExists = false,
-            FileName = "Select folder",
-            Filter = "Folder|."
-        };
+        var dialog = new OpenFolderDialog { Title = "Select Project Folder" };
 
         if (dialog.ShowDialog() == true)
         {
-            var folder = System.IO.Path.GetDirectoryName(dialog.FileName);
-            if (!string.IsNullOrWhiteSpace(folder))
+            var folder = dialog.FolderName;
+            if (!string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder))
             {
                 LoadProject(folder);
                 Settings.ProjectRoot = folder;
                 Settings.Save();
+                OnPropertyChanged(nameof(CurrentProjectDirectory));
             }
         }
     }
@@ -156,6 +154,7 @@ public class MainViewModel : INotifyPropertyChanged
             }
             StatusText = $"Loaded project: {folder}";
             StatusColor = Brushes.LightBlue;
+            OnPropertyChanged(nameof(CurrentProjectDirectory));
         }
         catch (Exception ex)
         {
@@ -168,15 +167,32 @@ public class MainViewModel : INotifyPropertyChanged
     {
         var dialog = new SaveFileDialog
         {
+            InitialDirectory = Directory.Exists(Settings.ProjectRoot) ? Settings.ProjectRoot : null,
             Filter = "Fava file (*.fava)|*.fava"
         };
 
         if (dialog.ShowDialog() == true)
         {
             FileService.WriteText(dialog.FileName, "");
-            ProjectFiles.Add(dialog.FileName);
+            if (!ProjectFiles.Contains(dialog.FileName))
+                ProjectFiles.Add(dialog.FileName);
             SelectedFile = dialog.FileName;
         }
+    }
+
+    private void EnsureProjectDirectory()
+    {
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot) && Directory.Exists(Settings.ProjectRoot))
+            return;
+
+        var defaultProjectRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "FavaStudioProject");
+
+        Directory.CreateDirectory(defaultProjectRoot);
+        Settings.ProjectRoot = defaultProjectRoot;
+        Settings.Save();
+        OnPropertyChanged(nameof(CurrentProjectDirectory));
     }
 
     private void SaveFile()

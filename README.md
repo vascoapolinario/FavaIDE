@@ -6,13 +6,12 @@ A Windows‑native IDE for the Fava language, built with WPF (.NET 8).
 
 - Modern dark UI
 - Code editor with syntax highlighting (AvalonEdit)
-- Project explorer (`.fava` files)
+- Project explorer (`.fava` files) with always-available project directory
 - Run current file via Java compiler
-- Test runner comparing Inputs/Outputs
-- Captures output and compares against expected
+- Diagnostics panel with live error visibility
+- Bottom output panel for compiler/runtime output
 - Uses Java compiler in background
 - Settings stored in `%AppData%\FavaStudio\settings.json`
-- Pass/fail summary
 
 ## Requirements
 
@@ -36,16 +35,6 @@ Fill in the Settings tab inside the app:
 | Java Path | Path to `java.exe` (or `java` if on PATH) |
 | Compiler Root | Path to your FavaCompiler folder |
 | ANTLR Jar Path | Path to `antlr-4.13.2-complete.jar` |
-| Inputs Folder | Folder containing `*.fava` test input files |
-| Outputs Folder | Folder containing `*.txt` expected output files |
-
-## Tests
-
-Place test files as:
-- `Inputs/<name>.fava` — input Fava source
-- `Outputs/<name>.txt` — expected output text
-
-Click **Run Tests** to run all tests and see pass/fail results.
 
 ## Project Structure
 
