@@ -26,6 +26,7 @@ public static class DiagnosticsParser
                 Severity = m.Groups[1].Value.ToLower() == "lexer" ? "Lexer Error" : "Parser Error",
                 Line = line,
                 Column = column,
+                UnderlineLength = 1,
                 Message = m.Groups[4].Value.Trim()
             });
         }

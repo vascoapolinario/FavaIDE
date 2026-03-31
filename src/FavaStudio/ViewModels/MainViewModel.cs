@@ -85,6 +85,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand CreateProjectCommand { get; }
     public RelayCommand NewFavaFileCommand { get; }
     public RelayCommand NewTextFileCommand { get; }
+    public RelayCommand NewDirectoryCommand { get; }
     public RelayCommand DeleteNodeCommand { get; }
     public RelayCommand SaveFileCommand { get; }
     public RelayCommand RunCurrentCommand { get; }
@@ -123,6 +124,7 @@ public class MainViewModel : INotifyPropertyChanged
         CreateProjectCommand = new RelayCommand(_ => CreateProject());
         NewFavaFileCommand = new RelayCommand(node => NewFile(".fava", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         NewTextFileCommand = new RelayCommand(node => NewFile(".txt", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        NewDirectoryCommand = new RelayCommand(node => NewDirectory(node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         DeleteNodeCommand = new RelayCommand(n => DeleteNode(n as ProjectNode), n => n is ProjectNode);
         SaveFileCommand = new RelayCommand(_ => SaveFile());
         RunCurrentCommand = new RelayCommand(_ => RunCurrentFile(), _ => !string.IsNullOrWhiteSpace(_currentFile));
@@ -276,6 +278,34 @@ public class MainViewModel : INotifyPropertyChanged
             LoadProject(Settings.ProjectRoot);
     }
 
+    private void NewDirectory(ProjectNode? node)
+    {
+        var basePath = Settings.ProjectRoot;
+        var targetNode = node ?? SelectedProjectNode;
+        if (targetNode is not null)
+            basePath = targetNode.IsDirectory
+                ? targetNode.FullPath
+                : Path.GetDirectoryName(targetNode.FullPath) ?? Settings.ProjectRoot;
+
+        if (string.IsNullOrWhiteSpace(basePath) || !Directory.Exists(basePath))
+            return;
+
+        var folderName = "NewFolder";
+        var candidate = Path.Combine(basePath, folderName);
+        var suffix = 1;
+        while (Directory.Exists(candidate))
+        {
+            suffix++;
+            candidate = Path.Combine(basePath, $"{folderName}{suffix}");
+        }
+
+        Directory.CreateDirectory(candidate);
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            LoadProject(Settings.ProjectRoot);
+        StatusText = $"Created directory: {Path.GetFileName(candidate)}";
+        StatusColor = Brushes.LightGreen;
+    }
+
     private void DeleteNode(ProjectNode? node)
     {
         if (node is null || string.IsNullOrWhiteSpace(node.FullPath)) return;
@@ -376,19 +406,21 @@ public class MainViewModel : INotifyPropertyChanged
 
     private static string SliceSection(string output, string[] starts, string[] stops)
     {
+        var startSet = starts.Select(NormalizeHeader).ToHashSet();
+        var stopSet = stops.Select(NormalizeHeader).ToHashSet();
         var lines = output.Replace("\r\n", "\n").Split('\n');
         var result = new List<string>();
         var inSection = false;
         foreach (var line in lines)
         {
-            var trimmed = line.Trim();
-            if (!inSection && starts.Any(s => trimmed.Equals(s, StringComparison.OrdinalIgnoreCase)))
+            var normalized = NormalizeHeader(line);
+            if (!inSection && startSet.Contains(normalized))
             {
                 inSection = true;
                 continue;
             }
 
-            if (inSection && stops.Any(s => trimmed.Equals(s, StringComparison.OrdinalIgnoreCase)))
+            if (inSection && stopSet.Contains(normalized))
                 break;
 
             if (inSection) result.Add(line);
@@ -399,12 +431,12 @@ public class MainViewModel : INotifyPropertyChanged
     private void UpdateOutputs(string fullOutput)
     {
         ConstantPoolOutput = SliceSection(fullOutput,
-            ["Constant Pool", "**Constant Pool**", "CONSTANT POOL"],
-            ["Instructions", "**Instructions**", "INSTRUCTIONS", "VM Output", "VM OUTPUT"]);
+            ["constant pool"],
+            ["instructions", "vm output"]);
 
         InstructionsOutput = SliceSection(fullOutput,
-            ["Instructions", "**Instructions**", "INSTRUCTIONS"],
-            ["VM Output", "VM OUTPUT"]);
+            ["instructions"],
+            ["vm output"]);
 
         if (ShowOutputOnly)
         {
@@ -601,28 +633,23 @@ public class MainViewModel : INotifyPropertyChanged
 
         foreach (var line in lines)
         {
-            var trimmed = line.Trim();
+            var normalized = NormalizeHeader(line);
 
-            if (trimmed.Equals("Constant Pool", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("**Constant Pool**", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("CONSTANT POOL", StringComparison.OrdinalIgnoreCase))
+            if (normalized == "constant pool")
             {
                 skippingConstant = true;
                 skippingInstructions = false;
                 continue;
             }
 
-            if (trimmed.Equals("Instructions", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("**Instructions**", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("INSTRUCTIONS", StringComparison.OrdinalIgnoreCase))
+            if (normalized == "instructions")
             {
                 skippingInstructions = true;
                 skippingConstant = false;
                 continue;
             }
 
-            if (trimmed.Equals("VM Output", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("VM OUTPUT", StringComparison.OrdinalIgnoreCase))
+            if (normalized == "vm output")
             {
                 skippingConstant = false;
                 skippingInstructions = false;
@@ -634,6 +661,14 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         return string.Join("\n", vmLines).Trim();
+    }
+
+    private static string NormalizeHeader(string line)
+    {
+        var normalized = line.Trim().Trim('*').Trim();
+        if (normalized.EndsWith(':'))
+            normalized = normalized[..^1];
+        return normalized.ToLowerInvariant();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
