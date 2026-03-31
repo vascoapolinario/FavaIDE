@@ -48,6 +48,8 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="5"/>
+                            <RowDefinition Height="120" MinHeight="40"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
@@ -58,7 +60,41 @@
                                                Background="{StaticResource BgPanelBrush}"
                                                Foreground="{StaticResource TextMainBrush}"/>
 
-                        <TextBlock Grid.Row="1"
+                        <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" ResizeDirection="Rows"
+                                      Background="{StaticResource BgPanelBrush}"/>
+
+                        <!-- Errors panel -->
+                        <Border Grid.Row="2" Background="{StaticResource BgPanelBrush}" CornerRadius="4" Padding="6,4">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top"
+                                           Text="{Binding DiagnosticsHeader}"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextMainBrush}"
+                                           Margin="0,0,0,4"/>
+                                <ListBox ItemsSource="{Binding Diagnostics}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         FontFamily="Consolas"
+                                         FontSize="12">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock>
+                                                <Run Text="⚠ " Foreground="Orange"/>
+                                                <Run Text="{Binding Severity}" Foreground="Orange"/>
+                                                <Run Text=" "/>
+                                                <Run Text="{Binding Line}" Foreground="{StaticResource TextMainBrush}"/>
+                                                <Run Text=":"/>
+                                                <Run Text="{Binding Column}" Foreground="{StaticResource TextMainBrush}"/>
+                                                <Run Text="  "/>
+                                                <Run Text="{Binding Message}" Foreground="{StaticResource TextMainBrush}"/>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+
+                        <TextBlock Grid.Row="3"
                                    Text="{Binding StatusText}"
                                    Foreground="{Binding StatusColor}"
                                    FontWeight="Bold"

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ICSharpCode.AvalonEdit;
 using Microsoft.Win32;
 using FavaStudio.Models;
@@ -14,9 +15,12 @@ public class MainViewModel : INotifyPropertyChanged
 {
     private readonly TextEditor _editor;
     private string? _currentFile;
+    private bool _isLiveChecking;
+    private readonly DispatcherTimer _liveCheckTimer;
 
     public ObservableCollection<string> ProjectFiles { get; } = new();
     public ObservableCollection<TestResult> TestResults { get; } = new();
+    public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
 
     public SettingsService Settings { get; } = SettingsService.Load();
 
@@ -25,6 +29,10 @@ public class MainViewModel : INotifyPropertyChanged
 
     private string _statusText = "Ready.";
     public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
+
+    public string DiagnosticsHeader => Diagnostics.Count == 0
+        ? "Errors"
+        : $"Errors ({Diagnostics.Count})";
 
     private string _testSummary = "";
     public string TestSummary { get => _testSummary; set { _testSummary = value; OnPropertyChanged(); } }
@@ -73,6 +81,18 @@ public class MainViewModel : INotifyPropertyChanged
     public MainViewModel(TextEditor editor)
     {
         _editor = editor;
+
+        _liveCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+        _liveCheckTimer.Tick += async (_, _) =>
+        {
+            _liveCheckTimer.Stop();
+            await RunLiveCheckAsync();
+        };
+        _editor.TextChanged += (_, _) =>
+        {
+            _liveCheckTimer.Stop();
+            _liveCheckTimer.Start();
+        };
 
         OpenProjectCommand = new RelayCommand(_ => OpenProject());
         NewFileCommand = new RelayCommand(_ => NewFile());
@@ -152,6 +172,43 @@ public class MainViewModel : INotifyPropertyChanged
         StatusColor = Brushes.LightGreen;
     }
 
+    private async Task RunLiveCheckAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentFile)) return;
+        if (_isLiveChecking) return;
+
+        _isLiveChecking = true;
+        try
+        {
+            FileService.WriteText(_currentFile, _editor.Text);
+
+            var runner = new JavaCompilerService(Settings);
+            var result = await runner.RunFileAsync(_currentFile);
+
+            var diagnostics = DiagnosticsParser.Parse(result.Output);
+            Diagnostics.Clear();
+            foreach (var d in diagnostics) Diagnostics.Add(d);
+            OnPropertyChanged(nameof(DiagnosticsHeader));
+
+            ConsoleOutput = result.Output;
+
+            if (diagnostics.Count > 0)
+            {
+                StatusText = $"⚠️ {diagnostics.Count} error(s) found";
+                StatusColor = Brushes.Orange;
+            }
+            else
+            {
+                StatusText = result.Success ? "✅ No errors" : "❌ Execution failed";
+                StatusColor = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
+            }
+        }
+        finally
+        {
+            _isLiveChecking = false;
+        }
+    }
+
     private async void RunCurrentFile()
     {
         if (string.IsNullOrWhiteSpace(_currentFile)) return;
@@ -162,6 +219,11 @@ public class MainViewModel : INotifyPropertyChanged
 
         var runner = new JavaCompilerService(Settings);
         var result = await runner.RunFileAsync(_currentFile);
+
+        var diagnostics = DiagnosticsParser.Parse(result.Output);
+        Diagnostics.Clear();
+        foreach (var d in diagnostics) Diagnostics.Add(d);
+        OnPropertyChanged(nameof(DiagnosticsHeader));
 
         ConsoleOutput = result.Output;
         StatusText = result.Success ? "✅ Execution complete" : "❌ Execution failed";
