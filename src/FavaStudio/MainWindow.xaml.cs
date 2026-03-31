@@ -10,5 +10,12 @@ public partial class MainWindow : Window
         InitializeComponent();
         var vm = new MainViewModel(Editor);
         DataContext = vm;
+
+        // Auto-scroll the console TextBox whenever ConsoleOutput changes
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.ConsoleOutput))
+                ConsoleBox.ScrollToEnd();
+        };
     }
 }

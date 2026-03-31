@@ -49,6 +49,10 @@ public class MainViewModel : INotifyPropertyChanged
 
     public string FooterText => "Fava Studio • built for your Fava compiler";
 
+    public string CurrentFileName => string.IsNullOrWhiteSpace(_currentFile)
+        ? "No file open"
+        : Path.GetFileName(_currentFile);
+
     public bool ShowTestOutput
     {
         get => Settings.ShowTestOutput;
@@ -63,6 +67,11 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand RunSelectedTestsCommand { get; }
     public RelayCommand SaveSettingsCommand { get; }
     public RelayCommand OpenSettingsCommand { get; }
+    public RelayCommand BrowseJavaPathCommand { get; }
+    public RelayCommand BrowseCompilerRootCommand { get; }
+    public RelayCommand BrowseAntlrJarCommand { get; }
+    public RelayCommand BrowseInputsDirCommand { get; }
+    public RelayCommand BrowseOutputsDirCommand { get; }
 
     public string? SelectedFile
     {
@@ -75,6 +84,7 @@ public class MainViewModel : INotifyPropertyChanged
                 _editor.Text = FileService.ReadText(_currentFile);
             }
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CurrentFileName));
         }
     }
 
@@ -102,6 +112,11 @@ public class MainViewModel : INotifyPropertyChanged
         RunSelectedTestsCommand = new RelayCommand(_ => RunSelectedTest(), _ => SelectedTestResult != null);
         SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
         OpenSettingsCommand = new RelayCommand(_ => StatusText = "Settings tab ready.");
+        BrowseJavaPathCommand = new RelayCommand(_ => BrowseJavaPath());
+        BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => Settings.CompilerRoot = v, "Compiler Root Folder"));
+        BrowseAntlrJarCommand = new RelayCommand(_ => BrowseAntlrJar());
+        BrowseInputsDirCommand = new RelayCommand(_ => BrowseFolder(v => Settings.InputsDir = v, "Test Inputs Folder"));
+        BrowseOutputsDirCommand = new RelayCommand(_ => BrowseFolder(v => Settings.OutputsDir = v, "Test Outputs Folder"));
 
         if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
         {
@@ -271,6 +286,44 @@ public class MainViewModel : INotifyPropertyChanged
         SelectedTestResult = result;
         TestSummary = result.Passed ? $"✅ '{name}' passed" : $"❌ '{name}' failed";
         StatusColor = result.Passed ? Brushes.LightGreen : Brushes.IndianRed;
+    }
+
+    private void BrowseJavaPath()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select Java Executable",
+            Filter = "Java Executable (java.exe)|java.exe|All Files|*.*"
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            Settings.JavaPath = dialog.FileName;
+            OnPropertyChanged(nameof(Settings));
+        }
+    }
+
+    private void BrowseAntlrJar()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select ANTLR Jar",
+            Filter = "JAR Files|*.jar|All Files|*.*"
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            Settings.AntlrJar = dialog.FileName;
+            OnPropertyChanged(nameof(Settings));
+        }
+    }
+
+    private void BrowseFolder(Action<string> setter, string title)
+    {
+        var dialog = new OpenFolderDialog { Title = $"Select {title}" };
+        if (dialog.ShowDialog() == true)
+        {
+            setter(dialog.FolderName);
+            OnPropertyChanged(nameof(Settings));
+        }
     }
 
     private void SaveSettings()
