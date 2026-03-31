@@ -27,8 +27,13 @@
                 Padding="8,4">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <TextBlock Text="◈" FontSize="18" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="4,0,8,0"/>
-                    <TextBlock Text="Fava Studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                    <TextBlock Text="Fava Studio"
+                               FontWeight="Bold"
+                               FontSize="22"
+                               FontFamily="Segoe UI Semibold"
+                               Foreground="#FF9A3D"
+                               VerticalAlignment="Center"
+                               Margin="4,0,18,0"/>
                 </StackPanel>
 
                 <Menu Background="Transparent" DockPanel.Dock="Left" FontSize="14">
@@ -106,22 +111,24 @@
                             </TreeView.Resources>
                             <TreeView.ItemContainerStyle>
                                 <Style TargetType="TreeViewItem">
+                                    <Setter Property="Tag"
+                                            Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                     <Setter Property="ContextMenu">
                                         <Setter.Value>
-                                            <ContextMenu>
+                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
                                                 <MenuItem Header="Add">
                                                     <MenuItem Header="New Folder"
-                                                              Command="{Binding PlacementTarget.DataContext.NewDirectoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                              Command="{Binding NewDirectoryCommand}"
                                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                     <MenuItem Header="New Fava File"
-                                                              Command="{Binding PlacementTarget.DataContext.NewFavaFileCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                              Command="{Binding NewFavaFileCommand}"
                                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                     <MenuItem Header="New Text File"
-                                                              Command="{Binding PlacementTarget.DataContext.NewTextFileCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                              Command="{Binding NewTextFileCommand}"
                                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                 </MenuItem>
                                                 <MenuItem Header="Delete"
-                                                          Command="{Binding PlacementTarget.DataContext.DeleteNodeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Command="{Binding DeleteNodeCommand}"
                                                           CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                             </ContextMenu>
                                         </Setter.Value>
