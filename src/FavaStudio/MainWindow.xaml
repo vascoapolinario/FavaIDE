@@ -2,12 +2,14 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
-        xmlns:converters="clr-namespace:FavaStudio.Converters"
-        Title="Fava Studio" Height="900" Width="1400"
+        xmlns:local="clr-namespace:FavaStudio.Models"
+        Title="Fava Studio"
+        Height="920"
+        Width="1500"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
-        <converters:FileNameConverter x:Key="FileNameConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
 
     <Grid>
@@ -17,388 +19,383 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- Toolbar                                                        -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <Border Grid.Row="0"
                 Background="{StaticResource BgPanelBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="8,6">
-            <DockPanel LastChildFill="False">
-
-                <!-- App title -->
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
-                            VerticalAlignment="Center" Margin="0,0,14,0">
-                    <TextBlock Text="◈" FontSize="18" Foreground="{StaticResource AccentBrush}"
-                               VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock Text="Fava Studio" FontSize="15" FontWeight="Bold"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
-
-                <Rectangle DockPanel.Dock="Left" Width="1"
-                           Fill="{StaticResource BorderBrush}" Margin="2,4"/>
-
-                <!-- File operations -->
+                Padding="8,4">
+            <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <Button Content="Open Project" Command="{Binding OpenProjectCommand}"
-                            ToolTip="Open a folder containing .fava source files"/>
-                    <Button Content="New File"     Command="{Binding NewFileCommand}"
-                            ToolTip="Create a new .fava source file"/>
-                    <Button Content="Save"         Command="{Binding SaveFileCommand}"
-                            ToolTip="Save the currently open file"/>
+                    <TextBlock Text="◈" FontSize="16" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="4,0,8,0"/>
+                    <TextBlock Text="Fava Studio" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,18,0"/>
                 </StackPanel>
 
-                <Rectangle DockPanel.Dock="Left" Width="1"
-                           Fill="{StaticResource BorderBrush}" Margin="6,4"/>
-
-                <!-- Run operations -->
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <Button Content="▶  Run"
-                            Command="{Binding RunCurrentCommand}"
-                            Style="{StaticResource AccentButton}"
-                            ToolTip="Compile and run the currently open file"/>
-                </StackPanel>
-
+                <Menu Background="Transparent" DockPanel.Dock="Left">
+                    <MenuItem Header="Project">
+                        <MenuItem Header="Create New Project" Command="{Binding CreateProjectCommand}"/>
+                        <MenuItem Header="Open Project" Command="{Binding OpenProjectCommand}"/>
+                    </MenuItem>
+                    <MenuItem Header="Settings">
+                        <MenuItem Header="Open Settings" Command="{Binding OpenSettingsCommand}"/>
+                        <MenuItem Header="Back to Editor" Command="{Binding BackToEditorCommand}"/>
+                    </MenuItem>
+                    <MenuItem Header="Tools">
+                        <MenuItem Header="Open Test Tool" Command="{Binding OpenToolsCommand}"/>
+                        <MenuItem Header="Add Input (.fava)" Command="{Binding AddToolInputFileCommand}"/>
+                        <MenuItem Header="Add Expected Output (.txt)" Command="{Binding AddToolExpectedOutputCommand}"/>
+                        <MenuItem Header="Run Compare" Command="{Binding RunSelectedToolPairsCommand}"/>
+                        <MenuItem Header="Clear Tool Pairs" Command="{Binding ClearToolPairsCommand}"/>
+                    </MenuItem>
+                    <MenuItem Header="Run">
+                        <MenuItem Header="Run Current File" Command="{Binding RunCurrentCommand}"/>
+                        <MenuItem Header="Save Current File" Command="{Binding SaveFileCommand}"/>
+                        <MenuItem Header="Toggle Errors Panel" Command="{Binding ToggleDiagnosticsCommand}"/>
+                    </MenuItem>
+                </Menu>
             </DockPanel>
         </Border>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- Main layout: sidebar + content                                 -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="240" MinWidth="140"/>
-                <ColumnDefinition Width="5"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+            <Grid Visibility="{Binding IsWorkspaceVisible, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="300" MinWidth="180"/>
+                    <ColumnDefinition Width="5"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- ─────────────────────────────────────────────────────── -->
-            <!-- Sidebar: Project Explorer                               -->
-            <!-- ─────────────────────────────────────────────────────── -->
-            <Border Grid.Column="0"
-                    Background="{StaticResource BgPanelBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,1,0">
-                <DockPanel>
-
-                    <!-- Sidebar header -->
-                    <Border DockPanel.Dock="Top"
-                            Padding="10,7,8,7"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,0,0,1"
-                            Background="{StaticResource BgPanelAltBrush}">
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right"
-                                    Content="+"
-                                    Style="{StaticResource SidebarButton}"
-                                    Command="{Binding NewFileCommand}"
-                                    ToolTip="New File"
-                                    Width="22" Height="22" Padding="0" FontSize="15"
-                                    VerticalContentAlignment="Center"/>
-                            <TextBlock Text="PROJECT"
-                                       FontSize="10" FontWeight="Bold"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       VerticalAlignment="Center"/>
-                        </DockPanel>
-                    </Border>
-
-                    <Border DockPanel.Dock="Top"
-                            Padding="10,6,8,6"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <TextBlock Text="{Binding CurrentProjectDirectory}"
-                                   FontFamily="Consolas"
-                                   FontSize="11"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   TextWrapping="Wrap"/>
-                    </Border>
-
-                    <!-- Open-project button anchored to bottom -->
-                    <Button DockPanel.Dock="Bottom"
-                            Content="Open Project Folder…"
-                            Command="{Binding OpenProjectCommand}"
-                            Margin="8,6"
-                            ToolTip="Select a folder — all .fava files inside will appear here"/>
-
-                    <!-- File list (filename only; tooltip shows full path) -->
-                    <ListBox ItemsSource="{Binding ProjectFiles}"
-                              SelectedItem="{Binding SelectedFile}"
-                              Background="Transparent"
-                              BorderThickness="0"
-                              Margin="4,4,4,0">
-                        <ListBox.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="Add">
-                                    <MenuItem Header="New Fava File"
-                                              Command="{Binding PlacementTarget.DataContext.NewFileCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                </MenuItem>
-                            </ContextMenu>
-                        </ListBox.ContextMenu>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="› " Foreground="{StaticResource TextMutedBrush}"
-                                               VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Converter={StaticResource FileNameConverter}}"
-                                               ToolTip="{Binding}"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-
-                </DockPanel>
-            </Border>
-
-            <!-- Column splitter -->
-            <GridSplitter Grid.Column="1" Width="5"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Stretch"
-                          ResizeDirection="Columns"
-                          Background="{StaticResource BorderBrush}"/>
-
-            <!-- ─────────────────────────────────────────────────────── -->
-            <!-- Content area: editor + diagnostics + output             -->
-            <!-- ─────────────────────────────────────────────────────── -->
-            <Grid Grid.Column="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="4*"/>
-                    <RowDefinition Height="5"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <Border Grid.Row="0"
-                        Background="{StaticResource BgPanelAltBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,0,0,1"
-                        Padding="10,5">
-                    <TextBlock Text="{Binding CurrentFileName}"
-                               Foreground="{StaticResource TextMutedBrush}"
-                               FontFamily="Consolas"
-                               FontSize="12"/>
-                </Border>
-
-                <Grid Grid.Row="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="4*"/>
-                        <ColumnDefinition Width="5"/>
-                        <ColumnDefinition Width="280" MinWidth="180"/>
-                    </Grid.ColumnDefinitions>
-
-                    <avalonedit:TextEditor Grid.Column="0"
-                                           x:Name="Editor"
-                                           FontFamily="Consolas"
-                                           FontSize="14"
-                                           ShowLineNumbers="True"
-                                           Background="{StaticResource BgMainBrush}"
-                                           Foreground="{StaticResource TextMainBrush}"/>
-
-                    <GridSplitter Grid.Column="1" Width="5"
-                                  HorizontalAlignment="Stretch"
-                                  VerticalAlignment="Stretch"
-                                  ResizeDirection="Columns"
-                                  Background="{StaticResource BorderBrush}"/>
-
-                    <Border Grid.Column="2"
-                            Background="{StaticResource BgPanelBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1,0,0,0">
-                        <DockPanel>
-                            <Border DockPanel.Dock="Top"
-                                    Padding="10,6"
-                                    Background="{StaticResource BgPanelAltBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="0,0,0,1">
-                                <TextBlock Text="{Binding DiagnosticsHeader}"
-                                           FontSize="11"
-                                           FontWeight="Bold"
-                                           Foreground="{StaticResource TextMutedBrush}"/>
-                            </Border>
-                            <ListBox ItemsSource="{Binding Diagnostics}"
-                                     Background="Transparent"
-                                     BorderThickness="0"
-                                     FontFamily="Consolas"
-                                     FontSize="12"
-                                     Margin="4,2">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock>
-                                            <Run Text="⚠ "  Foreground="Orange"/>
-                                            <Run Text="{Binding Severity}"  Foreground="Orange"/>
-                                            <Run Text="  "/>
-                                            <Run Text="{Binding Line}"   Foreground="{StaticResource TextMainBrush}"/>
-                                            <Run Text=":"/>
-                                            <Run Text="{Binding Column}" Foreground="{StaticResource TextMainBrush}"/>
-                                            <Run Text="  "/>
-                                            <Run Text="{Binding Message}" Foreground="{StaticResource TextMainBrush}"/>
-                                        </TextBlock>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </DockPanel>
-                    </Border>
-                </Grid>
-
-                <GridSplitter Grid.Row="2" Height="5"
-                              HorizontalAlignment="Stretch"
-                              ResizeDirection="Rows"
-                              Background="{StaticResource BorderBrush}"/>
-
-                <Border Grid.Row="3"
+                <Border Grid.Column="0"
                         Background="{StaticResource BgPanelBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,1,0,0">
+                        BorderThickness="0,0,1,0">
                     <DockPanel>
                         <Border DockPanel.Dock="Top"
-                                Padding="10,6"
-                                Background="{StaticResource BgPanelAltBrush}"
+                                Padding="10,7"
                                 BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <TextBlock Text="OUTPUT"
-                                       FontSize="11"
+                                BorderThickness="0,0,0,1"
+                                Background="{StaticResource BgPanelAltBrush}">
+                            <TextBlock Text="PROJECT"
+                                       FontSize="10"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource TextMutedBrush}"/>
                         </Border>
-                        <TextBox x:Name="ConsoleBox"
-                                 Text="{Binding ConsoleOutput, Mode=OneWay}"
-                                 IsReadOnly="True"
-                                 TextWrapping="Wrap"
-                                 FontFamily="Consolas"
-                                 FontSize="12"
-                                 Background="{StaticResource BgMainBrush}"
-                                 Foreground="{StaticResource TextMainBrush}"
-                                 BorderThickness="0"
-                                 Padding="10"
-                                 VerticalScrollBarVisibility="Auto"/>
+
+                        <Border DockPanel.Dock="Top"
+                                Padding="10,6"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="0,0,0,1">
+                            <TextBlock Text="{Binding CurrentProjectDirectory}"
+                                       FontFamily="Consolas"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+
+                        <TreeView ItemsSource="{Binding ProjectTree}"
+                                  SelectedItemChanged="ProjectTree_OnSelectedItemChanged"
+                                  Margin="4,4,4,0"
+                                  Background="Transparent"
+                                  BorderThickness="0">
+                            <TreeView.Resources>
+                                <HierarchicalDataTemplate DataType="{x:Type local:ProjectNode}" ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock>
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="📄 "/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                                            <Setter Property="Text" Value="📁 "/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Name}"/>
+                                    </StackPanel>
+                                </HierarchicalDataTemplate>
+                            </TreeView.Resources>
+                            <TreeView.ItemContainerStyle>
+                                <Style TargetType="TreeViewItem">
+                                    <Setter Property="ContextMenu">
+                                        <Setter.Value>
+                                            <ContextMenu>
+                                                <MenuItem Header="Add">
+                                                    <MenuItem Header="New Fava File"
+                                                              Click="NewFavaFileFromTree_OnClick"/>
+                                                    <MenuItem Header="New Text File"
+                                                              Click="NewTextFileFromTree_OnClick"/>
+                                                </MenuItem>
+                                                <MenuItem Header="Delete"
+                                                          Click="DeleteTreeNode_OnClick"/>
+                                            </ContextMenu>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </TreeView.ItemContainerStyle>
+                        </TreeView>
                     </DockPanel>
                 </Border>
 
-                <!-- Settings -->
-                <Expander Grid.Row="4"
-                          Header="⚙ Settings"
-                          Margin="0,0,0,0"
-                          Background="{StaticResource BgPanelBrush}"
-                          BorderBrush="{StaticResource BorderBrush}"
-                          BorderThickness="0,1,0,0">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" MaxHeight="340">
-                        <StackPanel MaxWidth="620">
+                <GridSplitter Grid.Column="1"
+                              Width="5"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              ResizeDirection="Columns"
+                              Background="{StaticResource BorderBrush}"/>
 
-                            <!-- Page header -->
-                            <TextBlock Text="Settings" FontSize="20" FontWeight="Bold"
-                                       Margin="0,0,0,4"/>
-                            <TextBlock Text="Configure paths and preferences. Use the Browse buttons to pick files and folders from your file system."
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,0,0,24"/>
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="4*"/>
+                        <RowDefinition Height="5"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                            <!-- ── JAVA section ── -->
-                            <TextBlock Text="JAVA" FontSize="10" FontWeight="Bold"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       Margin="0,0,0,6"/>
-                            <Border BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="6"
-                                    Padding="14,12" Margin="0,0,0,22"
-                                    Background="{StaticResource BgPanelBrush}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="6"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0"
+                            Background="{StaticResource BgPanelAltBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="10,5">
+                        <TextBlock Text="{Binding CurrentFileName}"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontFamily="Consolas"
+                                   FontSize="12"/>
+                    </Border>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                               Text="Java Executable"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,10,0"/>
-                                    <TextBox Grid.Row="0" Grid.Column="1"
-                                             Text="{Binding Settings.JavaPath}"
-                                             ToolTip="Path to java.exe, or 'java' if Java is already on your PATH"/>
-                                    <Button Grid.Row="0" Grid.Column="2"
-                                            Content="Browse…"
-                                            Command="{Binding BrowseJavaPathCommand}"
-                                            ToolTip="Open file browser to locate java.exe"
-                                            Margin="6,0,0,0"/>
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4*"/>
+                            <ColumnDefinition Width="5"/>
+                            <ColumnDefinition Width="300" MinWidth="180"/>
+                        </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
-                                               Text="Tip: use 'java' here if java.exe is already in your system PATH."
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               FontSize="11" TextWrapping="Wrap"/>
-                                </Grid>
-                            </Border>
+                        <avalonedit:TextEditor Grid.Column="0"
+                                               x:Name="Editor"
+                                               FontFamily="Consolas"
+                                               FontSize="14"
+                                               ShowLineNumbers="True"
+                                               Background="{StaticResource BgMainBrush}"
+                                               Foreground="{StaticResource TextMainBrush}"/>
 
-                            <!-- ── COMPILER section ── -->
-                            <TextBlock Text="COMPILER" FontSize="10" FontWeight="Bold"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       Margin="0,0,0,6"/>
-                            <Border BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="6"
-                                    Padding="14,12" Margin="0,0,0,22"
-                                    Background="{StaticResource BgPanelBrush}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="10"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
+                        <GridSplitter Grid.Column="1"
+                                      Width="5"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
+                                      ResizeDirection="Columns"
+                                      Background="{StaticResource BorderBrush}"/>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                               Text="Compiler Root"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,10,0"/>
-                                    <TextBox Grid.Row="0" Grid.Column="1"
-                                             Text="{Binding Settings.CompilerRoot}"
-                                             ToolTip="Root folder of your FavaCompiler repository"/>
-                                    <Button Grid.Row="0" Grid.Column="2"
-                                            Content="Browse…"
-                                            Command="{Binding BrowseCompilerRootCommand}"
-                                            ToolTip="Open folder browser to locate the FavaCompiler folder"
-                                            Margin="6,0,0,0"/>
+                        <Border Grid.Column="2"
+                                Background="{StaticResource BgPanelBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1,0,0,0"
+                                Visibility="{Binding ShowDiagnostics, Converter={StaticResource BoolToVisibility}}">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top"
+                                        Padding="10,6"
+                                        Background="{StaticResource BgPanelAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,0,0,1">
+                                    <TextBlock Text="{Binding DiagnosticsHeader}"
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                </Border>
+                                <ListBox ItemsSource="{Binding Diagnostics}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         FontFamily="Consolas"
+                                         FontSize="12"
+                                         Margin="4,2">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock>
+                                                <Run Text="⚠ " Foreground="Orange"/>
+                                                <Run Text="{Binding Severity}" Foreground="Orange"/>
+                                                <Run Text="  "/>
+                                                <Run Text="{Binding Line}" Foreground="{StaticResource TextMainBrush}"/>
+                                                <Run Text=":"/>
+                                                <Run Text="{Binding Column}" Foreground="{StaticResource TextMainBrush}"/>
+                                                <Run Text="  "/>
+                                                <Run Text="{Binding Message}" Foreground="{StaticResource TextMainBrush}"/>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0"
-                                               Text="ANTLR Jar"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,10,0"/>
-                                    <TextBox Grid.Row="2" Grid.Column="1"
-                                             Text="{Binding Settings.AntlrJar}"
-                                             ToolTip="Full path to antlr-4.x-complete.jar"/>
-                                    <Button Grid.Row="2" Grid.Column="2"
-                                            Content="Browse…"
-                                            Command="{Binding BrowseAntlrJarCommand}"
-                                            ToolTip="Open file browser to locate the ANTLR .jar file"
-                                            Margin="6,0,0,0"/>
-                                </Grid>
-                            </Border>
+                    <GridSplitter Grid.Row="2"
+                                  Height="5"
+                                  HorizontalAlignment="Stretch"
+                                  ResizeDirection="Rows"
+                                  Background="{StaticResource BorderBrush}"/>
 
-                            <!-- Save -->
-                            <Button Content="  Save Settings  "
-                                    Command="{Binding SaveSettingsCommand}"
-                                    Style="{StaticResource AccentButton}"
-                                    HorizontalAlignment="Left"
-                                    Padding="18,9"
-                                    ToolTip="Persist all settings to disk"/>
+                    <Border Grid.Row="3"
+                            Background="{StaticResource BgPanelBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,1,0,0">
+                        <TabControl>
+                            <TabItem Header="VM Output">
+                                <TextBox x:Name="VmOutputBox"
+                                         Text="{Binding VmOutput, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         TextWrapping="Wrap"
+                                         FontFamily="Consolas"
+                                         FontSize="12"
+                                         Background="{StaticResource BgMainBrush}"
+                                         Foreground="{StaticResource TextMainBrush}"
+                                         BorderThickness="0"
+                                         Padding="10"
+                                         VerticalScrollBarVisibility="Auto"/>
+                            </TabItem>
+                            <TabItem Header="Constant Pool">
+                                <TextBox Text="{Binding ConstantPoolOutput, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         TextWrapping="Wrap"
+                                         FontFamily="Consolas"
+                                         FontSize="12"
+                                         Background="{StaticResource BgMainBrush}"
+                                         Foreground="{StaticResource TextMainBrush}"
+                                         BorderThickness="0"
+                                         Padding="10"
+                                         VerticalScrollBarVisibility="Auto"/>
+                            </TabItem>
+                            <TabItem Header="Instructions">
+                                <TextBox Text="{Binding InstructionsOutput, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         TextWrapping="Wrap"
+                                         FontFamily="Consolas"
+                                         FontSize="12"
+                                         Background="{StaticResource BgMainBrush}"
+                                         Foreground="{StaticResource TextMainBrush}"
+                                         BorderThickness="0"
+                                         Padding="10"
+                                         VerticalScrollBarVisibility="Auto"/>
+                            </TabItem>
+                        </TabControl>
+                    </Border>
+                </Grid>
+            </Grid>
 
-                        </StackPanel>
-                    </ScrollViewer>
-                </Expander>
+            <Grid Visibility="{Binding IsSettingsViewVisible, Converter={StaticResource BoolToVisibility}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20">
+                    <StackPanel MaxWidth="860">
+                        <DockPanel Margin="0,0,0,18">
+                            <TextBlock DockPanel.Dock="Left" Text="Settings" FontSize="24" FontWeight="Bold"/>
+                            <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" />
+                        </DockPanel>
+
+                        <TextBlock Text="APPEARANCE"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Margin="0,0,0,8"/>
+                        <Border BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,20"
+                                Background="{StaticResource BgPanelBrush}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Terminal Output Mode" VerticalAlignment="Center"/>
+                                <CheckBox Grid.Column="1"
+                                          Content="VM output only (exclude constant pool/instructions from main output)"
+                                          IsChecked="{Binding ShowOutputOnly}" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="COMPILER"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Margin="0,0,0,8"/>
+                        <Border BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,20"
+                                Background="{StaticResource BgPanelBrush}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="10"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="10"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Java Executable" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Settings.JavaPath}"/>
+                                <Button Grid.Row="0" Grid.Column="2" Content="Browse…" Command="{Binding BrowseJavaPathCommand}" Margin="6,0,0,0"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Compiler Root" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Settings.CompilerRoot}"/>
+                                <Button Grid.Row="2" Grid.Column="2" Content="Browse…" Command="{Binding BrowseCompilerRootCommand}" Margin="6,0,0,0"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="ANTLR Jar" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Settings.AntlrJar}"/>
+                                <Button Grid.Row="4" Grid.Column="2" Content="Browse…" Command="{Binding BrowseAntlrJarCommand}" Margin="6,0,0,0"/>
+                            </Grid>
+                        </Border>
+
+                        <Button Content="Save Settings"
+                                Command="{Binding SaveSettingsCommand}"
+                                Style="{StaticResource AccentButton}"
+                                HorizontalAlignment="Left"
+                                Padding="18,9"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <Grid Visibility="{Binding IsToolsViewVisible, Converter={StaticResource BoolToVisibility}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20">
+                    <StackPanel MaxWidth="900">
+                        <DockPanel Margin="0,0,0,18">
+                            <TextBlock DockPanel.Dock="Left" Text="Tools • Test Compare" FontSize="24" FontWeight="Bold"/>
+                            <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" />
+                        </DockPanel>
+
+                        <Border BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16"
+                                Background="{StaticResource BgPanelBrush}">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Add Input (.fava)" Command="{Binding AddToolInputFileCommand}"/>
+                                <Button Content="Add Expected Output (.txt)" Command="{Binding AddToolExpectedOutputCommand}"/>
+                                <Button Content="Run Compare" Command="{Binding RunSelectedToolPairsCommand}" Style="{StaticResource AccentButton}"/>
+                                <Button Content="Clear" Command="{Binding ClearToolPairsCommand}"/>
+                                <CheckBox Content="Compare VM + constant pool + instructions"
+                                          IsChecked="{Binding ToolCompareFullOutput}"
+                                          Margin="14,0,0,0"
+                                          VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <DataGrid ItemsSource="{Binding ToolTestPairs}"
+                                  AutoGenerateColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Input (.fava)" Binding="{Binding InputFile}" Width="*"/>
+                                <DataGridTextColumn Header="Expected (.txt)" Binding="{Binding ExpectedOutputFile}" Width="*"/>
+                                <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="130"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Grid>
 
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- Status bar                                                     -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <Border Grid.Row="2"
                 Background="{StaticResource BgPanelBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -417,6 +414,5 @@
                            VerticalAlignment="Center"/>
             </DockPanel>
         </Border>
-
     </Grid>
 </Window>

@@ -148,6 +148,13 @@
         <Setter Property="Padding" Value="8,4"/>
     </Style>
 
+    <Style TargetType="ContextMenu">
+        <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
     <Style TargetType="ToolBar">
         <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
     </Style>
@@ -213,6 +220,22 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style TargetType="TreeView">
+        <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style TargetType="TreeViewItem">
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource HoverBrush}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="DataGrid">
