@@ -27,11 +27,11 @@
                 Padding="8,4">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <TextBlock Text="◈" FontSize="16" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="4,0,8,0"/>
-                    <TextBlock Text="Fava Studio" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                    <TextBlock Text="◈" FontSize="18" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="4,0,8,0"/>
+                    <TextBlock Text="Fava Studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" Margin="0,0,18,0"/>
                 </StackPanel>
 
-                <Menu Background="Transparent" DockPanel.Dock="Left">
+                <Menu Background="Transparent" DockPanel.Dock="Left" FontSize="14">
                     <MenuItem Header="Project">
                         <MenuItem Header="Create New Project" Command="{Binding CreateProjectCommand}"/>
                         <MenuItem Header="Open Project" Command="{Binding OpenProjectCommand}"/>
@@ -111,17 +111,17 @@
                                             <ContextMenu>
                                                 <MenuItem Header="Add">
                                                     <MenuItem Header="New Folder"
-                                                              Command="{Binding DataContext.NewDirectoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              Command="{Binding PlacementTarget.DataContext.NewDirectoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                     <MenuItem Header="New Fava File"
-                                                              Command="{Binding DataContext.NewFavaFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              Command="{Binding PlacementTarget.DataContext.NewFavaFileCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                     <MenuItem Header="New Text File"
-                                                              Command="{Binding DataContext.NewTextFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              Command="{Binding PlacementTarget.DataContext.NewTextFileCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                 </MenuItem>
                                                 <MenuItem Header="Delete"
-                                                          Command="{Binding DataContext.DeleteNodeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          Command="{Binding PlacementTarget.DataContext.DeleteNodeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                           CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                             </ContextMenu>
                                         </Setter.Value>

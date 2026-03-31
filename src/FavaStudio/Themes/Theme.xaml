@@ -33,6 +33,10 @@
     <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#2B2D30"/>
     <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#3C3F41"/>
     <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#E6EAF0"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#2B2D30"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#E6EAF0"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.InfoBrushKey}" Color="#2B2D30"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.InfoTextBrushKey}" Color="#E6EAF0"/>
     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3E4249"/>
     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#E6EAF0"/>
 
@@ -151,12 +155,14 @@
     <Style TargetType="Menu">
         <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="FontSize" Value="14"/>
     </Style>
 
     <Style TargetType="MenuItem">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
-        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="FontSize" Value="14"/>
         <Style.Triggers>
             <Trigger Property="IsHighlighted" Value="True">
                 <Setter Property="Background" Value="{StaticResource HoverBrush}"/>
@@ -169,6 +175,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="14"/>
     </Style>
 
     <Style TargetType="ToolBar">
