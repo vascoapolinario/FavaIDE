@@ -183,10 +183,21 @@ public class MainViewModel : INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(baseFolder) || !Directory.Exists(baseFolder)) return;
 
         var projectRoot = Path.Combine(baseFolder, "FavaProject");
-        var suffix = 1;
-        while (Directory.Exists(projectRoot))
+        if (Directory.Exists(projectRoot))
         {
-            projectRoot = Path.Combine(baseFolder, $"FavaProject{suffix++}");
+            var maxSuffix = Directory.GetDirectories(baseFolder, "FavaProject*")
+                .Select(Path.GetFileName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name =>
+                {
+                    if (name == "FavaProject") return 0;
+                    var suffixText = name!["FavaProject".Length..];
+                    return int.TryParse(suffixText, out var parsed) ? parsed : 0;
+                })
+                .DefaultIfEmpty(0)
+                .Max();
+
+            projectRoot = Path.Combine(baseFolder, $"FavaProject{maxSuffix + 1}");
         }
 
         Directory.CreateDirectory(projectRoot);
@@ -218,9 +229,10 @@ public class MainViewModel : INotifyPropertyChanged
     private ProjectNode BuildNode(string path)
     {
         var isDirectory = Directory.Exists(path);
+        var name = Path.GetFileName(path);
         var node = new ProjectNode
         {
-            Name = isDirectory ? Path.GetFileName(path) : Path.GetFileName(path),
+            Name = string.IsNullOrWhiteSpace(name) ? path : name,
             FullPath = path,
             IsDirectory = isDirectory
         };
@@ -241,7 +253,9 @@ public class MainViewModel : INotifyPropertyChanged
         var basePath = Settings.ProjectRoot;
         var targetNode = node ?? SelectedProjectNode;
         if (targetNode is not null)
-            basePath = targetNode.IsDirectory ? targetNode.FullPath : Path.GetDirectoryName(targetNode.FullPath);
+            basePath = targetNode.IsDirectory
+                ? targetNode.FullPath
+                : Path.GetDirectoryName(targetNode.FullPath) ?? Settings.ProjectRoot;
 
         if (string.IsNullOrWhiteSpace(basePath) || !Directory.Exists(basePath))
             return;
@@ -249,7 +263,9 @@ public class MainViewModel : INotifyPropertyChanged
         var dialog = new SaveFileDialog
         {
             InitialDirectory = basePath,
-            Filter = extension == ".fava" ? "Fava file (*.fava)|*.fava|Text file (*.txt)|*.txt|All files (*.*)|*.*" : "Text file (*.txt)|*.txt|All files (*.*)|*.*",
+            Filter = extension == ".fava"
+                ? "Fava file (*.fava)|*.fava"
+                : "Text file (*.txt)|*.txt",
             DefaultExt = extension
         };
 
@@ -392,8 +408,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         if (ShowOutputOnly)
         {
-            var merged = fullOutput.Replace(ConstantPoolOutput, "").Replace(InstructionsOutput, "");
-            VmOutput = merged.Trim();
+            VmOutput = ExtractVmOnlyOutput(fullOutput);
         }
         else
         {
@@ -427,7 +442,7 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() != true) return;
 
-        var pair = ToolTestPairs.LastOrDefault(p => string.IsNullOrWhiteSpace(p.ExpectedOutputFile));
+        var pair = ToolTestPairs.FirstOrDefault(p => string.IsNullOrWhiteSpace(p.ExpectedOutputFile));
         if (pair is null)
         {
             ToolTestPairs.Add(new TestFilePair
@@ -579,13 +594,46 @@ public class MainViewModel : INotifyPropertyChanged
 
     private string ExtractVmOnlyOutput(string fullOutput)
     {
-        var constant = SliceSection(fullOutput,
-            ["Constant Pool", "**Constant Pool**", "CONSTANT POOL"],
-            ["Instructions", "**Instructions**", "INSTRUCTIONS", "VM Output", "VM OUTPUT"]);
-        var instructions = SliceSection(fullOutput,
-            ["Instructions", "**Instructions**", "INSTRUCTIONS"],
-            ["VM Output", "VM OUTPUT"]);
-        return fullOutput.Replace(constant, "").Replace(instructions, "").Trim();
+        var lines = fullOutput.Replace("\r\n", "\n").Split('\n');
+        var vmLines = new List<string>();
+        var skippingConstant = false;
+        var skippingInstructions = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+
+            if (trimmed.Equals("Constant Pool", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("**Constant Pool**", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("CONSTANT POOL", StringComparison.OrdinalIgnoreCase))
+            {
+                skippingConstant = true;
+                skippingInstructions = false;
+                continue;
+            }
+
+            if (trimmed.Equals("Instructions", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("**Instructions**", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("INSTRUCTIONS", StringComparison.OrdinalIgnoreCase))
+            {
+                skippingInstructions = true;
+                skippingConstant = false;
+                continue;
+            }
+
+            if (trimmed.Equals("VM Output", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("VM OUTPUT", StringComparison.OrdinalIgnoreCase))
+            {
+                skippingConstant = false;
+                skippingInstructions = false;
+                continue;
+            }
+
+            if (!skippingConstant && !skippingInstructions)
+                vmLines.Add(line);
+        }
+
+        return string.Join("\n", vmLines).Trim();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

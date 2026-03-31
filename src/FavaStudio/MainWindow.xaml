@@ -101,10 +101,10 @@
                                         <TextBlock>
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="📄 "/>
+                                                    <Setter Property="Text" Value="• "/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsDirectory}" Value="True">
-                                                            <Setter Property="Text" Value="📁 "/>
+                                                            <Setter Property="Text" Value="▸ "/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>

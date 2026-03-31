@@ -35,32 +35,22 @@ public partial class MainWindow : Window
     }
 
     private void NewFavaFileFromTree_OnClick(object sender, RoutedEventArgs e)
-    {
-        var node = GetContextNode(sender);
-        if (DataContext is MainViewModel vm && node is not null)
-        {
-            vm.SetSelectedProjectNode(node);
-            vm.CreateNewFavaAtSelectedNode();
-        }
-    }
+        => ExecuteNodeAction(sender, vm => vm.CreateNewFavaAtSelectedNode());
 
     private void NewTextFileFromTree_OnClick(object sender, RoutedEventArgs e)
-    {
-        var node = GetContextNode(sender);
-        if (DataContext is MainViewModel vm && node is not null)
-        {
-            vm.SetSelectedProjectNode(node);
-            vm.CreateNewTextAtSelectedNode();
-        }
-    }
+        => ExecuteNodeAction(sender, vm => vm.CreateNewTextAtSelectedNode());
 
     private void DeleteTreeNode_OnClick(object sender, RoutedEventArgs e)
     {
+        ExecuteNodeAction(sender, vm => vm.DeleteSelectedNode());
+    }
+
+    private void ExecuteNodeAction(object sender, Action<MainViewModel> action)
+    {
         var node = GetContextNode(sender);
-        if (DataContext is MainViewModel vm && node is not null)
-        {
-            vm.SetSelectedProjectNode(node);
-            vm.DeleteSelectedNode();
-        }
+        if (DataContext is not MainViewModel vm || node is null) return;
+
+        vm.SetSelectedProjectNode(node);
+        action(vm);
     }
 }
