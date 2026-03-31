@@ -1,0 +1,135 @@
+<Window x:Class="FavaStudio.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Fava Studio" Height="900" Width="1350">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Bar -->
+        <DockPanel Grid.Row="0" LastChildFill="False">
+            <TextBlock Text="Fava Studio" FontSize="22" FontWeight="Bold" Margin="6,0,20,0"/>
+            <Button Content="Open Project" Command="{Binding OpenProjectCommand}"/>
+            <Button Content="New File" Command="{Binding NewFileCommand}"/>
+            <Button Content="Save" Command="{Binding SaveFileCommand}"/>
+            <Button Content="Run" Command="{Binding RunCurrentCommand}"/>
+            <Button Content="Run Tests" Command="{Binding RunAllTestsCommand}"/>
+            <Button Content="Settings" Command="{Binding OpenSettingsCommand}"/>
+        </DockPanel>
+
+        <!-- Main Split -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Project Explorer -->
+            <Border Background="{StaticResource BgPanelBrush}" CornerRadius="6" Padding="10" Margin="0,0,8,0">
+                <DockPanel>
+                    <TextBlock Text="Project Explorer" FontWeight="Bold" DockPanel.Dock="Top" Margin="0,0,0,8"/>
+                    <ListBox ItemsSource="{Binding ProjectFiles}" SelectedItem="{Binding SelectedFile}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Tabs -->
+            <TabControl Grid.Column="1">
+                <TabItem Header="Editor">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <avalonedit:TextEditor x:Name="Editor"
+                                               FontFamily="Consolas"
+                                               FontSize="14"
+                                               ShowLineNumbers="True"
+                                               Background="{StaticResource BgPanelBrush}"
+                                               Foreground="{StaticResource TextMainBrush}"/>
+
+                        <TextBlock Grid.Row="1"
+                                   Text="{Binding StatusText}"
+                                   Foreground="{Binding StatusColor}"
+                                   FontWeight="Bold"
+                                   Margin="5"/>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Tests">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Run All Tests" Command="{Binding RunAllTestsCommand}"/>
+                            <Button Content="Run Selected" Command="{Binding RunSelectedTestsCommand}"/>
+                            <CheckBox Content="Show Output" IsChecked="{Binding ShowTestOutput}" Margin="10,0,0,0"/>
+                        </StackPanel>
+
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding TestResults}" AutoGenerateColumns="False"
+                                  SelectedItem="{Binding SelectedTestResult}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Test" Binding="{Binding Name}" Width="200"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock Grid.Row="2"
+                                   Text="{Binding TestSummary}"
+                                   Foreground="{Binding StatusColor}"
+                                   FontWeight="Bold"
+                                   Margin="5"/>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Console">
+                    <TextBox Text="{Binding ConsoleOutput}" 
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"/>
+                </TabItem>
+
+                <TabItem Header="Settings">
+                    <StackPanel Margin="10">
+                        <TextBlock Text="Java Path (java.exe)"/>
+                        <TextBox Text="{Binding Settings.JavaPath}"/>
+
+                        <TextBlock Text="Compiler Root (FavaCompiler folder)" Margin="0,10,0,0"/>
+                        <TextBox Text="{Binding Settings.CompilerRoot}"/>
+
+                        <TextBlock Text="ANTLR Jar Path" Margin="0,10,0,0"/>
+                        <TextBox Text="{Binding Settings.AntlrJar}"/>
+
+                        <TextBlock Text="Inputs Folder" Margin="0,10,0,0"/>
+                        <TextBox Text="{Binding Settings.InputsDir}"/>
+
+                        <TextBlock Text="Outputs Folder" Margin="0,10,0,0"/>
+                        <TextBox Text="{Binding Settings.OutputsDir}"/>
+
+                        <Button Content="Save Settings" Command="{Binding SaveSettingsCommand}" Margin="0,12,0,0"/>
+                    </StackPanel>
+                </TabItem>
+            </TabControl>
+        </Grid>
+
+        <!-- Bottom status -->
+        <Border Grid.Row="2" Background="{StaticResource BgPanelBrush}" CornerRadius="6" Padding="8" Margin="0,8,0,0">
+            <TextBlock Text="{Binding FooterText}" Foreground="{StaticResource TextMutedBrush}"/>
+        </Border>
+    </Grid>
+</Window>
