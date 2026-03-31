@@ -1,92 +1,108 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using ICSharpCode.AvalonEdit;
-using Microsoft.Win32;
 using FavaStudio.Models;
 using FavaStudio.Services;
-using System.IO;
+using Microsoft.Win32;
 
 namespace FavaStudio.ViewModels;
 
 public class MainViewModel : INotifyPropertyChanged
 {
     private readonly TextEditor _editor;
-    private string? _currentFile;
     private bool _isLiveChecking;
     private readonly DispatcherTimer _liveCheckTimer;
+    private string? _currentFile;
+    private ProjectNode? _selectedProjectNode;
+    private Brush _statusColor = Brushes.LightGray;
+    private string _statusText = "Ready.";
+    private string _vmOutput = "";
+    private string _constantPoolOutput = "";
+    private string _instructionsOutput = "";
+    private bool _showDiagnostics = true;
+    private bool _isSettingsViewVisible;
+    private bool _isToolsViewVisible;
+    private bool _showOutputOnly = true;
+    private bool _toolCompareFullOutput;
+    private TestResult? _selectedTestResult;
+    private string _testSummary = "";
 
-    public ObservableCollection<string> ProjectFiles { get; } = new();
-    public ObservableCollection<TestResult> TestResults { get; } = new();
+    public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
+    public ObservableCollection<TestResult> TestResults { get; } = new();
+    public ObservableCollection<TestFilePair> ToolTestPairs { get; } = new();
 
     public SettingsService Settings { get; } = SettingsService.Load();
 
-    private string _consoleOutput = "";
-    public string ConsoleOutput { get => _consoleOutput; set { _consoleOutput = value; OnPropertyChanged(); } }
+    public string FooterText => "Fava Studio • built for your Fava compiler";
+    public string CurrentFileName => string.IsNullOrWhiteSpace(_currentFile) ? "No file open" : Path.GetFileName(_currentFile);
+    public string CurrentProjectDirectory => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Project directory: (not set)" : Settings.ProjectRoot;
+    public string DiagnosticsHeader => Diagnostics.Count == 0 ? "Errors" : $"Errors ({Diagnostics.Count})";
 
-    private string _statusText = "Ready.";
-    public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
-
-    public string DiagnosticsHeader => Diagnostics.Count == 0
-        ? "Errors"
-        : $"Errors ({Diagnostics.Count})";
-
-    private string _testSummary = "";
-    public string TestSummary { get => _testSummary; set { _testSummary = value; OnPropertyChanged(); } }
-
-    private Brush _statusColor = Brushes.LightGray;
     public Brush StatusColor { get => _statusColor; set { _statusColor = value; OnPropertyChanged(); } }
+    public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
+    public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); } }
+    public string ConstantPoolOutput { get => _constantPoolOutput; set { _constantPoolOutput = value; OnPropertyChanged(); } }
+    public string InstructionsOutput { get => _instructionsOutput; set { _instructionsOutput = value; OnPropertyChanged(); } }
+    public bool ShowDiagnostics { get => _showDiagnostics; set { _showDiagnostics = value; OnPropertyChanged(); } }
+    public bool IsSettingsViewVisible { get => _isSettingsViewVisible; set { _isSettingsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
+    public bool IsToolsViewVisible { get => _isToolsViewVisible; set { _isToolsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
+    public bool IsWorkspaceVisible => !IsSettingsViewVisible && !IsToolsViewVisible;
+    public bool ShowOutputOnly { get => _showOutputOnly; set { _showOutputOnly = value; OnPropertyChanged(); } }
+    public bool ToolCompareFullOutput { get => _toolCompareFullOutput; set { _toolCompareFullOutput = value; OnPropertyChanged(); } }
+    public string TestSummary { get => _testSummary; set { _testSummary = value; OnPropertyChanged(); } }
+    public bool ShowTestOutput { get => Settings.ShowTestOutput; set { Settings.ShowTestOutput = value; OnPropertyChanged(); } }
 
-    private TestResult? _selectedTestResult;
     public TestResult? SelectedTestResult
     {
         get => _selectedTestResult;
         set { _selectedTestResult = value; OnPropertyChanged(); }
     }
 
-    public string FooterText => "Fava Studio • built for your Fava compiler";
-
-    public string CurrentFileName => string.IsNullOrWhiteSpace(_currentFile)
-        ? "No file open"
-        : Path.GetFileName(_currentFile);
-
-    public bool ShowTestOutput
+    public ProjectNode? SelectedProjectNode
     {
-        get => Settings.ShowTestOutput;
-        set { Settings.ShowTestOutput = value; OnPropertyChanged(); }
+        get => _selectedProjectNode;
+        set
+        {
+            _selectedProjectNode = value;
+            OnPropertyChanged();
+            if (_selectedProjectNode is not null && !_selectedProjectNode.IsDirectory)
+            {
+                _currentFile = _selectedProjectNode.FullPath;
+                _editor.Text = FileService.ReadText(_currentFile);
+                OnPropertyChanged(nameof(CurrentFileName));
+            }
+        }
     }
 
     public RelayCommand OpenProjectCommand { get; }
-    public RelayCommand NewFileCommand { get; }
+    public RelayCommand CreateProjectCommand { get; }
+    public RelayCommand NewFavaFileCommand { get; }
+    public RelayCommand NewTextFileCommand { get; }
+    public RelayCommand NewDirectoryCommand { get; }
+    public RelayCommand DeleteNodeCommand { get; }
     public RelayCommand SaveFileCommand { get; }
     public RelayCommand RunCurrentCommand { get; }
-    public RelayCommand RunAllTestsCommand { get; }
-    public RelayCommand RunSelectedTestsCommand { get; }
-    public RelayCommand SaveSettingsCommand { get; }
+    public RelayCommand ToggleDiagnosticsCommand { get; }
     public RelayCommand OpenSettingsCommand { get; }
+    public RelayCommand BackToEditorCommand { get; }
     public RelayCommand BrowseJavaPathCommand { get; }
     public RelayCommand BrowseCompilerRootCommand { get; }
     public RelayCommand BrowseAntlrJarCommand { get; }
-    public RelayCommand BrowseInputsDirCommand { get; }
-    public RelayCommand BrowseOutputsDirCommand { get; }
-
-    public string? SelectedFile
-    {
-        get => _currentFile;
-        set
-        {
-            _currentFile = value;
-            if (!string.IsNullOrWhiteSpace(_currentFile))
-            {
-                _editor.Text = FileService.ReadText(_currentFile);
-            }
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(CurrentFileName));
-        }
-    }
+    public RelayCommand SaveSettingsCommand { get; }
+    public RelayCommand OpenToolsCommand { get; }
+    public RelayCommand AddToolInputFileCommand { get; }
+    public RelayCommand AddToolExpectedOutputCommand { get; }
+    public RelayCommand RunSelectedToolPairsCommand { get; }
+    public RelayCommand ClearToolPairsCommand { get; }
+    public RelayCommand RunAllTestsCommand { get; }
+    public RelayCommand RunSelectedTestsCommand { get; }
 
     public MainViewModel(TextEditor editor)
     {
@@ -105,57 +121,105 @@ public class MainViewModel : INotifyPropertyChanged
         };
 
         OpenProjectCommand = new RelayCommand(_ => OpenProject());
-        NewFileCommand = new RelayCommand(_ => NewFile());
+        CreateProjectCommand = new RelayCommand(_ => CreateProject());
+        NewFavaFileCommand = new RelayCommand(node => NewFile(".fava", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        NewTextFileCommand = new RelayCommand(node => NewFile(".txt", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        NewDirectoryCommand = new RelayCommand(node => NewDirectory(node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        DeleteNodeCommand = new RelayCommand(n => DeleteNode(n as ProjectNode), n => n is ProjectNode);
         SaveFileCommand = new RelayCommand(_ => SaveFile());
         RunCurrentCommand = new RelayCommand(_ => RunCurrentFile(), _ => !string.IsNullOrWhiteSpace(_currentFile));
-        RunAllTestsCommand = new RelayCommand(_ => RunAllTests());
-        RunSelectedTestsCommand = new RelayCommand(_ => RunSelectedTest(), _ => SelectedTestResult != null);
-        SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
-        OpenSettingsCommand = new RelayCommand(_ => StatusText = "Settings tab ready.");
+        ToggleDiagnosticsCommand = new RelayCommand(_ => ShowDiagnostics = !ShowDiagnostics);
+        OpenSettingsCommand = new RelayCommand(_ =>
+        {
+            IsToolsViewVisible = false;
+            IsSettingsViewVisible = true;
+        });
+        BackToEditorCommand = new RelayCommand(_ =>
+        {
+            IsSettingsViewVisible = false;
+            IsToolsViewVisible = false;
+        });
         BrowseJavaPathCommand = new RelayCommand(_ => BrowseJavaPath());
         BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => Settings.CompilerRoot = v, "Compiler Root Folder"));
         BrowseAntlrJarCommand = new RelayCommand(_ => BrowseAntlrJar());
-        BrowseInputsDirCommand = new RelayCommand(_ => BrowseFolder(v => Settings.InputsDir = v, "Test Inputs Folder"));
-        BrowseOutputsDirCommand = new RelayCommand(_ => BrowseFolder(v => Settings.OutputsDir = v, "Test Outputs Folder"));
+        SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
 
-        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+        OpenToolsCommand = new RelayCommand(_ =>
         {
+            IsSettingsViewVisible = false;
+            IsToolsViewVisible = true;
+        });
+        AddToolInputFileCommand = new RelayCommand(_ => AddToolInputFile());
+        AddToolExpectedOutputCommand = new RelayCommand(_ => AddToolExpectedOutput());
+        RunSelectedToolPairsCommand = new RelayCommand(_ => RunSelectedToolPairs());
+        ClearToolPairsCommand = new RelayCommand(_ => ToolTestPairs.Clear());
+
+        RunAllTestsCommand = new RelayCommand(_ => RunAllTests());
+        RunSelectedTestsCommand = new RelayCommand(_ => RunSelectedTest(), _ => SelectedTestResult != null);
+
+        EnsureProjectDirectory();
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
             LoadProject(Settings.ProjectRoot);
-        }
     }
 
     private void OpenProject()
     {
-        var dialog = new OpenFileDialog
-        {
-            CheckFileExists = false,
-            FileName = "Select folder",
-            Filter = "Folder|."
-        };
+        var dialog = new OpenFolderDialog { Title = "Select Project Folder" };
+        if (dialog.ShowDialog() != true) return;
 
-        if (dialog.ShowDialog() == true)
+        if (!string.IsNullOrWhiteSpace(dialog.FolderName) && Directory.Exists(dialog.FolderName))
         {
-            var folder = System.IO.Path.GetDirectoryName(dialog.FileName);
-            if (!string.IsNullOrWhiteSpace(folder))
-            {
-                LoadProject(folder);
-                Settings.ProjectRoot = folder;
-                Settings.Save();
-            }
+            Settings.ProjectRoot = dialog.FolderName;
+            Settings.Save();
+            LoadProject(dialog.FolderName);
+            OnPropertyChanged(nameof(CurrentProjectDirectory));
         }
+    }
+
+    private void CreateProject()
+    {
+        var dialog = new OpenFolderDialog { Title = "Select Parent Folder for New Project" };
+        if (dialog.ShowDialog() != true) return;
+
+        var baseFolder = dialog.FolderName;
+        if (string.IsNullOrWhiteSpace(baseFolder) || !Directory.Exists(baseFolder)) return;
+
+        var projectRoot = Path.Combine(baseFolder, "FavaProject");
+        if (Directory.Exists(projectRoot))
+        {
+            var maxSuffix = Directory.GetDirectories(baseFolder, "FavaProject*")
+                .Select(Path.GetFileName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name =>
+                {
+                    if (name == "FavaProject") return 0;
+                    var suffixText = name!["FavaProject".Length..];
+                    return int.TryParse(suffixText, out var parsed) ? parsed : 0;
+                })
+                .DefaultIfEmpty(0)
+                .Max();
+
+            projectRoot = Path.Combine(baseFolder, $"FavaProject{maxSuffix + 1}");
+        }
+
+        Directory.CreateDirectory(projectRoot);
+        Settings.ProjectRoot = projectRoot;
+        Settings.Save();
+        LoadProject(projectRoot);
+        StatusText = $"Created project: {projectRoot}";
+        StatusColor = Brushes.LightBlue;
     }
 
     private void LoadProject(string folder)
     {
-        ProjectFiles.Clear();
+        ProjectTree.Clear();
         try
         {
-            foreach (var file in Directory.GetFiles(folder, "*.fava", SearchOption.AllDirectories))
-            {
-                ProjectFiles.Add(file);
-            }
+            var root = BuildNode(folder);
+            ProjectTree.Add(root);
             StatusText = $"Loaded project: {folder}";
             StatusColor = Brushes.LightBlue;
+            OnPropertyChanged(nameof(CurrentProjectDirectory));
         }
         catch (Exception ex)
         {
@@ -164,18 +228,118 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void NewFile()
+    private ProjectNode BuildNode(string path)
     {
-        var dialog = new SaveFileDialog
+        var isDirectory = Directory.Exists(path);
+        var name = Path.GetFileName(path);
+        var node = new ProjectNode
         {
-            Filter = "Fava file (*.fava)|*.fava"
+            Name = string.IsNullOrWhiteSpace(name) ? path : name,
+            FullPath = path,
+            IsDirectory = isDirectory
         };
 
-        if (dialog.ShowDialog() == true)
+        if (!isDirectory) return node;
+
+        foreach (var dir in Directory.GetDirectories(path).OrderBy(d => d))
+            node.Children.Add(BuildNode(dir));
+
+        foreach (var file in Directory.GetFiles(path).OrderBy(f => f))
+            node.Children.Add(BuildNode(file));
+
+        return node;
+    }
+
+    private void NewFile(string extension, ProjectNode? node)
+    {
+        var basePath = Settings.ProjectRoot;
+        var targetNode = node ?? SelectedProjectNode;
+        if (targetNode is not null)
+            basePath = targetNode.IsDirectory
+                ? targetNode.FullPath
+                : Path.GetDirectoryName(targetNode.FullPath) ?? Settings.ProjectRoot;
+
+        if (string.IsNullOrWhiteSpace(basePath) || !Directory.Exists(basePath))
+            return;
+
+        var dialog = new SaveFileDialog
         {
-            FileService.WriteText(dialog.FileName, "");
-            ProjectFiles.Add(dialog.FileName);
-            SelectedFile = dialog.FileName;
+            InitialDirectory = basePath,
+            Filter = extension == ".fava"
+                ? "Fava file (*.fava)|*.fava"
+                : "Text file (*.txt)|*.txt",
+            DefaultExt = extension
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        FileService.WriteText(dialog.FileName, "");
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            LoadProject(Settings.ProjectRoot);
+    }
+
+    private void NewDirectory(ProjectNode? node)
+    {
+        var basePath = Settings.ProjectRoot;
+        var targetNode = node ?? SelectedProjectNode;
+        if (targetNode is not null)
+            basePath = targetNode.IsDirectory
+                ? targetNode.FullPath
+                : Path.GetDirectoryName(targetNode.FullPath) ?? Settings.ProjectRoot;
+
+        if (string.IsNullOrWhiteSpace(basePath) || !Directory.Exists(basePath))
+            return;
+
+        var folderName = "NewFolder";
+        var candidate = Path.Combine(basePath, folderName);
+        var suffix = 1;
+        while (Directory.Exists(candidate))
+        {
+            suffix++;
+            candidate = Path.Combine(basePath, $"{folderName}{suffix}");
+        }
+
+        Directory.CreateDirectory(candidate);
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            LoadProject(Settings.ProjectRoot);
+        StatusText = $"Created directory: {Path.GetFileName(candidate)}";
+        StatusColor = Brushes.LightGreen;
+    }
+
+    private void DeleteNode(ProjectNode? node)
+    {
+        if (node is null || string.IsNullOrWhiteSpace(node.FullPath)) return;
+        if (node.FullPath == Settings.ProjectRoot) return;
+
+        var answer = MessageBox.Show($"Delete '{node.Name}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes) return;
+
+        if (node.IsDirectory && Directory.Exists(node.FullPath))
+            Directory.Delete(node.FullPath, true);
+        else if (File.Exists(node.FullPath))
+            File.Delete(node.FullPath);
+
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            LoadProject(Settings.ProjectRoot);
+    }
+
+    private void EnsureProjectDirectory()
+    {
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot) && Directory.Exists(Settings.ProjectRoot))
+            return;
+
+        try
+        {
+            var defaultProjectRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "FavaStudio");
+            Directory.CreateDirectory(defaultProjectRoot);
+            Settings.ProjectRoot = defaultProjectRoot;
+            Settings.Save();
+            OnPropertyChanged(nameof(CurrentProjectDirectory));
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Failed to prepare project directory: {ex.Message}";
+            StatusColor = Brushes.IndianRed;
         }
     }
 
@@ -189,14 +353,12 @@ public class MainViewModel : INotifyPropertyChanged
 
     private async Task RunLiveCheckAsync()
     {
-        if (string.IsNullOrWhiteSpace(_currentFile)) return;
-        if (_isLiveChecking) return;
+        if (string.IsNullOrWhiteSpace(_currentFile) || _isLiveChecking) return;
 
         _isLiveChecking = true;
         try
         {
             FileService.WriteText(_currentFile, _editor.Text);
-
             var runner = new JavaCompilerService(Settings);
             var result = await runner.RunFileAsync(_currentFile);
 
@@ -205,8 +367,7 @@ public class MainViewModel : INotifyPropertyChanged
             foreach (var d in diagnostics) Diagnostics.Add(d);
             OnPropertyChanged(nameof(DiagnosticsHeader));
 
-            ConsoleOutput = result.Output;
-
+            UpdateOutputs(result.Output);
             if (diagnostics.Count > 0)
             {
                 StatusText = $"⚠️ {diagnostics.Count} error(s) found";
@@ -227,22 +388,143 @@ public class MainViewModel : INotifyPropertyChanged
     private async void RunCurrentFile()
     {
         if (string.IsNullOrWhiteSpace(_currentFile)) return;
-
         SaveFile();
         StatusText = "Running…";
         StatusColor = Brushes.LightGray;
 
         var runner = new JavaCompilerService(Settings);
         var result = await runner.RunFileAsync(_currentFile);
-
         var diagnostics = DiagnosticsParser.Parse(result.Output);
         Diagnostics.Clear();
         foreach (var d in diagnostics) Diagnostics.Add(d);
         OnPropertyChanged(nameof(DiagnosticsHeader));
 
-        ConsoleOutput = result.Output;
+        UpdateOutputs(result.Output);
         StatusText = result.Success ? "✅ Execution complete" : "❌ Execution failed";
         StatusColor = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
+    }
+
+    private static string SliceSection(string output, string[] starts, string[] stops)
+    {
+        var startSet = starts.Select(NormalizeHeader).ToHashSet();
+        var stopSet = stops.Select(NormalizeHeader).ToHashSet();
+        var lines = output.Replace("\r\n", "\n").Split('\n');
+        var result = new List<string>();
+        var inSection = false;
+        foreach (var line in lines)
+        {
+            var normalized = NormalizeHeader(line);
+            if (!inSection && startSet.Contains(normalized))
+            {
+                inSection = true;
+                continue;
+            }
+
+            if (inSection && stopSet.Contains(normalized))
+                break;
+
+            if (inSection) result.Add(line);
+        }
+        return string.Join("\n", result).Trim();
+    }
+
+    private void UpdateOutputs(string fullOutput)
+    {
+        ConstantPoolOutput = SliceSection(fullOutput,
+            ["constant pool"],
+            ["instructions", "vm output"]);
+
+        InstructionsOutput = SliceSection(fullOutput,
+            ["instructions"],
+            ["vm output"]);
+
+        if (ShowOutputOnly)
+        {
+            VmOutput = ExtractVmOnlyOutput(fullOutput);
+        }
+        else
+        {
+            VmOutput = fullOutput;
+        }
+    }
+
+    private void AddToolInputFile()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select Input Fava File",
+            Filter = "Fava Files|*.fava|All Files|*.*"
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        ToolTestPairs.Add(new TestFilePair
+        {
+            InputFile = dialog.FileName,
+            ExpectedOutputFile = "",
+            Result = "Missing output file"
+        });
+    }
+
+    private void AddToolExpectedOutput()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select Expected Output File",
+            Filter = "Text Files|*.txt|All Files|*.*"
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        var pair = ToolTestPairs.FirstOrDefault(p => string.IsNullOrWhiteSpace(p.ExpectedOutputFile));
+        if (pair is null)
+        {
+            ToolTestPairs.Add(new TestFilePair
+            {
+                InputFile = "",
+                ExpectedOutputFile = dialog.FileName,
+                Result = "Missing input file"
+            });
+        }
+        else
+        {
+            pair.ExpectedOutputFile = dialog.FileName;
+        }
+        OnPropertyChanged(nameof(ToolTestPairs));
+    }
+
+    private async void RunSelectedToolPairs()
+    {
+        if (ToolTestPairs.Count == 0)
+        {
+            StatusText = "No tool test pairs configured.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
+        var runner = new JavaCompilerService(Settings);
+        foreach (var pair in ToolTestPairs)
+        {
+            if (string.IsNullOrWhiteSpace(pair.InputFile) || string.IsNullOrWhiteSpace(pair.ExpectedOutputFile))
+            {
+                pair.Result = "Incomplete pair";
+                continue;
+            }
+
+            var run = await runner.RunFileAsync(pair.InputFile);
+            if (!run.Success)
+            {
+                pair.Result = "Compiler/runtime error";
+                continue;
+            }
+
+            var expected = File.Exists(pair.ExpectedOutputFile) ? File.ReadAllText(pair.ExpectedOutputFile).Replace("\r\n", "\n").Trim() : "";
+            var actual = ToolCompareFullOutput
+                ? run.Output.Replace("\r\n", "\n").Trim()
+                : ExtractVmOnlyOutput(run.Output).Replace("\r\n", "\n").Trim();
+            pair.Result = actual == expected ? "PASS" : "FAIL";
+        }
+        StatusText = "Tool tests complete.";
+        StatusColor = Brushes.LightBlue;
+        OnPropertyChanged(nameof(ToolTestPairs));
     }
 
     private async void RunAllTests()
@@ -253,36 +535,25 @@ public class MainViewModel : INotifyPropertyChanged
 
         var runner = new TestRunnerService(Settings);
         var results = await runner.RunAllTestsAsync();
-
         foreach (var r in results) TestResults.Add(r);
 
         var passed = results.Count(r => r.Passed);
         var total = results.Count;
-
-        TestSummary = passed == total
-            ? $"✅ ALL TESTS PASSED ({passed}/{total})"
-            : $"❌ {passed}/{total} tests passed";
-
+        TestSummary = passed == total ? $"✅ ALL TESTS PASSED ({passed}/{total})" : $"❌ {passed}/{total} tests passed";
         StatusColor = passed == total ? Brushes.LightGreen : Brushes.IndianRed;
     }
 
     private async void RunSelectedTest()
     {
         if (SelectedTestResult is null) return;
-
         var name = SelectedTestResult.Name;
         TestSummary = $"Running '{name}'…";
         StatusColor = Brushes.LightGray;
 
         var runner = new TestRunnerService(Settings);
         var result = await runner.RunSingleTestAsync(name);
-
         var idx = TestResults.IndexOf(SelectedTestResult);
-        if (idx >= 0)
-            TestResults[idx] = result;
-        else
-            TestResults.Add(result);
-
+        if (idx >= 0) TestResults[idx] = result; else TestResults.Add(result);
         SelectedTestResult = result;
         TestSummary = result.Passed ? $"✅ '{name}' passed" : $"❌ '{name}' failed";
         StatusColor = result.Passed ? Brushes.LightGreen : Brushes.IndianRed;
@@ -331,6 +602,73 @@ public class MainViewModel : INotifyPropertyChanged
         Settings.Save();
         StatusText = "Settings saved.";
         StatusColor = Brushes.LightGreen;
+    }
+
+    public void SetSelectedProjectNode(ProjectNode? node) => SelectedProjectNode = node;
+
+    public void CreateNewFavaAtSelectedNode()
+    {
+        if (SelectedProjectNode is null) return;
+        NewFile(".fava", SelectedProjectNode);
+    }
+
+    public void CreateNewTextAtSelectedNode()
+    {
+        if (SelectedProjectNode is null) return;
+        NewFile(".txt", SelectedProjectNode);
+    }
+
+    public void DeleteSelectedNode()
+    {
+        if (SelectedProjectNode is null) return;
+        DeleteNode(SelectedProjectNode);
+    }
+
+    private string ExtractVmOnlyOutput(string fullOutput)
+    {
+        var lines = fullOutput.Replace("\r\n", "\n").Split('\n');
+        var vmLines = new List<string>();
+        var skippingConstant = false;
+        var skippingInstructions = false;
+
+        foreach (var line in lines)
+        {
+            var normalized = NormalizeHeader(line);
+
+            if (normalized == "constant pool")
+            {
+                skippingConstant = true;
+                skippingInstructions = false;
+                continue;
+            }
+
+            if (normalized == "instructions")
+            {
+                skippingInstructions = true;
+                skippingConstant = false;
+                continue;
+            }
+
+            if (normalized == "vm output")
+            {
+                skippingConstant = false;
+                skippingInstructions = false;
+                continue;
+            }
+
+            if (!skippingConstant && !skippingInstructions)
+                vmLines.Add(line);
+        }
+
+        return string.Join("\n", vmLines).Trim();
+    }
+
+    private static string NormalizeHeader(string line)
+    {
+        var normalized = line.Trim().Trim('*').Trim();
+        if (normalized.EndsWith(':'))
+            normalized = normalized[..^1];
+        return normalized.ToLowerInvariant();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

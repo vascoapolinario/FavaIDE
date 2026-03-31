@@ -25,6 +25,22 @@
     <SolidColorBrush x:Key="HoverBrush" Color="{StaticResource Hover}"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource Success}"/>
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource Danger}"/>
+    <SolidColorBrush x:Key="ControlDarkBrush" Color="#2F3136"/>
+    <SolidColorBrush x:Key="ControlDarkerBrush" Color="#25262A"/>
+    <SolidColorBrush x:Key="ControlTextDarkBrush" Color="#E6EAF0"/>
+
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#1E1F22"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#2B2D30"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#3C3F41"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#E6EAF0"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#2B2D30"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="#2B2D30"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#3E4249"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#E6EAF0"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.InfoBrushKey}" Color="#2B2D30"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.InfoTextBrushKey}" Color="#E6EAF0"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3E4249"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#E6EAF0"/>
 
     <Style TargetType="Window">
         <Setter Property="Background" Value="{StaticResource BgMainBrush}"/>
@@ -41,6 +57,7 @@
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="CaretBrush" Value="{StaticResource TextMainBrush}"/>
     </Style>
 
     <Style TargetType="Button">
@@ -140,12 +157,102 @@
     <Style TargetType="Menu">
         <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="FontSize" Value="14"/>
     </Style>
 
     <Style TargetType="MenuItem">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
-        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Grid SnapsToDevicePixels="True">
+                        <Border x:Name="HeaderBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="2">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  VerticalAlignment="Center"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"/>
+                                <TextBlock x:Name="SubmenuArrow"
+                                           Grid.Column="1"
+                                           Text="▸"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                        </Border>
+                        <Popup x:Name="PART_Popup"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                               Placement="Right"
+                               PopupAnimation="Fade">
+                            <Border Background="{StaticResource BgPanelBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    Padding="2">
+                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Role" Value="TopLevelHeader">
+                            <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom"/>
+                        </Trigger>
+                        <Trigger Property="Role" Value="SubmenuHeader">
+                            <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="HeaderBorder" Property="Background" Value="{StaticResource HoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSubmenuOpen" Value="True">
+                            <Setter TargetName="HeaderBorder" Property="Background" Value="{StaticResource HoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="HasItems" Value="False">
+                            <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ContextMenu">
+        <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True">
+                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="Popup">
+        <Setter Property="AllowsTransparency" Value="True"/>
     </Style>
 
     <Style TargetType="ToolBar">
@@ -154,21 +261,27 @@
 
     <Style TargetType="TabControl">
         <Setter Property="Background" Value="{StaticResource BgMainBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="Padding" Value="0"/>
         <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="FontSize" Value="14"/>
     </Style>
 
     <Style TargetType="TabItem">
         <Setter Property="Background" Value="{StaticResource BgPanelAltBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
-        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="MinWidth" Value="140"/>
+        <Setter Property="Padding" Value="14,8"/>
         <Setter Property="Margin" Value="2"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4,4,0,0">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" ContentSource="Header"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsSelected" Value="True">
@@ -213,6 +326,33 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style TargetType="TreeView">
+        <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="14"/>
+    </Style>
+
+    <Style TargetType="TreeViewItem">
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource HoverBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="ScrollViewer">
+        <Setter Property="Background" Value="{StaticResource BgMainBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+    </Style>
+
+    <Style TargetType="ScrollBar">
+        <Setter Property="Background" Value="{StaticResource BgPanelAltBrush}"/>
     </Style>
 
     <Style TargetType="DataGrid">
