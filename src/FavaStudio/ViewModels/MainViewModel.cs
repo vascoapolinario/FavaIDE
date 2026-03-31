@@ -123,7 +123,8 @@ public class MainViewModel : INotifyPropertyChanged
         BrowseOutputsDirCommand = new RelayCommand(_ => BrowseFolder(v => Settings.OutputsDir = v, "Test Outputs Folder"));
 
         EnsureProjectDirectory();
-        LoadProject(Settings.ProjectRoot);
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            LoadProject(Settings.ProjectRoot);
     }
 
     private void OpenProject()
@@ -185,14 +186,22 @@ public class MainViewModel : INotifyPropertyChanged
         if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot) && Directory.Exists(Settings.ProjectRoot))
             return;
 
-        var defaultProjectRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "FavaStudioProject");
+        try
+        {
+            var defaultProjectRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "FavaStudio");
 
-        Directory.CreateDirectory(defaultProjectRoot);
-        Settings.ProjectRoot = defaultProjectRoot;
-        Settings.Save();
-        OnPropertyChanged(nameof(CurrentProjectDirectory));
+            Directory.CreateDirectory(defaultProjectRoot);
+            Settings.ProjectRoot = defaultProjectRoot;
+            Settings.Save();
+            OnPropertyChanged(nameof(CurrentProjectDirectory));
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Failed to prepare project directory: {ex.Message}";
+            StatusColor = Brushes.IndianRed;
+        }
     }
 
     private void SaveFile()
