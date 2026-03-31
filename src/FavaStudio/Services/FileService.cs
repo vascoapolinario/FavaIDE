@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace FavaStudio.Services;
 
 public static class FileService

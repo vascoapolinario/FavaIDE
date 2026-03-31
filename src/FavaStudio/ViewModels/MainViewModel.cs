@@ -6,6 +6,7 @@ using ICSharpCode.AvalonEdit;
 using Microsoft.Win32;
 using FavaStudio.Models;
 using FavaStudio.Services;
+using System.IO;
 
 namespace FavaStudio.ViewModels;
 
