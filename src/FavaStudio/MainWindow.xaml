@@ -121,12 +121,15 @@
                                             <ContextMenu>
                                                 <MenuItem Header="Add">
                                                     <MenuItem Header="New Fava File"
-                                                              Click="NewFavaFileFromTree_OnClick"/>
+                                                              Command="{Binding DataContext.NewFavaFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                     <MenuItem Header="New Text File"
-                                                              Click="NewTextFileFromTree_OnClick"/>
+                                                              Command="{Binding DataContext.NewTextFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                 </MenuItem>
                                                 <MenuItem Header="Delete"
-                                                          Click="DeleteTreeNode_OnClick"/>
+                                                          Command="{Binding DataContext.DeleteNodeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                             </ContextMenu>
                                         </Setter.Value>
                                     </Setter>
