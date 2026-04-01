@@ -550,11 +550,11 @@
 
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.65*"/>
                                 <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.05*"/>
                                 <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.05*"/>
                             </Grid.ColumnDefinitions>
 
                             <GroupBox Header="Instruction Stream" Grid.Column="0">
@@ -569,10 +569,14 @@
                                              Padding="8,6"
                                              ToolTip="Feature: instruction search/filter"/>
                                     <DataGrid Grid.Row="1"
-                                              ItemsSource="{Binding VisualizerInstructions}"
-                                              AutoGenerateColumns="False"
-                                              IsReadOnly="True"
-                                              MinHeight="260">
+                                               ItemsSource="{Binding VisualizerInstructions}"
+                                               AutoGenerateColumns="False"
+                                               IsReadOnly="True"
+                                               MinHeight="260"
+                                               MaxHeight="520"
+                                               ScrollViewer.CanContentScroll="True"
+                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                               ScrollViewer.HorizontalScrollBarVisibility="Auto">
                                         <DataGrid.RowStyle>
                                             <Style TargetType="DataGridRow">
                                                 <Style.Triggers>
@@ -585,8 +589,8 @@
                                         </DataGrid.RowStyle>
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="52"/>
-                                            <DataGridTextColumn Header="Instruction" Binding="{Binding Raw}" Width="140"/>
-                                            <DataGridTextColumn Header="What it does" Binding="{Binding Description}" Width="*"/>
+                                            <DataGridTextColumn Header="Instruction" Binding="{Binding Raw}" Width="170"/>
+                                            <DataGridTextColumn Header="What it does" Binding="{Binding Description}" Width="2*"/>
                                         </DataGrid.Columns>
                                     </DataGrid>
                                 </Grid>

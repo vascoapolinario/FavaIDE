@@ -5,6 +5,8 @@ namespace FavaStudio.Services;
 
 public static class VisualizerService
 {
+    private const double DoubleComparisonTolerance = 1e-9;
+
     public static List<string> ParseConstantPool(string constantPoolSection)
     {
         var lines = constantPoolSection.Replace("\r\n", "\n").Split('\n');
@@ -59,7 +61,8 @@ public static class VisualizerService
 
     public static string GetInstructionDescription(string opcode)
     {
-        return OpcodeDescriptions.Values.FirstOrDefault(v => v.Name == opcode).Description ?? "Performs stack operation.";
+        var match = OpcodeDescriptions.Values.FirstOrDefault(v => v.Name == opcode);
+        return string.IsNullOrWhiteSpace(match.Name) ? "Performs stack operation." : match.Description;
     }
 
     public static bool ApplyInstruction(
@@ -83,7 +86,7 @@ public static class VisualizerService
                     return true;
                 case "dconst":
                     if (!TryGetConst(instruction.Argument, constantPool, out var dConst)) return Fail("Invalid dconst index.", out note);
-                    if (!double.TryParse(Unquote(dConst), NumberStyles.Float, CultureInfo.InvariantCulture, out var dValue))
+                    if (!double.TryParse(Unquote(dConst), NumberStyles.Any, CultureInfo.InvariantCulture, out var dValue))
                         return Fail($"dconst expects double at index {instruction.Argument}.", out note);
                     stack.Add(new VisualizerValue { Type = "double", Value = dValue });
                     return true;
@@ -142,7 +145,7 @@ public static class VisualizerService
                 case "dmult":
                     return ApplyDoubleBinary(stack, (a, b) => a * b, out note);
                 case "ddiv":
-                    return ApplyDoubleBinary(stack, (a, b) => Math.Abs(b) < double.Epsilon ? throw new DivideByZeroException() : a / b, out note);
+                    return ApplyDoubleBinary(stack, SafeDivideDouble, out note);
                 case "sconcat":
                     if (!TryPopString(stack, out var rightString, out note)) return false;
                     if (!TryPopString(stack, out var leftString, out note)) return false;
@@ -165,9 +168,9 @@ public static class VisualizerService
                 case "ileq":
                     return ApplyIntCompare(stack, (a, b) => a <= b, out note);
                 case "deq":
-                    return ApplyDoubleCompare(stack, (a, b) => Math.Abs(a - b) < double.Epsilon, out note);
+                    return ApplyDoubleCompare(stack, (a, b) => Math.Abs(a - b) < DoubleComparisonTolerance, out note);
                 case "dneq":
-                    return ApplyDoubleCompare(stack, (a, b) => Math.Abs(a - b) >= double.Epsilon, out note);
+                    return ApplyDoubleCompare(stack, (a, b) => Math.Abs(a - b) >= DoubleComparisonTolerance, out note);
                 case "dlt":
                     return ApplyDoubleCompare(stack, (a, b) => a < b, out note);
                 case "dleq":
@@ -259,7 +262,7 @@ public static class VisualizerService
         if (!TryPopDouble(stack, out var right, out note)) return false;
         if (!TryPopDouble(stack, out var left, out note)) return false;
         stack.Add(new VisualizerValue { Type = "double", Value = op(left, right) });
-        note = $"Applied double op to {left.ToString(CultureInfo.InvariantCulture)} and {right.ToString(CultureInfo.InvariantCulture)}.";
+        note = $"Applied double op to {left} and {right}.";
         return true;
     }
 
@@ -286,8 +289,15 @@ public static class VisualizerService
         if (!TryPopDouble(stack, out var right, out note)) return false;
         if (!TryPopDouble(stack, out var left, out note)) return false;
         stack.Add(new VisualizerValue { Type = "boolean", Value = compare(left, right) });
-        note = $"Compared doubles {left.ToString(CultureInfo.InvariantCulture)} and {right.ToString(CultureInfo.InvariantCulture)}.";
+        note = $"Compared doubles {left} and {right}.";
         return true;
+    }
+
+    private static double SafeDivideDouble(double left, double right)
+    {
+        if (Math.Abs(right) < DoubleComparisonTolerance)
+            throw new DivideByZeroException();
+        return left / right;
     }
 
     private static bool ApplyStringCompare(List<VisualizerValue> stack, Func<string, string, bool> compare, out string note)

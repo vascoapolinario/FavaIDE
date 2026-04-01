@@ -51,6 +51,7 @@ public class MainViewModel : INotifyPropertyChanged
     private string _visualizerConstantFilter = "";
     private string _visualizerOpcodeSearch = "";
     private bool _visualizerAutoSync = true;
+    private const int MaxVisualizerTimelineEntries = 500;
 
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
@@ -271,7 +272,7 @@ public class MainViewModel : INotifyPropertyChanged
         VisualizerStepCommand = new RelayCommand(_ => VisualizerStep(), _ => VisualizerCanStep);
         VisualizerRunAllCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
         VisualizerResetCommand = new RelayCommand(_ => VisualizerReset(), _ => VisualizerHasData);
-        VisualizerJumpToEndCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
+        VisualizerJumpToEndCommand = new RelayCommand(_ => VisualizerJumpToEnd(), _ => VisualizerCanStep);
 
         EnsureProjectDirectory();
         if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
@@ -629,19 +630,38 @@ public class MainViewModel : INotifyPropertyChanged
     private void VisualizerStep()
     {
         if (!VisualizerCanStep) return;
+        ExecuteVisualizerStep(captureTimeline: true);
+    }
+
+    private void ExecuteVisualizerStep(bool captureTimeline)
+    {
         var instruction = _allVisualizerInstructions[_visualizerStepIndex];
         instruction.IsCurrent = true;
         var before = VisualizerService.StackToText(_visualizerRuntimeStack);
         var success = VisualizerService.ApplyInstruction(instruction, _visualizerRuntimeStack, _allVisualizerConstants, out var note, out var outputLine, out var halted);
         var after = VisualizerService.StackToText(_visualizerRuntimeStack);
-        VisualizerTimeline.Add(new VisualizerTimelineEntry
+        if (captureTimeline && VisualizerTimeline.Count < MaxVisualizerTimelineEntries)
         {
-            Step = _visualizerStepIndex + 1,
-            Instruction = instruction.Display,
-            StackBefore = before,
-            StackAfter = after,
-            Note = note
-        });
+            VisualizerTimeline.Add(new VisualizerTimelineEntry
+            {
+                Step = _visualizerStepIndex + 1,
+                Instruction = instruction.Display,
+                StackBefore = before,
+                StackAfter = after,
+                Note = note
+            });
+        }
+        else if (captureTimeline)
+        {
+            VisualizerTimeline.Add(new VisualizerTimelineEntry
+            {
+                Step = _visualizerStepIndex + 1,
+                Instruction = "(timeline truncated)",
+                StackBefore = before,
+                StackAfter = after,
+                Note = $"Showing first {MaxVisualizerTimelineEntries} steps only."
+            });
+        }
 
         if (!string.IsNullOrWhiteSpace(outputLine))
             VisualizerRunOutput = string.IsNullOrWhiteSpace(VisualizerRunOutput) ? outputLine : $"{VisualizerRunOutput}\n{outputLine}";
@@ -660,8 +680,37 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void VisualizerRunAll()
     {
+        if (!VisualizerCanStep) return;
+        var startStep = _visualizerStepIndex + 1;
         while (VisualizerCanStep)
-            VisualizerStep();
+            ExecuteVisualizerStep(captureTimeline: false);
+
+        VisualizerTimeline.Add(new VisualizerTimelineEntry
+        {
+            Step = _visualizerStepIndex,
+            Instruction = $"Run All from step {startStep}",
+            StackBefore = "(captured in fast mode)",
+            StackAfter = VisualizerService.StackToText(_visualizerRuntimeStack),
+            Note = "Executed remaining instructions without per-step timeline details."
+        });
+    }
+
+    private void VisualizerJumpToEnd()
+    {
+        if (!VisualizerCanStep) return;
+        var startStep = _visualizerStepIndex + 1;
+        var startStack = VisualizerService.StackToText(_visualizerRuntimeStack);
+        while (VisualizerCanStep)
+            ExecuteVisualizerStep(captureTimeline: false);
+
+        VisualizerTimeline.Add(new VisualizerTimelineEntry
+        {
+            Step = _visualizerStepIndex,
+            Instruction = $"Jumped from step {startStep}",
+            StackBefore = startStack,
+            StackAfter = VisualizerService.StackToText(_visualizerRuntimeStack),
+            Note = "Fast-forwarded to final state."
+        });
     }
 
     private void RefreshVisualizerStack()
