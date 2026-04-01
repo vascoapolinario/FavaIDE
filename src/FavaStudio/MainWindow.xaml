@@ -27,13 +27,18 @@
                 Padding="8,4">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <TextBlock Text="Fava Studio"
-                               FontWeight="Bold"
-                               FontSize="22"
-                               FontFamily="Segoe UI Semibold"
-                               Foreground="#FF9A3D"
-                               VerticalAlignment="Center"
-                               Margin="4,0,18,0"/>
+                    <Button Command="{Binding BackToEditorCommand}"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="4,0,18,0"
+                            Cursor="Hand">
+                        <TextBlock Text="Fava Studio"
+                                   FontWeight="Bold"
+                                   FontSize="22"
+                                   FontFamily="Segoe UI Semibold"
+                                   Foreground="#FF9A3D"
+                                   VerticalAlignment="Center"/>
+                    </Button>
                 </StackPanel>
 
                 <Menu Background="Transparent" DockPanel.Dock="Left" FontSize="14">
@@ -47,8 +52,6 @@
                     </MenuItem>
                     <MenuItem Header="Tools">
                         <MenuItem Header="Open Test Tool" Command="{Binding OpenToolsCommand}"/>
-                    </MenuItem>
-                    <MenuItem Header="Visualizer">
                         <MenuItem Header="Open Visualizer" Command="{Binding OpenVisualizerCommand}"/>
                     </MenuItem>
                     <MenuItem Header="Run">
