@@ -515,8 +515,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (target is null) return;
         target.InputFile = dialog.FileName;
         target.Result = "Ready";
-        if (!ReferenceEquals(SelectedToolTestPair, target))
-            SelectedToolTestPair = target;
+        SetSelectedToolPairIfChanged(target);
     }
 
     private void BrowseToolPairExpectedOutputFile(TestFilePair? pair)
@@ -532,8 +531,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (target is null) return;
         target.ExpectedOutputFile = dialog.FileName;
         target.Result = "Ready";
-        if (!ReferenceEquals(SelectedToolTestPair, target))
-            SelectedToolTestPair = target;
+        SetSelectedToolPairIfChanged(target);
     }
 
     private void BuildToolPairsFromFolders()
@@ -633,7 +631,7 @@ public class MainViewModel : INotifyPropertyChanged
             }
         }
 
-        ToolRunSummary = $"Passed: {passed}   Failed: {failed}   Skipped: {skipped}   Total: {ToolTestPairs.Count}";
+        ToolRunSummary = FormatToolRunSummary(passed, failed, skipped, ToolTestPairs.Count);
         StatusText = ToolRunSummary;
         StatusColor = failed == 0 && skipped == 0 ? Brushes.LightGreen : (failed > 0 ? Brushes.IndianRed : Brushes.Orange);
         UpdateSelectedToolPairDetails();
@@ -790,6 +788,15 @@ public class MainViewModel : INotifyPropertyChanged
         SelectedToolActualOutput = SelectedToolTestPair?.ActualOutput ?? "";
         SelectedToolDiffOutput = SelectedToolTestPair?.DiffOutput ?? "";
     }
+
+    private void SetSelectedToolPairIfChanged(TestFilePair? pair)
+    {
+        if (!ReferenceEquals(SelectedToolTestPair, pair))
+            SelectedToolTestPair = pair;
+    }
+
+    private static string FormatToolRunSummary(int passed, int failed, int skipped, int total) =>
+        string.Join(" | ", $"Passed: {passed}", $"Failed: {failed}", $"Skipped: {skipped}", $"Total: {total}");
 
     private static string BuildDiff(string expected, string actual)
     {
