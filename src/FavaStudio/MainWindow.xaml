@@ -47,10 +47,9 @@
                     </MenuItem>
                     <MenuItem Header="Tools">
                         <MenuItem Header="Open Test Tool" Command="{Binding OpenToolsCommand}"/>
-                        <MenuItem Header="Add Pair" Command="{Binding AddToolPairCommand}"/>
-                        <MenuItem Header="Build Pairs from Folders" Command="{Binding BuildToolPairsFromFoldersCommand}"/>
-                        <MenuItem Header="Run Compare" Command="{Binding RunSelectedToolPairsCommand}"/>
-                        <MenuItem Header="Clear Tool Pairs" Command="{Binding ClearToolPairsCommand}"/>
+                    </MenuItem>
+                    <MenuItem Header="Visualizer">
+                        <MenuItem Header="Open Visualizer" Command="{Binding OpenVisualizerCommand}"/>
                     </MenuItem>
                     <MenuItem Header="Run">
                         <MenuItem Header="Run Current File" Command="{Binding RunCurrentCommand}"/>
@@ -517,6 +516,171 @@
                                          MinHeight="180"/>
                             </GroupBox>
                         </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <Grid Visibility="{Binding IsVisualizerViewVisible, Converter={StaticResource BoolToVisibility}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{StaticResource BgMainBrush}">
+                    <StackPanel MaxWidth="1180">
+                        <DockPanel Margin="0,0,0,18">
+                            <TextBlock DockPanel.Dock="Left" Text="Visualizer • Stack Explorer" FontSize="24" FontWeight="Bold"/>
+                            <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" />
+                        </DockPanel>
+
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,12" Background="{StaticResource BgPanelBrush}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding VisualizerInfo}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Stack visualization follows your current file output (constant pool + instructions)." Foreground="{StaticResource TextMutedBrush}"/>
+                                </StackPanel>
+                                <WrapPanel Grid.Column="1" VerticalAlignment="Top">
+                                    <Button Content="Load Current File" Command="{Binding VisualizerLoadCurrentCommand}" Padding="12,6" Margin="0,0,8,0"/>
+                                    <Button Content="Step" Command="{Binding VisualizerStepCommand}" Style="{StaticResource AccentButton}" Padding="12,6" Margin="0,0,8,0"/>
+                                    <Button Content="Run All" Command="{Binding VisualizerRunAllCommand}" Padding="12,6" Margin="0,0,8,0"/>
+                                    <Button Content="Jump To End" Command="{Binding VisualizerJumpToEndCommand}" Padding="12,6" Margin="0,0,8,0"/>
+                                    <Button Content="Reset" Command="{Binding VisualizerResetCommand}" Padding="12,6"/>
+                                </WrapPanel>
+                            </Grid>
+                        </Border>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <GroupBox Header="Instruction Stream" Grid.Column="0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBox Grid.Row="0"
+                                             Text="{Binding VisualizerInstructionFilter, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,0,0,8"
+                                             Padding="8,6"
+                                             ToolTip="Feature: instruction search/filter"/>
+                                    <DataGrid Grid.Row="1"
+                                              ItemsSource="{Binding VisualizerInstructions}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              MinHeight="260">
+                                        <DataGrid.RowStyle>
+                                            <Style TargetType="DataGridRow">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter Property="Background" Value="#2B4EA3FF"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGrid.RowStyle>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="52"/>
+                                            <DataGridTextColumn Header="Instruction" Binding="{Binding Raw}" Width="140"/>
+                                            <DataGridTextColumn Header="What it does" Binding="{Binding Description}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </GroupBox>
+
+                            <GroupBox Header="Constant Pool" Grid.Column="2">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBox Grid.Row="0"
+                                             Text="{Binding VisualizerConstantFilter, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,0,0,8"
+                                             Padding="8,6"
+                                             ToolTip="Feature: constant pool filter"/>
+                                    <ListBox Grid.Row="1"
+                                             ItemsSource="{Binding VisualizerConstantPool}"
+                                             FontFamily="Consolas"
+                                             MinHeight="260"/>
+                                </Grid>
+                            </GroupBox>
+
+                            <GroupBox Header="Current Stack (top first)" Grid.Column="4">
+                                <DataGrid ItemsSource="{Binding VisualizerStack}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          MinHeight="260">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Depth" Binding="{Binding Depth}" Width="70"/>
+                                        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="90"/>
+                                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <GroupBox Header="Step Timeline (before/after stack)">
+                                <DataGrid ItemsSource="{Binding VisualizerTimeline}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          MinHeight="220">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Step" Binding="{Binding Step}" Width="60"/>
+                                        <DataGridTextColumn Header="Instruction" Binding="{Binding Instruction}" Width="140"/>
+                                        <DataGridTextColumn Header="Before" Binding="{Binding StackBefore}" Width="*"/>
+                                        <DataGridTextColumn Header="After" Binding="{Binding StackAfter}" Width="*"/>
+                                        <DataGridTextColumn Header="Note" Binding="{Binding Note}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+
+                            <GroupBox Header="VM Output (simulated)" Grid.Column="2">
+                                <TextBox Text="{Binding VisualizerRunOutput}"
+                                         AcceptsReturn="True"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         FontSize="13"
+                                         MinHeight="220"/>
+                            </GroupBox>
+                        </Grid>
+
+                        <GroupBox Header="Opcode Reference (quick search)">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBox Grid.Row="0"
+                                         Text="{Binding VisualizerOpcodeSearch, UpdateSourceTrigger=PropertyChanged}"
+                                         Margin="0,0,0,8"
+                                         Padding="8,6"
+                                         ToolTip="Feature: opcode dictionary search"/>
+                                <DataGrid Grid.Row="1"
+                                          ItemsSource="{Binding VisualizerOpcodeReference}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          MinHeight="220">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Opcode" Binding="{Binding Signature}" Width="140"/>
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Summary}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

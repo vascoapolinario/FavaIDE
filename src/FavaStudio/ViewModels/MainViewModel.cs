@@ -29,6 +29,7 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _showDiagnostics = true;
     private bool _isSettingsViewVisible;
     private bool _isToolsViewVisible;
+    private bool _isVisualizerViewVisible;
     private bool _showOutputOnly = true;
     private bool _toolCompareFullOutput;
     private TestFilePair? _selectedToolTestPair;
@@ -38,11 +39,28 @@ public class MainViewModel : INotifyPropertyChanged
     private string _selectedToolDiffOutput = "";
     private TestResult? _selectedTestResult;
     private string _testSummary = "";
+    private readonly List<VisualizerInstruction> _allVisualizerInstructions = [];
+    private readonly List<string> _allVisualizerConstants = [];
+    private readonly List<VisualizerValue> _visualizerRuntimeStack = [];
+    private readonly List<OpcodeReferenceItem> _allOpcodeReference = VisualizerService.BuildReference().ToList();
+    private int _visualizerStepIndex;
+    private bool _visualizerHalted;
+    private string _visualizerRunOutput = "";
+    private string _visualizerInfo = "Run a file and open Visualizer to inspect stack execution.";
+    private string _visualizerInstructionFilter = "";
+    private string _visualizerConstantFilter = "";
+    private string _visualizerOpcodeSearch = "";
+    private bool _visualizerAutoSync = true;
 
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
     public ObservableCollection<TestResult> TestResults { get; } = new();
     public ObservableCollection<TestFilePair> ToolTestPairs { get; } = new();
+    public ObservableCollection<VisualizerInstruction> VisualizerInstructions { get; } = new();
+    public ObservableCollection<string> VisualizerConstantPool { get; } = new();
+    public ObservableCollection<VisualizerTimelineEntry> VisualizerTimeline { get; } = new();
+    public ObservableCollection<VisualizerStackEntry> VisualizerStack { get; } = new();
+    public ObservableCollection<OpcodeReferenceItem> VisualizerOpcodeReference { get; } = new();
 
     public SettingsService Settings { get; } = SettingsService.Load();
 
@@ -59,7 +77,8 @@ public class MainViewModel : INotifyPropertyChanged
     public bool ShowDiagnostics { get => _showDiagnostics; set { _showDiagnostics = value; OnPropertyChanged(); } }
     public bool IsSettingsViewVisible { get => _isSettingsViewVisible; set { _isSettingsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
     public bool IsToolsViewVisible { get => _isToolsViewVisible; set { _isToolsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
-    public bool IsWorkspaceVisible => !IsSettingsViewVisible && !IsToolsViewVisible;
+    public bool IsVisualizerViewVisible { get => _isVisualizerViewVisible; set { _isVisualizerViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
+    public bool IsWorkspaceVisible => !IsSettingsViewVisible && !IsToolsViewVisible && !IsVisualizerViewVisible;
     public bool ShowOutputOnly { get => _showOutputOnly; set { _showOutputOnly = value; OnPropertyChanged(); } }
     public bool ToolCompareFullOutput { get => _toolCompareFullOutput; set { _toolCompareFullOutput = value; OnPropertyChanged(); } }
     public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); } }
@@ -70,6 +89,43 @@ public class MainViewModel : INotifyPropertyChanged
     public string SelectedToolDiffOutput { get => _selectedToolDiffOutput; set { _selectedToolDiffOutput = value; OnPropertyChanged(); } }
     public string TestSummary { get => _testSummary; set { _testSummary = value; OnPropertyChanged(); } }
     public bool ShowTestOutput { get => Settings.ShowTestOutput; set { Settings.ShowTestOutput = value; OnPropertyChanged(); } }
+    public string VisualizerRunOutput { get => _visualizerRunOutput; set { _visualizerRunOutput = value; OnPropertyChanged(); } }
+    public string VisualizerInfo { get => _visualizerInfo; set { _visualizerInfo = value; OnPropertyChanged(); } }
+    public bool VisualizerAutoSync { get => _visualizerAutoSync; set { _visualizerAutoSync = value; OnPropertyChanged(); } }
+    public bool VisualizerCanStep => _allVisualizerInstructions.Count > 0 && !_visualizerHalted && _visualizerStepIndex < _allVisualizerInstructions.Count;
+    public bool VisualizerHasData => _allVisualizerInstructions.Count > 0;
+    public string VisualizerInstructionFilter
+    {
+        get => _visualizerInstructionFilter;
+        set
+        {
+            _visualizerInstructionFilter = value;
+            OnPropertyChanged();
+            ApplyVisualizerInstructionFilter();
+        }
+    }
+
+    public string VisualizerConstantFilter
+    {
+        get => _visualizerConstantFilter;
+        set
+        {
+            _visualizerConstantFilter = value;
+            OnPropertyChanged();
+            ApplyVisualizerConstantFilter();
+        }
+    }
+
+    public string VisualizerOpcodeSearch
+    {
+        get => _visualizerOpcodeSearch;
+        set
+        {
+            _visualizerOpcodeSearch = value;
+            OnPropertyChanged();
+            ApplyVisualizerOpcodeFilter();
+        }
+    }
 
     public TestResult? SelectedTestResult
     {
@@ -121,6 +177,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BrowseAntlrJarCommand { get; }
     public RelayCommand SaveSettingsCommand { get; }
     public RelayCommand OpenToolsCommand { get; }
+    public RelayCommand OpenVisualizerCommand { get; }
     public RelayCommand AddToolPairCommand { get; }
     public RelayCommand RemoveToolPairCommand { get; }
     public RelayCommand BrowseToolPairInputCommand { get; }
@@ -132,6 +189,11 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand ClearToolPairsCommand { get; }
     public RelayCommand RunAllTestsCommand { get; }
     public RelayCommand RunSelectedTestsCommand { get; }
+    public RelayCommand VisualizerLoadCurrentCommand { get; }
+    public RelayCommand VisualizerStepCommand { get; }
+    public RelayCommand VisualizerRunAllCommand { get; }
+    public RelayCommand VisualizerResetCommand { get; }
+    public RelayCommand VisualizerJumpToEndCommand { get; }
 
     public MainViewModel(TextEditor editor)
     {
@@ -161,12 +223,14 @@ public class MainViewModel : INotifyPropertyChanged
         OpenSettingsCommand = new RelayCommand(_ =>
         {
             IsToolsViewVisible = false;
+            IsVisualizerViewVisible = false;
             IsSettingsViewVisible = true;
         });
         BackToEditorCommand = new RelayCommand(_ =>
         {
             IsSettingsViewVisible = false;
             IsToolsViewVisible = false;
+            IsVisualizerViewVisible = false;
         });
         BrowseJavaPathCommand = new RelayCommand(_ => BrowseJavaPath());
         BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => Settings.CompilerRoot = v, "Compiler Root Folder"));
@@ -176,7 +240,15 @@ public class MainViewModel : INotifyPropertyChanged
         OpenToolsCommand = new RelayCommand(_ =>
         {
             IsSettingsViewVisible = false;
+            IsVisualizerViewVisible = false;
             IsToolsViewVisible = true;
+        });
+        OpenVisualizerCommand = new RelayCommand(_ =>
+        {
+            IsSettingsViewVisible = false;
+            IsToolsViewVisible = false;
+            IsVisualizerViewVisible = true;
+            EnsureVisualizerDataLoaded();
         });
         AddToolPairCommand = new RelayCommand(_ => AddToolPair());
         RemoveToolPairCommand = new RelayCommand(_ => RemoveSelectedToolPair(), _ => SelectedToolTestPair != null);
@@ -195,10 +267,16 @@ public class MainViewModel : INotifyPropertyChanged
 
         RunAllTestsCommand = new RelayCommand(_ => RunAllTests());
         RunSelectedTestsCommand = new RelayCommand(_ => RunSelectedTest(), _ => SelectedTestResult != null);
+        VisualizerLoadCurrentCommand = new RelayCommand(_ => LoadVisualizerFromCurrentFile());
+        VisualizerStepCommand = new RelayCommand(_ => VisualizerStep(), _ => VisualizerCanStep);
+        VisualizerRunAllCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
+        VisualizerResetCommand = new RelayCommand(_ => VisualizerReset(), _ => VisualizerHasData);
+        VisualizerJumpToEndCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
 
         EnsureProjectDirectory();
         if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
             LoadProject(Settings.ProjectRoot);
+        ApplyVisualizerOpcodeFilter();
     }
 
     private void OpenProject()
@@ -485,6 +563,163 @@ public class MainViewModel : INotifyPropertyChanged
         {
             VmOutput = fullOutput;
         }
+
+        if (VisualizerAutoSync)
+            LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+    }
+
+    private async void LoadVisualizerFromCurrentFile()
+    {
+        if (string.IsNullOrWhiteSpace(_currentFile))
+        {
+            VisualizerInfo = "Open a .fava file first.";
+            return;
+        }
+
+        SaveFile();
+        var runner = new JavaCompilerService(Settings);
+        var result = await runner.RunFileAsync(_currentFile);
+        UpdateOutputs(result.Output);
+        LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+        StatusText = result.Success ? "Visualizer data loaded." : "Visualizer loaded with execution errors.";
+        StatusColor = result.Success ? Brushes.LightGreen : Brushes.Orange;
+    }
+
+    private void EnsureVisualizerDataLoaded()
+    {
+        if (_allVisualizerInstructions.Count > 0) return;
+        if (string.IsNullOrWhiteSpace(InstructionsOutput))
+            VisualizerInfo = "Run the current file or click “Load Current File” in Visualizer.";
+        else
+            LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+    }
+
+    private void LoadVisualizerFromSections(string constantsSection, string instructionsSection)
+    {
+        _allVisualizerConstants.Clear();
+        _allVisualizerConstants.AddRange(VisualizerService.ParseConstantPool(constantsSection));
+        _allVisualizerInstructions.Clear();
+        _allVisualizerInstructions.AddRange(VisualizerService.ParseInstructions(instructionsSection));
+
+        VisualizerReset();
+        ApplyVisualizerInstructionFilter();
+        ApplyVisualizerConstantFilter();
+        VisualizerInfo = _allVisualizerInstructions.Count == 0
+            ? "No instructions found. Run a valid file to visualize execution."
+            : $"Loaded {_allVisualizerInstructions.Count} instruction(s) and {_allVisualizerConstants.Count} constant(s).";
+    }
+
+    private void VisualizerReset()
+    {
+        _visualizerRuntimeStack.Clear();
+        VisualizerStack.Clear();
+        VisualizerTimeline.Clear();
+        _visualizerStepIndex = 0;
+        _visualizerHalted = false;
+        VisualizerRunOutput = "";
+        foreach (var instruction in _allVisualizerInstructions)
+            instruction.IsCurrent = false;
+
+        if (_allVisualizerInstructions.Count > 0)
+            _allVisualizerInstructions[0].IsCurrent = true;
+
+        RaiseVisualizerStateChanged();
+    }
+
+    private void VisualizerStep()
+    {
+        if (!VisualizerCanStep) return;
+        var instruction = _allVisualizerInstructions[_visualizerStepIndex];
+        instruction.IsCurrent = true;
+        var before = VisualizerService.StackToText(_visualizerRuntimeStack);
+        var success = VisualizerService.ApplyInstruction(instruction, _visualizerRuntimeStack, _allVisualizerConstants, out var note, out var outputLine, out var halted);
+        var after = VisualizerService.StackToText(_visualizerRuntimeStack);
+        VisualizerTimeline.Add(new VisualizerTimelineEntry
+        {
+            Step = _visualizerStepIndex + 1,
+            Instruction = instruction.Display,
+            StackBefore = before,
+            StackAfter = after,
+            Note = note
+        });
+
+        if (!string.IsNullOrWhiteSpace(outputLine))
+            VisualizerRunOutput = string.IsNullOrWhiteSpace(VisualizerRunOutput) ? outputLine : $"{VisualizerRunOutput}\n{outputLine}";
+
+        RefreshVisualizerStack();
+        instruction.IsCurrent = false;
+        if (!success || halted)
+            _visualizerHalted = true;
+
+        _visualizerStepIndex++;
+        if (!_visualizerHalted && _visualizerStepIndex < _allVisualizerInstructions.Count)
+            _allVisualizerInstructions[_visualizerStepIndex].IsCurrent = true;
+
+        RaiseVisualizerStateChanged();
+    }
+
+    private void VisualizerRunAll()
+    {
+        while (VisualizerCanStep)
+            VisualizerStep();
+    }
+
+    private void RefreshVisualizerStack()
+    {
+        VisualizerStack.Clear();
+        foreach (var entry in VisualizerService.StackToEntries(_visualizerRuntimeStack))
+            VisualizerStack.Add(entry);
+    }
+
+    private void RaiseVisualizerStateChanged()
+    {
+        OnPropertyChanged(nameof(VisualizerCanStep));
+        OnPropertyChanged(nameof(VisualizerHasData));
+        VisualizerStepCommand.RaiseCanExecuteChanged();
+        VisualizerRunAllCommand.RaiseCanExecuteChanged();
+        VisualizerResetCommand.RaiseCanExecuteChanged();
+        VisualizerJumpToEndCommand.RaiseCanExecuteChanged();
+    }
+
+    private void ApplyVisualizerInstructionFilter()
+    {
+        VisualizerInstructions.Clear();
+        var filter = (VisualizerInstructionFilter ?? "").Trim();
+        var source = _allVisualizerInstructions.Where(i =>
+            string.IsNullOrWhiteSpace(filter) ||
+            i.Opcode.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+            i.Display.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+            i.Description.Contains(filter, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var instruction in source)
+            VisualizerInstructions.Add(instruction);
+    }
+
+    private void ApplyVisualizerConstantFilter()
+    {
+        VisualizerConstantPool.Clear();
+        var filter = (VisualizerConstantFilter ?? "").Trim();
+        for (var i = 0; i < _allVisualizerConstants.Count; i++)
+        {
+            var value = _allVisualizerConstants[i];
+            var line = $"{i}: {value}";
+            if (!string.IsNullOrWhiteSpace(filter) && !line.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                continue;
+            VisualizerConstantPool.Add(line);
+        }
+    }
+
+    private void ApplyVisualizerOpcodeFilter()
+    {
+        VisualizerOpcodeReference.Clear();
+        var filter = (VisualizerOpcodeSearch ?? "").Trim();
+        var source = _allOpcodeReference.Where(item =>
+            string.IsNullOrWhiteSpace(filter)
+            || item.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+            || item.Summary.Contains(filter, StringComparison.OrdinalIgnoreCase)
+            || item.Opcode.ToString().Contains(filter, StringComparison.OrdinalIgnoreCase));
+        foreach (var item in source)
+            VisualizerOpcodeReference.Add(item);
     }
 
     private void AddToolPair()
