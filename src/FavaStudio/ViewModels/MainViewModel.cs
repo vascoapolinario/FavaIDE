@@ -337,10 +337,7 @@ public class MainViewModel : INotifyPropertyChanged
         VisualizerJumpToEndCommand = new RelayCommand(_ => VisualizerJumpToEnd(), _ => VisualizerCanStep);
 
         RefreshRecentCollections();
-        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot) && Directory.Exists(Settings.ProjectRoot))
-            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
-        else
-            IsWelcomeViewVisible = true;
+        IsWelcomeViewVisible = true;
         ApplyVisualizerOpcodeFilter();
     }
 
@@ -393,6 +390,8 @@ public class MainViewModel : INotifyPropertyChanged
         if (!skipUnsavedCheck && !TryResolveUnsavedChanges())
             return;
 
+        var expandedPaths = CaptureExpandedPaths(ProjectTree.FirstOrDefault());
+        var selectedPath = SelectedProjectNode?.FullPath;
         ProjectTree.Clear();
         try
         {
@@ -409,12 +408,8 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CurrentProjectDirectory));
             OnPropertyChanged(nameof(IsWorkspaceVisible));
 
-            _currentFile = null;
-            _suppressDirtyTracking = true;
-            _editor.Text = "";
-            _suppressDirtyTracking = false;
-            _hasUnsavedChanges = false;
-            OnPropertyChanged(nameof(CurrentFileName));
+            RestoreExpandedPaths(root, expandedPaths);
+            OpenInitialProjectFile(root, folder, selectedPath);
         }
         catch (Exception ex)
         {
@@ -471,6 +466,9 @@ public class MainViewModel : INotifyPropertyChanged
         FileService.WriteText(dialog.FileName, "");
         if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
             LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
+        var createdNode = FindNodeByPath(ProjectTree.FirstOrDefault(), dialog.FileName);
+        if (createdNode is not null)
+            SetSelectedProjectNode(createdNode);
     }
 
     private void NewDirectory(ProjectNode? node)
@@ -533,6 +531,7 @@ public class MainViewModel : INotifyPropertyChanged
     private async Task RunLiveCheckAsync()
     {
         if (string.IsNullOrWhiteSpace(_currentFile) || _isLiveChecking) return;
+        if (!CanRunCompiler(showStatus: false)) return;
 
         _isLiveChecking = true;
         try
@@ -567,6 +566,7 @@ public class MainViewModel : INotifyPropertyChanged
     private async void RunCurrentFile()
     {
         if (string.IsNullOrWhiteSpace(_currentFile)) return;
+        if (!CanRunCompiler(showStatus: true)) return;
         SaveFile();
         StatusText = "Running…";
         StatusColor = Brushes.LightGray;
@@ -1318,6 +1318,108 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         return true;
+    }
+
+    private bool CanRunCompiler(bool showStatus)
+    {
+        var hasJava = !string.IsNullOrWhiteSpace(Settings.JavaPath);
+        var hasCompilerRoot = !string.IsNullOrWhiteSpace(Settings.CompilerRoot) && Directory.Exists(Settings.CompilerRoot);
+        var hasAntlr = !string.IsNullOrWhiteSpace(Settings.AntlrJar) && File.Exists(Settings.AntlrJar);
+        if (hasJava && hasCompilerRoot && hasAntlr)
+            return true;
+
+        if (showStatus)
+        {
+            StatusText = "Configure Java path, compiler root and ANTLR jar in Settings before running.";
+            StatusColor = Brushes.Orange;
+        }
+
+        return false;
+    }
+
+    private static HashSet<string> CaptureExpandedPaths(ProjectNode? root)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CaptureExpandedPathsRecursive(root, result);
+        return result;
+    }
+
+    private static void CaptureExpandedPathsRecursive(ProjectNode? node, HashSet<string> result)
+    {
+        if (node is null) return;
+        if (node.IsExpanded && !string.IsNullOrWhiteSpace(node.FullPath))
+            result.Add(node.FullPath);
+
+        foreach (var child in node.Children)
+            CaptureExpandedPathsRecursive(child, result);
+    }
+
+    private static void RestoreExpandedPaths(ProjectNode? root, HashSet<string> expandedPaths)
+    {
+        if (root is null) return;
+        root.IsExpanded = expandedPaths.Contains(root.FullPath);
+        foreach (var child in root.Children)
+            RestoreExpandedPaths(child, expandedPaths);
+    }
+
+    private void OpenInitialProjectFile(ProjectNode root, string folder, string? previousSelectedPath)
+    {
+        ProjectNode? nodeToOpen = null;
+        if (!string.IsNullOrWhiteSpace(previousSelectedPath))
+            nodeToOpen = FindNodeByPath(root, previousSelectedPath);
+
+        if (nodeToOpen is null)
+        {
+            var recentInProject = Settings.RecentFiles
+                .FirstOrDefault(path =>
+                    path.EndsWith(".fava", StringComparison.OrdinalIgnoreCase)
+                    && File.Exists(path)
+                    && IsPathInside(path, folder));
+            if (!string.IsNullOrWhiteSpace(recentInProject))
+                nodeToOpen = FindNodeByPath(root, recentInProject);
+        }
+
+        if (nodeToOpen is null)
+            nodeToOpen = FindFirstFileNode(root, ".fava");
+        if (nodeToOpen is null)
+            nodeToOpen = FindFirstFileNode(root, ".txt");
+
+        if (nodeToOpen is not null)
+        {
+            SetSelectedProjectNode(nodeToOpen);
+            return;
+        }
+
+        _currentFile = null;
+        _suppressDirtyTracking = true;
+        _editor.Text = "";
+        _suppressDirtyTracking = false;
+        _hasUnsavedChanges = false;
+        OnPropertyChanged(nameof(CurrentFileName));
+    }
+
+    private static bool IsPathInside(string path, string rootPath)
+    {
+        var normalizedPath = Path.GetFullPath(path);
+        var normalizedRoot = Path.GetFullPath(rootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        return normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ProjectNode? FindFirstFileNode(ProjectNode? node, string extension)
+    {
+        if (node is null) return null;
+        if (!node.IsDirectory && node.Name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            return node;
+
+        foreach (var child in node.Children)
+        {
+            var found = FindFirstFileNode(child, extension);
+            if (found is not null)
+                return found;
+        }
+
+        return null;
     }
 
     private static ProjectNode? FindNodeByPath(ProjectNode? node, string fullPath)

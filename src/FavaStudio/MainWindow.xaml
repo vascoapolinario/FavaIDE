@@ -139,6 +139,7 @@
                             </TreeView.Resources>
                             <TreeView.ItemContainerStyle>
                                 <Style TargetType="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
                                     <Setter Property="Tag"
                                             Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                     <Setter Property="ContextMenu">
