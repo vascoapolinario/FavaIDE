@@ -62,8 +62,8 @@ public class MainViewModel : INotifyPropertyChanged
     public bool IsWorkspaceVisible => !IsSettingsViewVisible && !IsToolsViewVisible;
     public bool ShowOutputOnly { get => _showOutputOnly; set { _showOutputOnly = value; OnPropertyChanged(); } }
     public bool ToolCompareFullOutput { get => _toolCompareFullOutput; set { _toolCompareFullOutput = value; OnPropertyChanged(); } }
-    public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; OnPropertyChanged(); } }
-    public string ToolOutputsFolder { get => Settings.OutputsDir; set { Settings.OutputsDir = value; OnPropertyChanged(); } }
+    public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); } }
+    public string ToolOutputsFolder { get => Settings.OutputsDir; set { Settings.OutputsDir = value; Settings.Save(); OnPropertyChanged(); } }
     public string ToolRunSummary { get => _toolRunSummary; set { _toolRunSummary = value; OnPropertyChanged(); } }
     public string SelectedToolExpectedOutput { get => _selectedToolExpectedOutput; set { _selectedToolExpectedOutput = value; OnPropertyChanged(); } }
     public string SelectedToolActualOutput { get => _selectedToolActualOutput; set { _selectedToolActualOutput = value; OnPropertyChanged(); } }
@@ -515,7 +515,8 @@ public class MainViewModel : INotifyPropertyChanged
         if (target is null) return;
         target.InputFile = dialog.FileName;
         target.Result = "Ready";
-        SelectedToolTestPair = target;
+        if (!ReferenceEquals(SelectedToolTestPair, target))
+            SelectedToolTestPair = target;
     }
 
     private void BrowseToolPairExpectedOutputFile(TestFilePair? pair)
@@ -531,7 +532,8 @@ public class MainViewModel : INotifyPropertyChanged
         if (target is null) return;
         target.ExpectedOutputFile = dialog.FileName;
         target.Result = "Ready";
-        SelectedToolTestPair = target;
+        if (!ReferenceEquals(SelectedToolTestPair, target))
+            SelectedToolTestPair = target;
     }
 
     private void BuildToolPairsFromFolders()
@@ -631,7 +633,7 @@ public class MainViewModel : INotifyPropertyChanged
             }
         }
 
-        ToolRunSummary = $"✅ Passed: {passed}   ❌ Failed: {failed}   ⚠️ Skipped: {skipped}   •   Total: {ToolTestPairs.Count}";
+        ToolRunSummary = $"Passed: {passed}   Failed: {failed}   Skipped: {skipped}   Total: {ToolTestPairs.Count}";
         StatusText = ToolRunSummary;
         StatusColor = failed == 0 && skipped == 0 ? Brushes.LightGreen : (failed > 0 ? Brushes.IndianRed : Brushes.Orange);
         UpdateSelectedToolPairDetails();
@@ -798,6 +800,8 @@ public class MainViewModel : INotifyPropertyChanged
         var actualLines = actual.Split('\n');
         var max = Math.Max(expectedLines.Length, actualLines.Length);
         var diff = new StringBuilder();
+        var shown = 0;
+        const int maxDiffLines = 200;
 
         for (var i = 0; i < max; i++)
         {
@@ -805,9 +809,16 @@ public class MainViewModel : INotifyPropertyChanged
             var act = i < actualLines.Length ? actualLines[i] : "";
             if (exp == act) continue;
 
+            if (shown >= maxDiffLines)
+            {
+                diff.AppendLine($"... diff truncated after {maxDiffLines} differing lines.");
+                break;
+            }
+
             diff.AppendLine($"Line {i + 1}:");
             diff.AppendLine($"  - expected: {exp}");
             diff.AppendLine($"  + actual:   {act}");
+            shown++;
         }
 
         return diff.ToString().Trim();
