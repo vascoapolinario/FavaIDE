@@ -17,7 +17,6 @@
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveFileCommand}"/>
         <KeyBinding Key="P" Modifiers="Control" Command="{Binding OpenQuickOpenCommand}"/>
         <KeyBinding Key="Escape" Command="{Binding CloseQuickOpenCommand}"/>
-        <KeyBinding Key="Enter" Command="{Binding OpenSelectedQuickOpenFileCommand}"/>
     </Window.InputBindings>
 
     <Grid>
@@ -789,12 +788,20 @@
                              Text="{Binding QuickOpenQuery, UpdateSourceTrigger=PropertyChanged}"
                              FontSize="15"
                              Padding="10,8"
-                             ToolTip="Type to filter project files (.fava/.txt), Enter to open, Esc to close"/>
+                             ToolTip="Type to filter project files (.fava/.txt), Enter to open, Esc to close">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding OpenSelectedQuickOpenFileCommand}"/>
+                        </TextBox.InputBindings>
+                    </TextBox>
                     <ListBox Grid.Row="2"
                              ItemsSource="{Binding QuickOpenResults}"
                              SelectedItem="{Binding SelectedQuickOpenFile}"
                              FontFamily="Consolas"
-                             FontSize="13"/>
+                             FontSize="13">
+                        <ListBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding OpenSelectedQuickOpenFileCommand}"/>
+                        </ListBox.InputBindings>
+                    </ListBox>
                 </Grid>
             </Border>
         </Grid>
