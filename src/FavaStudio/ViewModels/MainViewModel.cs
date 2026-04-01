@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -30,6 +31,11 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _isToolsViewVisible;
     private bool _showOutputOnly = true;
     private bool _toolCompareFullOutput;
+    private TestFilePair? _selectedToolTestPair;
+    private string _toolRunSummary = "No tool runs yet.";
+    private string _selectedToolExpectedOutput = "";
+    private string _selectedToolActualOutput = "";
+    private string _selectedToolDiffOutput = "";
     private TestResult? _selectedTestResult;
     private string _testSummary = "";
 
@@ -56,6 +62,12 @@ public class MainViewModel : INotifyPropertyChanged
     public bool IsWorkspaceVisible => !IsSettingsViewVisible && !IsToolsViewVisible;
     public bool ShowOutputOnly { get => _showOutputOnly; set { _showOutputOnly = value; OnPropertyChanged(); } }
     public bool ToolCompareFullOutput { get => _toolCompareFullOutput; set { _toolCompareFullOutput = value; OnPropertyChanged(); } }
+    public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); } }
+    public string ToolOutputsFolder { get => Settings.OutputsDir; set { Settings.OutputsDir = value; Settings.Save(); OnPropertyChanged(); } }
+    public string ToolRunSummary { get => _toolRunSummary; set { _toolRunSummary = value; OnPropertyChanged(); } }
+    public string SelectedToolExpectedOutput { get => _selectedToolExpectedOutput; set { _selectedToolExpectedOutput = value; OnPropertyChanged(); } }
+    public string SelectedToolActualOutput { get => _selectedToolActualOutput; set { _selectedToolActualOutput = value; OnPropertyChanged(); } }
+    public string SelectedToolDiffOutput { get => _selectedToolDiffOutput; set { _selectedToolDiffOutput = value; OnPropertyChanged(); } }
     public string TestSummary { get => _testSummary; set { _testSummary = value; OnPropertyChanged(); } }
     public bool ShowTestOutput { get => Settings.ShowTestOutput; set { Settings.ShowTestOutput = value; OnPropertyChanged(); } }
 
@@ -63,6 +75,18 @@ public class MainViewModel : INotifyPropertyChanged
     {
         get => _selectedTestResult;
         set { _selectedTestResult = value; OnPropertyChanged(); }
+    }
+
+    public TestFilePair? SelectedToolTestPair
+    {
+        get => _selectedToolTestPair;
+        set
+        {
+            _selectedToolTestPair = value;
+            OnPropertyChanged();
+            UpdateSelectedToolPairDetails();
+            RemoveToolPairCommand.RaiseCanExecuteChanged();
+        }
     }
 
     public ProjectNode? SelectedProjectNode
@@ -97,8 +121,13 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BrowseAntlrJarCommand { get; }
     public RelayCommand SaveSettingsCommand { get; }
     public RelayCommand OpenToolsCommand { get; }
-    public RelayCommand AddToolInputFileCommand { get; }
-    public RelayCommand AddToolExpectedOutputCommand { get; }
+    public RelayCommand AddToolPairCommand { get; }
+    public RelayCommand RemoveToolPairCommand { get; }
+    public RelayCommand BrowseToolPairInputCommand { get; }
+    public RelayCommand BrowseToolPairExpectedOutputCommand { get; }
+    public RelayCommand BrowseToolInputsFolderCommand { get; }
+    public RelayCommand BrowseToolOutputsFolderCommand { get; }
+    public RelayCommand BuildToolPairsFromFoldersCommand { get; }
     public RelayCommand RunSelectedToolPairsCommand { get; }
     public RelayCommand ClearToolPairsCommand { get; }
     public RelayCommand RunAllTestsCommand { get; }
@@ -149,10 +178,20 @@ public class MainViewModel : INotifyPropertyChanged
             IsSettingsViewVisible = false;
             IsToolsViewVisible = true;
         });
-        AddToolInputFileCommand = new RelayCommand(_ => AddToolInputFile());
-        AddToolExpectedOutputCommand = new RelayCommand(_ => AddToolExpectedOutput());
+        AddToolPairCommand = new RelayCommand(_ => AddToolPair());
+        RemoveToolPairCommand = new RelayCommand(_ => RemoveSelectedToolPair(), _ => SelectedToolTestPair != null);
+        BrowseToolPairInputCommand = new RelayCommand(p => BrowseToolPairInputFile(p as TestFilePair));
+        BrowseToolPairExpectedOutputCommand = new RelayCommand(p => BrowseToolPairExpectedOutputFile(p as TestFilePair));
+        BrowseToolInputsFolderCommand = new RelayCommand(_ => BrowseFolder(v => ToolInputsFolder = v, "Inputs Folder"));
+        BrowseToolOutputsFolderCommand = new RelayCommand(_ => BrowseFolder(v => ToolOutputsFolder = v, "Outputs Folder"));
+        BuildToolPairsFromFoldersCommand = new RelayCommand(_ => BuildToolPairsFromFolders());
         RunSelectedToolPairsCommand = new RelayCommand(_ => RunSelectedToolPairs());
-        ClearToolPairsCommand = new RelayCommand(_ => ToolTestPairs.Clear());
+        ClearToolPairsCommand = new RelayCommand(_ =>
+        {
+            ToolTestPairs.Clear();
+            SelectedToolTestPair = null;
+            ToolRunSummary = "Tool pairs cleared.";
+        });
 
         RunAllTestsCommand = new RelayCommand(_ => RunAllTests());
         RunSelectedTestsCommand = new RelayCommand(_ => RunSelectedTest(), _ => SelectedTestResult != null);
@@ -448,7 +487,22 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void AddToolInputFile()
+    private void AddToolPair()
+    {
+        var pair = new TestFilePair();
+        ToolTestPairs.Add(pair);
+        SelectedToolTestPair = pair;
+    }
+
+    private void RemoveSelectedToolPair()
+    {
+        if (SelectedToolTestPair is null) return;
+
+        ToolTestPairs.Remove(SelectedToolTestPair);
+        SelectedToolTestPair = ToolTestPairs.FirstOrDefault();
+    }
+
+    private void BrowseToolPairInputFile(TestFilePair? pair)
     {
         var dialog = new OpenFileDialog
         {
@@ -457,15 +511,14 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() != true) return;
 
-        ToolTestPairs.Add(new TestFilePair
-        {
-            InputFile = dialog.FileName,
-            ExpectedOutputFile = "",
-            Result = "Missing output file"
-        });
+        var target = pair ?? SelectedToolTestPair;
+        if (target is null) return;
+        target.InputFile = dialog.FileName;
+        target.Result = "Ready";
+        SetSelectedToolPairIfChanged(target);
     }
 
-    private void AddToolExpectedOutput()
+    private void BrowseToolPairExpectedOutputFile(TestFilePair? pair)
     {
         var dialog = new OpenFileDialog
         {
@@ -474,21 +527,45 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() != true) return;
 
-        var pair = ToolTestPairs.FirstOrDefault(p => string.IsNullOrWhiteSpace(p.ExpectedOutputFile));
-        if (pair is null)
+        var target = pair ?? SelectedToolTestPair;
+        if (target is null) return;
+        target.ExpectedOutputFile = dialog.FileName;
+        target.Result = "Ready";
+        SetSelectedToolPairIfChanged(target);
+    }
+
+    private void BuildToolPairsFromFolders()
+    {
+        if (string.IsNullOrWhiteSpace(ToolInputsFolder) || !Directory.Exists(ToolInputsFolder))
         {
+            StatusText = "Select a valid inputs folder.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(ToolOutputsFolder) || !Directory.Exists(ToolOutputsFolder))
+        {
+            StatusText = "Select a valid outputs folder.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
+        ToolTestPairs.Clear();
+        foreach (var input in Directory.GetFiles(ToolInputsFolder, "*.fava").OrderBy(f => f))
+        {
+            var name = Path.GetFileNameWithoutExtension(input);
+            var expected = Path.Combine(ToolOutputsFolder, $"{name}.txt");
             ToolTestPairs.Add(new TestFilePair
             {
-                InputFile = "",
-                ExpectedOutputFile = dialog.FileName,
-                Result = "Missing input file"
+                InputFile = input,
+                ExpectedOutputFile = expected,
+                Result = File.Exists(expected) ? "Ready" : "Missing expected file"
             });
         }
-        else
-        {
-            pair.ExpectedOutputFile = dialog.FileName;
-        }
-        OnPropertyChanged(nameof(ToolTestPairs));
+
+        SelectedToolTestPair = ToolTestPairs.FirstOrDefault();
+        ToolRunSummary = $"Loaded {ToolTestPairs.Count} pair(s) from folders.";
+        Settings.Save();
     }
 
     private async void RunSelectedToolPairs()
@@ -501,11 +578,26 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         var runner = new JavaCompilerService(Settings);
+        var passed = 0;
+        var failed = 0;
+        var skipped = 0;
         foreach (var pair in ToolTestPairs)
         {
-            if (string.IsNullOrWhiteSpace(pair.InputFile) || string.IsNullOrWhiteSpace(pair.ExpectedOutputFile))
+            pair.ActualOutput = "";
+            pair.ExpectedOutput = "";
+            pair.DiffOutput = "";
+
+            if (string.IsNullOrWhiteSpace(pair.InputFile) || !File.Exists(pair.InputFile))
             {
-                pair.Result = "Incomplete pair";
+                pair.Result = "Missing input file";
+                skipped++;
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(pair.ExpectedOutputFile) || !File.Exists(pair.ExpectedOutputFile))
+            {
+                pair.Result = "Missing expected file";
+                skipped++;
                 continue;
             }
 
@@ -513,17 +605,36 @@ public class MainViewModel : INotifyPropertyChanged
             if (!run.Success)
             {
                 pair.Result = "Compiler/runtime error";
+                pair.ActualOutput = run.Output;
+                pair.ExpectedOutput = File.ReadAllText(pair.ExpectedOutputFile);
+                pair.DiffOutput = "Execution failed before comparison.";
+                failed++;
                 continue;
             }
 
-            var expected = File.Exists(pair.ExpectedOutputFile) ? File.ReadAllText(pair.ExpectedOutputFile).Replace("\r\n", "\n").Trim() : "";
+            var expected = File.ReadAllText(pair.ExpectedOutputFile).Replace("\r\n", "\n").Trim();
             var actual = ToolCompareFullOutput
                 ? run.Output.Replace("\r\n", "\n").Trim()
                 : ExtractVmOnlyOutput(run.Output).Replace("\r\n", "\n").Trim();
-            pair.Result = actual == expected ? "PASS" : "FAIL";
+            pair.ExpectedOutput = expected;
+            pair.ActualOutput = actual;
+            pair.DiffOutput = BuildDiff(expected, actual);
+            if (actual == expected)
+            {
+                pair.Result = "PASS";
+                passed++;
+            }
+            else
+            {
+                pair.Result = "FAIL";
+                failed++;
+            }
         }
-        StatusText = "Tool tests complete.";
-        StatusColor = Brushes.LightBlue;
+
+        ToolRunSummary = FormatToolRunSummary(passed, failed, skipped, ToolTestPairs.Count);
+        StatusText = ToolRunSummary;
+        StatusColor = failed == 0 && skipped == 0 ? Brushes.LightGreen : (failed > 0 ? Brushes.IndianRed : Brushes.Orange);
+        UpdateSelectedToolPairDetails();
         OnPropertyChanged(nameof(ToolTestPairs));
     }
 
@@ -669,6 +780,55 @@ public class MainViewModel : INotifyPropertyChanged
         if (normalized.EndsWith(':'))
             normalized = normalized[..^1];
         return normalized.ToLowerInvariant();
+    }
+
+    private void UpdateSelectedToolPairDetails()
+    {
+        SelectedToolExpectedOutput = SelectedToolTestPair?.ExpectedOutput ?? "";
+        SelectedToolActualOutput = SelectedToolTestPair?.ActualOutput ?? "";
+        SelectedToolDiffOutput = SelectedToolTestPair?.DiffOutput ?? "";
+    }
+
+    private void SetSelectedToolPairIfChanged(TestFilePair? pair)
+    {
+        if (!ReferenceEquals(SelectedToolTestPair, pair))
+            SelectedToolTestPair = pair;
+    }
+
+    private static string FormatToolRunSummary(int passed, int failed, int skipped, int total) =>
+        string.Join(" | ", $"Passed: {passed}", $"Failed: {failed}", $"Skipped: {skipped}", $"Total: {total}");
+
+    private static string BuildDiff(string expected, string actual)
+    {
+        if (expected == actual)
+            return "No differences.";
+
+        var expectedLines = expected.Split('\n');
+        var actualLines = actual.Split('\n');
+        var max = Math.Max(expectedLines.Length, actualLines.Length);
+        var diff = new StringBuilder();
+        var shown = 0;
+        const int maxDiffLines = 200;
+
+        for (var i = 0; i < max; i++)
+        {
+            var exp = i < expectedLines.Length ? expectedLines[i] : "";
+            var act = i < actualLines.Length ? actualLines[i] : "";
+            if (exp == act) continue;
+
+            if (shown >= maxDiffLines)
+            {
+                diff.AppendLine($"... diff truncated after {maxDiffLines} differing lines.");
+                break;
+            }
+
+            diff.AppendLine($"Line {i + 1}:");
+            diff.AppendLine($"  - expected: {exp}");
+            diff.AppendLine($"  + actual:   {act}");
+            shown++;
+        }
+
+        return diff.ToString().Trim();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
