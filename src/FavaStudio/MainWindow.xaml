@@ -13,6 +13,12 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
 
+    <Window.InputBindings>
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveFileCommand}"/>
+        <KeyBinding Key="P" Modifiers="Control" Command="{Binding OpenQuickOpenCommand}"/>
+        <KeyBinding Key="Escape" Command="{Binding CloseQuickOpenCommand}"/>
+    </Window.InputBindings>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -27,19 +33,44 @@
                 Padding="8,4">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <TextBlock Text="Fava Studio"
-                               FontWeight="Bold"
-                               FontSize="22"
-                               FontFamily="Segoe UI Semibold"
-                               Foreground="#FF9A3D"
-                               VerticalAlignment="Center"
-                               Margin="4,0,18,0"/>
+                    <Button Command="{Binding BackToEditorCommand}"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="4,0,18,0"
+                            Cursor="Hand">
+                        <TextBlock Text="Fava Studio"
+                                   FontWeight="Bold"
+                                   FontSize="22"
+                                   FontFamily="Segoe UI Semibold"
+                                   Foreground="#FF9A3D"
+                                   VerticalAlignment="Center"/>
+                    </Button>
                 </StackPanel>
 
                 <Menu Background="Transparent" DockPanel.Dock="Left" FontSize="14">
                     <MenuItem Header="Project">
                         <MenuItem Header="Create New Project" Command="{Binding CreateProjectCommand}"/>
                         <MenuItem Header="Open Project" Command="{Binding OpenProjectCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="Quick Open (Ctrl+P)" Command="{Binding OpenQuickOpenCommand}"/>
+                        <MenuItem Header="Recent Projects" ItemsSource="{Binding RecentProjects}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem">
+                                    <Setter Property="Header" Value="{Binding}"/>
+                                    <Setter Property="Command" Value="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Setter Property="CommandParameter" Value="{Binding}"/>
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
+                        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem">
+                                    <Setter Property="Header" Value="{Binding}"/>
+                                    <Setter Property="Command" Value="{Binding DataContext.OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Setter Property="CommandParameter" Value="{Binding}"/>
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
                     </MenuItem>
                     <MenuItem Header="Settings">
                         <MenuItem Header="Open Settings" Command="{Binding OpenSettingsCommand}"/>
@@ -47,10 +78,7 @@
                     </MenuItem>
                     <MenuItem Header="Tools">
                         <MenuItem Header="Open Test Tool" Command="{Binding OpenToolsCommand}"/>
-                        <MenuItem Header="Add Pair" Command="{Binding AddToolPairCommand}"/>
-                        <MenuItem Header="Build Pairs from Folders" Command="{Binding BuildToolPairsFromFoldersCommand}"/>
-                        <MenuItem Header="Run Compare" Command="{Binding RunSelectedToolPairsCommand}"/>
-                        <MenuItem Header="Clear Tool Pairs" Command="{Binding ClearToolPairsCommand}"/>
+                        <MenuItem Header="Open Visualizer" Command="{Binding OpenVisualizerCommand}"/>
                     </MenuItem>
                     <MenuItem Header="Run">
                         <MenuItem Header="Run Current File" Command="{Binding RunCurrentCommand}"/>
@@ -111,6 +139,7 @@
                             </TreeView.Resources>
                             <TreeView.ItemContainerStyle>
                                 <Style TargetType="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
                                     <Setter Property="Tag"
                                             Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                     <Setter Property="ContextMenu">
@@ -290,6 +319,59 @@
                         </TabControl>
                     </Border>
                 </Grid>
+            </Grid>
+
+            <Grid Visibility="{Binding IsWelcomeViewVisible, Converter={StaticResource BoolToVisibility}}">
+                <Border Background="{StaticResource BgMainBrush}" Padding="28">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="3*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Fava Studio"
+                                       FontSize="44"
+                                       FontWeight="Bold"
+                                       Foreground="#FF9A3D"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="Welcome! Start quickly by creating a new project, opening an existing one, or continuing from your recent projects."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Margin="0,0,0,20"/>
+                            <WrapPanel>
+                                <Button Content="Create New Project" Command="{Binding CreateProjectCommand}" Style="{StaticResource AccentButton}" Padding="16,9" Margin="0,0,8,8"/>
+                                <Button Content="Open Project" Command="{Binding OpenProjectCommand}" Padding="16,9" Margin="0,0,8,8"/>
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <Border Grid.Column="2"
+                                Background="{StaticResource BgPanelBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Recent Projects"
+                                           FontWeight="SemiBold"
+                                           FontSize="18"
+                                           Margin="0,0,0,8"/>
+                                <ListBox ItemsSource="{Binding RecentProjects}" BorderThickness="0" Background="Transparent">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Content="{Binding}"
+                                                    Command="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Margin="0,0,0,6"
+                                                    Padding="10,8"
+                                                    HorizontalContentAlignment="Left"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
             </Grid>
 
             <Grid Visibility="{Binding IsSettingsViewVisible, Converter={StaticResource BoolToVisibility}}">
@@ -520,6 +602,209 @@
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+
+            <Grid Visibility="{Binding IsVisualizerViewVisible, Converter={StaticResource BoolToVisibility}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{StaticResource BgMainBrush}">
+                    <StackPanel MaxWidth="1180">
+                        <DockPanel Margin="0,0,0,18">
+                            <TextBlock DockPanel.Dock="Left" Text="Visualizer • Stack Explorer" FontSize="24" FontWeight="Bold"/>
+                            <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" />
+                        </DockPanel>
+
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,12" Background="{StaticResource BgPanelBrush}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding VisualizerInfo}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Stack visualization follows your current file output (constant pool + instructions)." Foreground="{StaticResource TextMutedBrush}"/>
+                                </StackPanel>
+                                <WrapPanel Grid.Column="1" VerticalAlignment="Top">
+                                    <Button Content="Load Current File" Command="{Binding VisualizerLoadCurrentCommand}" Padding="12,6" Margin="0,0,8,0"/>
+                                    <Button Content="Step" Command="{Binding VisualizerStepCommand}" Style="{StaticResource AccentButton}" Padding="12,6" Margin="0,0,8,0"/>
+                                    <Button Content="Run All" Command="{Binding VisualizerRunAllCommand}" Padding="12,6" Margin="0,0,8,0"/>
+                                    <Button Content="Jump To End" Command="{Binding VisualizerJumpToEndCommand}" Padding="12,6" Margin="0,0,8,0"/>
+                                    <Button Content="Reset" Command="{Binding VisualizerResetCommand}" Padding="12,6"/>
+                                </WrapPanel>
+                            </Grid>
+                        </Border>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.65*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="1.05*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="1.05*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <GroupBox Header="Instruction Stream" Grid.Column="0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBox Grid.Row="0"
+                                             Text="{Binding VisualizerInstructionFilter, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,0,0,8"
+                                             Padding="8,6"
+                                             ToolTip="Feature: instruction search/filter"/>
+                                    <DataGrid Grid.Row="1"
+                                               ItemsSource="{Binding VisualizerInstructions}"
+                                               AutoGenerateColumns="False"
+                                               IsReadOnly="True"
+                                               MinHeight="260"
+                                               MaxHeight="520"
+                                               ScrollViewer.CanContentScroll="True"
+                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                               ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                        <DataGrid.RowStyle>
+                                            <Style TargetType="DataGridRow">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter Property="Background" Value="#2B4EA3FF"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGrid.RowStyle>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="52"/>
+                                            <DataGridTextColumn Header="Instruction" Binding="{Binding Raw}" Width="170"/>
+                                            <DataGridTextColumn Header="What it does" Binding="{Binding Description}" Width="2*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </GroupBox>
+
+                            <GroupBox Header="Constant Pool" Grid.Column="2">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBox Grid.Row="0"
+                                             Text="{Binding VisualizerConstantFilter, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,0,0,8"
+                                             Padding="8,6"
+                                             ToolTip="Feature: constant pool filter"/>
+                                    <ListBox Grid.Row="1"
+                                             ItemsSource="{Binding VisualizerConstantPool}"
+                                             FontFamily="Consolas"
+                                             MinHeight="260"/>
+                                </Grid>
+                            </GroupBox>
+
+                            <GroupBox Header="Current Stack (top first)" Grid.Column="4">
+                                <DataGrid ItemsSource="{Binding VisualizerStack}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          MinHeight="260">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Depth" Binding="{Binding Depth}" Width="70"/>
+                                        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="90"/>
+                                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <GroupBox Header="Step Timeline (before/after stack)">
+                                <DataGrid ItemsSource="{Binding VisualizerTimeline}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          MinHeight="220">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Step" Binding="{Binding Step}" Width="60"/>
+                                        <DataGridTextColumn Header="Instruction" Binding="{Binding Instruction}" Width="140"/>
+                                        <DataGridTextColumn Header="Before" Binding="{Binding StackBefore}" Width="*"/>
+                                        <DataGridTextColumn Header="After" Binding="{Binding StackAfter}" Width="*"/>
+                                        <DataGridTextColumn Header="Note" Binding="{Binding Note}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+
+                            <GroupBox Header="VM Output (simulated)" Grid.Column="2">
+                                <TextBox Text="{Binding VisualizerRunOutput}"
+                                         AcceptsReturn="True"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         FontSize="13"
+                                         MinHeight="220"/>
+                            </GroupBox>
+                        </Grid>
+
+                        <GroupBox Header="Opcode Reference (quick search)">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBox Grid.Row="0"
+                                         Text="{Binding VisualizerOpcodeSearch, UpdateSourceTrigger=PropertyChanged}"
+                                         Margin="0,0,0,8"
+                                         Padding="8,6"
+                                         ToolTip="Feature: opcode dictionary search"/>
+                                <DataGrid Grid.Row="1"
+                                          ItemsSource="{Binding VisualizerOpcodeReference}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          MinHeight="220">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Opcode" Binding="{Binding Signature}" Width="140"/>
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Summary}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <Border Visibility="{Binding IsQuickOpenVisible, Converter={StaticResource BoolToVisibility}}"
+                    Background="#AA111218"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Margin="140,60,140,90"
+                    Padding="16">
+                <Grid MaxWidth="980">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBox Grid.Row="0"
+                             Text="{Binding QuickOpenQuery, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="15"
+                             Padding="10,8"
+                             ToolTip="Type to filter project files (.fava/.txt), Enter to open, Esc to close">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding OpenSelectedQuickOpenFileCommand}"/>
+                        </TextBox.InputBindings>
+                    </TextBox>
+                    <ListBox Grid.Row="2"
+                             ItemsSource="{Binding QuickOpenResults}"
+                             SelectedItem="{Binding SelectedQuickOpenFile}"
+                             FontFamily="Consolas"
+                             FontSize="13">
+                        <ListBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding OpenSelectedQuickOpenFileCommand}"/>
+                        </ListBox.InputBindings>
+                    </ListBox>
+                </Grid>
+            </Border>
         </Grid>
 
         <Border Grid.Row="2"

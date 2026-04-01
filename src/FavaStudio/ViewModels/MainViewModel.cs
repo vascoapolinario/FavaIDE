@@ -21,6 +21,8 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly DispatcherTimer _liveCheckTimer;
     private string? _currentFile;
     private ProjectNode? _selectedProjectNode;
+    private bool _suppressDirtyTracking;
+    private bool _hasUnsavedChanges;
     private Brush _statusColor = Brushes.LightGray;
     private string _statusText = "Ready.";
     private string _vmOutput = "";
@@ -29,6 +31,11 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _showDiagnostics = true;
     private bool _isSettingsViewVisible;
     private bool _isToolsViewVisible;
+    private bool _isVisualizerViewVisible;
+    private bool _isWelcomeViewVisible;
+    private bool _isQuickOpenVisible;
+    private string _quickOpenQuery = "";
+    private string? _selectedQuickOpenFile;
     private bool _showOutputOnly = true;
     private bool _toolCompareFullOutput;
     private TestFilePair? _selectedToolTestPair;
@@ -38,16 +45,45 @@ public class MainViewModel : INotifyPropertyChanged
     private string _selectedToolDiffOutput = "";
     private TestResult? _selectedTestResult;
     private string _testSummary = "";
+    private readonly List<VisualizerInstruction> _allVisualizerInstructions = [];
+    private readonly List<string> _allVisualizerConstants = [];
+    private readonly List<VisualizerValue> _visualizerRuntimeStack = [];
+    private readonly List<OpcodeReferenceItem> _allOpcodeReference = VisualizerService.BuildReference().ToList();
+    private int _visualizerStepIndex;
+    private bool _visualizerHalted;
+    private string _visualizerRunOutput = "";
+    private string _visualizerInfo = "Run a file and open Visualizer to inspect stack execution.";
+    private string _visualizerInstructionFilter = "";
+    private string _visualizerConstantFilter = "";
+    private string _visualizerOpcodeSearch = "";
+    private bool _visualizerAutoSync = true;
+    private const int MaxVisualizerTimelineEntries = 500;
 
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
     public ObservableCollection<TestResult> TestResults { get; } = new();
     public ObservableCollection<TestFilePair> ToolTestPairs { get; } = new();
+    public ObservableCollection<VisualizerInstruction> VisualizerInstructions { get; } = new();
+    public ObservableCollection<string> VisualizerConstantPool { get; } = new();
+    public ObservableCollection<VisualizerTimelineEntry> VisualizerTimeline { get; } = new();
+    public ObservableCollection<VisualizerStackEntry> VisualizerStack { get; } = new();
+    public ObservableCollection<OpcodeReferenceItem> VisualizerOpcodeReference { get; } = new();
+    public ObservableCollection<string> RecentProjects { get; } = new();
+    public ObservableCollection<string> RecentFiles { get; } = new();
+    public ObservableCollection<string> QuickOpenResults { get; } = new();
 
     public SettingsService Settings { get; } = SettingsService.Load();
 
     public string FooterText => "Fava Studio • built for your Fava compiler";
-    public string CurrentFileName => string.IsNullOrWhiteSpace(_currentFile) ? "No file open" : Path.GetFileName(_currentFile);
+    public string CurrentFileName
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_currentFile)) return "No file open";
+            var suffix = _hasUnsavedChanges ? " *" : "";
+            return $"{Path.GetFileName(_currentFile)}{suffix}";
+        }
+    }
     public string CurrentProjectDirectory => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Project directory: (not set)" : Settings.ProjectRoot;
     public string DiagnosticsHeader => Diagnostics.Count == 0 ? "Errors" : $"Errors ({Diagnostics.Count})";
 
@@ -59,7 +95,30 @@ public class MainViewModel : INotifyPropertyChanged
     public bool ShowDiagnostics { get => _showDiagnostics; set { _showDiagnostics = value; OnPropertyChanged(); } }
     public bool IsSettingsViewVisible { get => _isSettingsViewVisible; set { _isSettingsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
     public bool IsToolsViewVisible { get => _isToolsViewVisible; set { _isToolsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
-    public bool IsWorkspaceVisible => !IsSettingsViewVisible && !IsToolsViewVisible;
+    public bool IsVisualizerViewVisible { get => _isVisualizerViewVisible; set { _isVisualizerViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
+    public bool IsWelcomeViewVisible { get => _isWelcomeViewVisible; set { _isWelcomeViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
+    public bool IsWorkspaceVisible => !IsSettingsViewVisible && !IsToolsViewVisible && !IsVisualizerViewVisible && !IsWelcomeViewVisible;
+    public bool IsQuickOpenVisible { get => _isQuickOpenVisible; set { _isQuickOpenVisible = value; OnPropertyChanged(); } }
+    public string QuickOpenQuery
+    {
+        get => _quickOpenQuery;
+        set
+        {
+            _quickOpenQuery = value;
+            OnPropertyChanged();
+            ApplyQuickOpenFilter();
+        }
+    }
+    public string? SelectedQuickOpenFile
+    {
+        get => _selectedQuickOpenFile;
+        set
+        {
+            _selectedQuickOpenFile = value;
+            OnPropertyChanged();
+            OpenSelectedQuickOpenFileCommand.RaiseCanExecuteChanged();
+        }
+    }
     public bool ShowOutputOnly { get => _showOutputOnly; set { _showOutputOnly = value; OnPropertyChanged(); } }
     public bool ToolCompareFullOutput { get => _toolCompareFullOutput; set { _toolCompareFullOutput = value; OnPropertyChanged(); } }
     public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); } }
@@ -70,6 +129,43 @@ public class MainViewModel : INotifyPropertyChanged
     public string SelectedToolDiffOutput { get => _selectedToolDiffOutput; set { _selectedToolDiffOutput = value; OnPropertyChanged(); } }
     public string TestSummary { get => _testSummary; set { _testSummary = value; OnPropertyChanged(); } }
     public bool ShowTestOutput { get => Settings.ShowTestOutput; set { Settings.ShowTestOutput = value; OnPropertyChanged(); } }
+    public string VisualizerRunOutput { get => _visualizerRunOutput; set { _visualizerRunOutput = value; OnPropertyChanged(); } }
+    public string VisualizerInfo { get => _visualizerInfo; set { _visualizerInfo = value; OnPropertyChanged(); } }
+    public bool VisualizerAutoSync { get => _visualizerAutoSync; set { _visualizerAutoSync = value; OnPropertyChanged(); } }
+    public bool VisualizerCanStep => _allVisualizerInstructions.Count > 0 && !_visualizerHalted && _visualizerStepIndex < _allVisualizerInstructions.Count;
+    public bool VisualizerHasData => _allVisualizerInstructions.Count > 0;
+    public string VisualizerInstructionFilter
+    {
+        get => _visualizerInstructionFilter;
+        set
+        {
+            _visualizerInstructionFilter = value;
+            OnPropertyChanged();
+            ApplyVisualizerInstructionFilter();
+        }
+    }
+
+    public string VisualizerConstantFilter
+    {
+        get => _visualizerConstantFilter;
+        set
+        {
+            _visualizerConstantFilter = value;
+            OnPropertyChanged();
+            ApplyVisualizerConstantFilter();
+        }
+    }
+
+    public string VisualizerOpcodeSearch
+    {
+        get => _visualizerOpcodeSearch;
+        set
+        {
+            _visualizerOpcodeSearch = value;
+            OnPropertyChanged();
+            ApplyVisualizerOpcodeFilter();
+        }
+    }
 
     public TestResult? SelectedTestResult
     {
@@ -94,12 +190,23 @@ public class MainViewModel : INotifyPropertyChanged
         get => _selectedProjectNode;
         set
         {
+            if (ReferenceEquals(_selectedProjectNode, value))
+                return;
+
+            if (value is not null && !value.IsDirectory && !TryResolveUnsavedChanges())
+                return;
+
             _selectedProjectNode = value;
             OnPropertyChanged();
             if (_selectedProjectNode is not null && !_selectedProjectNode.IsDirectory)
             {
                 _currentFile = _selectedProjectNode.FullPath;
+                _suppressDirtyTracking = true;
                 _editor.Text = FileService.ReadText(_currentFile);
+                _suppressDirtyTracking = false;
+                _hasUnsavedChanges = false;
+                AddRecentFile(_currentFile);
+                RefreshRecentCollections();
                 OnPropertyChanged(nameof(CurrentFileName));
             }
         }
@@ -121,6 +228,12 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BrowseAntlrJarCommand { get; }
     public RelayCommand SaveSettingsCommand { get; }
     public RelayCommand OpenToolsCommand { get; }
+    public RelayCommand OpenVisualizerCommand { get; }
+    public RelayCommand OpenRecentProjectCommand { get; }
+    public RelayCommand OpenRecentFileCommand { get; }
+    public RelayCommand OpenQuickOpenCommand { get; }
+    public RelayCommand CloseQuickOpenCommand { get; }
+    public RelayCommand OpenSelectedQuickOpenFileCommand { get; }
     public RelayCommand AddToolPairCommand { get; }
     public RelayCommand RemoveToolPairCommand { get; }
     public RelayCommand BrowseToolPairInputCommand { get; }
@@ -132,6 +245,11 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand ClearToolPairsCommand { get; }
     public RelayCommand RunAllTestsCommand { get; }
     public RelayCommand RunSelectedTestsCommand { get; }
+    public RelayCommand VisualizerLoadCurrentCommand { get; }
+    public RelayCommand VisualizerStepCommand { get; }
+    public RelayCommand VisualizerRunAllCommand { get; }
+    public RelayCommand VisualizerResetCommand { get; }
+    public RelayCommand VisualizerJumpToEndCommand { get; }
 
     public MainViewModel(TextEditor editor)
     {
@@ -145,6 +263,11 @@ public class MainViewModel : INotifyPropertyChanged
         };
         _editor.TextChanged += (_, _) =>
         {
+            if (!_suppressDirtyTracking && !string.IsNullOrWhiteSpace(_currentFile))
+            {
+                _hasUnsavedChanges = true;
+                OnPropertyChanged(nameof(CurrentFileName));
+            }
             _liveCheckTimer.Stop();
             _liveCheckTimer.Start();
         };
@@ -161,13 +284,10 @@ public class MainViewModel : INotifyPropertyChanged
         OpenSettingsCommand = new RelayCommand(_ =>
         {
             IsToolsViewVisible = false;
+            IsVisualizerViewVisible = false;
             IsSettingsViewVisible = true;
         });
-        BackToEditorCommand = new RelayCommand(_ =>
-        {
-            IsSettingsViewVisible = false;
-            IsToolsViewVisible = false;
-        });
+        BackToEditorCommand = new RelayCommand(_ => BackToEditor());
         BrowseJavaPathCommand = new RelayCommand(_ => BrowseJavaPath());
         BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => Settings.CompilerRoot = v, "Compiler Root Folder"));
         BrowseAntlrJarCommand = new RelayCommand(_ => BrowseAntlrJar());
@@ -175,9 +295,24 @@ public class MainViewModel : INotifyPropertyChanged
 
         OpenToolsCommand = new RelayCommand(_ =>
         {
+            IsWelcomeViewVisible = false;
             IsSettingsViewVisible = false;
+            IsVisualizerViewVisible = false;
             IsToolsViewVisible = true;
         });
+        OpenVisualizerCommand = new RelayCommand(_ =>
+        {
+            IsSettingsViewVisible = false;
+            IsToolsViewVisible = false;
+            IsWelcomeViewVisible = false;
+            IsVisualizerViewVisible = true;
+            EnsureVisualizerDataLoaded();
+        });
+        OpenRecentProjectCommand = new RelayCommand(p => OpenRecentProject(p as string));
+        OpenRecentFileCommand = new RelayCommand(p => OpenRecentFile(p as string));
+        OpenQuickOpenCommand = new RelayCommand(_ => OpenQuickOpen(), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        CloseQuickOpenCommand = new RelayCommand(_ => CloseQuickOpen());
+        OpenSelectedQuickOpenFileCommand = new RelayCommand(_ => OpenSelectedQuickOpenFile(), _ => !string.IsNullOrWhiteSpace(SelectedQuickOpenFile));
         AddToolPairCommand = new RelayCommand(_ => AddToolPair());
         RemoveToolPairCommand = new RelayCommand(_ => RemoveSelectedToolPair(), _ => SelectedToolTestPair != null);
         BrowseToolPairInputCommand = new RelayCommand(p => BrowseToolPairInputFile(p as TestFilePair));
@@ -195,10 +330,15 @@ public class MainViewModel : INotifyPropertyChanged
 
         RunAllTestsCommand = new RelayCommand(_ => RunAllTests());
         RunSelectedTestsCommand = new RelayCommand(_ => RunSelectedTest(), _ => SelectedTestResult != null);
+        VisualizerLoadCurrentCommand = new RelayCommand(_ => LoadVisualizerFromCurrentFile());
+        VisualizerStepCommand = new RelayCommand(_ => VisualizerStep(), _ => VisualizerCanStep);
+        VisualizerRunAllCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
+        VisualizerResetCommand = new RelayCommand(_ => VisualizerReset(), _ => VisualizerHasData);
+        VisualizerJumpToEndCommand = new RelayCommand(_ => VisualizerJumpToEnd(), _ => VisualizerCanStep);
 
-        EnsureProjectDirectory();
-        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
-            LoadProject(Settings.ProjectRoot);
+        RefreshRecentCollections();
+        IsWelcomeViewVisible = true;
+        ApplyVisualizerOpcodeFilter();
     }
 
     private void OpenProject()
@@ -208,8 +348,6 @@ public class MainViewModel : INotifyPropertyChanged
 
         if (!string.IsNullOrWhiteSpace(dialog.FolderName) && Directory.Exists(dialog.FolderName))
         {
-            Settings.ProjectRoot = dialog.FolderName;
-            Settings.Save();
             LoadProject(dialog.FolderName);
             OnPropertyChanged(nameof(CurrentProjectDirectory));
         }
@@ -242,23 +380,36 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         Directory.CreateDirectory(projectRoot);
-        Settings.ProjectRoot = projectRoot;
-        Settings.Save();
         LoadProject(projectRoot);
         StatusText = $"Created project: {projectRoot}";
         StatusColor = Brushes.LightBlue;
     }
 
-    private void LoadProject(string folder)
+    private void LoadProject(string folder, bool skipUnsavedCheck = false)
     {
+        if (!skipUnsavedCheck && !TryResolveUnsavedChanges())
+            return;
+
+        var expandedPaths = CaptureExpandedPaths(ProjectTree.FirstOrDefault());
+        var selectedPath = SelectedProjectNode?.FullPath;
         ProjectTree.Clear();
         try
         {
             var root = BuildNode(folder);
             ProjectTree.Add(root);
+            Settings.ProjectRoot = folder;
+            AddRecentProject(folder);
+            Settings.Save();
+            RefreshRecentCollections();
+            IsWelcomeViewVisible = false;
+            BackToEditor();
             StatusText = $"Loaded project: {folder}";
             StatusColor = Brushes.LightBlue;
             OnPropertyChanged(nameof(CurrentProjectDirectory));
+            OnPropertyChanged(nameof(IsWorkspaceVisible));
+
+            RestoreExpandedPaths(root, expandedPaths);
+            OpenInitialProjectFile(root, folder, selectedPath);
         }
         catch (Exception ex)
         {
@@ -314,7 +465,10 @@ public class MainViewModel : INotifyPropertyChanged
 
         FileService.WriteText(dialog.FileName, "");
         if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
-            LoadProject(Settings.ProjectRoot);
+            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
+        var createdNode = FindNodeByPath(ProjectTree.FirstOrDefault(), dialog.FileName);
+        if (createdNode is not null)
+            SetSelectedProjectNode(createdNode);
     }
 
     private void NewDirectory(ProjectNode? node)
@@ -340,7 +494,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         Directory.CreateDirectory(candidate);
         if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
-            LoadProject(Settings.ProjectRoot);
+            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
         StatusText = $"Created directory: {Path.GetFileName(candidate)}";
         StatusColor = Brushes.LightGreen;
     }
@@ -359,33 +513,17 @@ public class MainViewModel : INotifyPropertyChanged
             File.Delete(node.FullPath);
 
         if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
-            LoadProject(Settings.ProjectRoot);
-    }
-
-    private void EnsureProjectDirectory()
-    {
-        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot) && Directory.Exists(Settings.ProjectRoot))
-            return;
-
-        try
-        {
-            var defaultProjectRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "FavaStudio");
-            Directory.CreateDirectory(defaultProjectRoot);
-            Settings.ProjectRoot = defaultProjectRoot;
-            Settings.Save();
-            OnPropertyChanged(nameof(CurrentProjectDirectory));
-        }
-        catch (Exception ex)
-        {
-            StatusText = $"Failed to prepare project directory: {ex.Message}";
-            StatusColor = Brushes.IndianRed;
-        }
+            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
     }
 
     private void SaveFile()
     {
         if (string.IsNullOrWhiteSpace(_currentFile)) return;
         FileService.WriteText(_currentFile, _editor.Text);
+        AddRecentFile(_currentFile);
+        RefreshRecentCollections();
+        _hasUnsavedChanges = false;
+        OnPropertyChanged(nameof(CurrentFileName));
         StatusText = $"Saved: {_currentFile}";
         StatusColor = Brushes.LightGreen;
     }
@@ -393,6 +531,7 @@ public class MainViewModel : INotifyPropertyChanged
     private async Task RunLiveCheckAsync()
     {
         if (string.IsNullOrWhiteSpace(_currentFile) || _isLiveChecking) return;
+        if (!CanRunCompiler(showStatus: false)) return;
 
         _isLiveChecking = true;
         try
@@ -427,6 +566,7 @@ public class MainViewModel : INotifyPropertyChanged
     private async void RunCurrentFile()
     {
         if (string.IsNullOrWhiteSpace(_currentFile)) return;
+        if (!CanRunCompiler(showStatus: true)) return;
         SaveFile();
         StatusText = "Running…";
         StatusColor = Brushes.LightGray;
@@ -485,6 +625,211 @@ public class MainViewModel : INotifyPropertyChanged
         {
             VmOutput = fullOutput;
         }
+
+        if (VisualizerAutoSync)
+            LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+    }
+
+    private async void LoadVisualizerFromCurrentFile()
+    {
+        if (string.IsNullOrWhiteSpace(_currentFile))
+        {
+            VisualizerInfo = "Open a .fava file first.";
+            return;
+        }
+
+        SaveFile();
+        var runner = new JavaCompilerService(Settings);
+        var result = await runner.RunFileAsync(_currentFile);
+        UpdateOutputs(result.Output);
+        LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+        StatusText = result.Success ? "Visualizer data loaded." : "Visualizer loaded with execution errors.";
+        StatusColor = result.Success ? Brushes.LightGreen : Brushes.Orange;
+    }
+
+    private void EnsureVisualizerDataLoaded()
+    {
+        if (_allVisualizerInstructions.Count > 0) return;
+        if (string.IsNullOrWhiteSpace(InstructionsOutput))
+            VisualizerInfo = "Run the current file or click “Load Current File” in Visualizer.";
+        else
+            LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+    }
+
+    private void LoadVisualizerFromSections(string constantsSection, string instructionsSection)
+    {
+        _allVisualizerConstants.Clear();
+        _allVisualizerConstants.AddRange(VisualizerService.ParseConstantPool(constantsSection));
+        _allVisualizerInstructions.Clear();
+        _allVisualizerInstructions.AddRange(VisualizerService.ParseInstructions(instructionsSection));
+
+        VisualizerReset();
+        ApplyVisualizerInstructionFilter();
+        ApplyVisualizerConstantFilter();
+        VisualizerInfo = _allVisualizerInstructions.Count == 0
+            ? "No instructions found. Run a valid file to visualize execution."
+            : $"Loaded {_allVisualizerInstructions.Count} instruction(s) and {_allVisualizerConstants.Count} constant(s).";
+    }
+
+    private void VisualizerReset()
+    {
+        _visualizerRuntimeStack.Clear();
+        VisualizerStack.Clear();
+        VisualizerTimeline.Clear();
+        _visualizerStepIndex = 0;
+        _visualizerHalted = false;
+        VisualizerRunOutput = "";
+        foreach (var instruction in _allVisualizerInstructions)
+            instruction.IsCurrent = false;
+
+        if (_allVisualizerInstructions.Count > 0)
+            _allVisualizerInstructions[0].IsCurrent = true;
+
+        RaiseVisualizerStateChanged();
+    }
+
+    private void VisualizerStep()
+    {
+        if (!VisualizerCanStep) return;
+        ExecuteVisualizerStep(captureTimeline: true);
+    }
+
+    private void ExecuteVisualizerStep(bool captureTimeline)
+    {
+        var instruction = _allVisualizerInstructions[_visualizerStepIndex];
+        instruction.IsCurrent = true;
+        var before = VisualizerService.StackToText(_visualizerRuntimeStack);
+        var success = VisualizerService.ApplyInstruction(instruction, _visualizerRuntimeStack, _allVisualizerConstants, out var note, out var outputLine, out var halted);
+        var after = VisualizerService.StackToText(_visualizerRuntimeStack);
+        if (captureTimeline && VisualizerTimeline.Count < MaxVisualizerTimelineEntries)
+        {
+            VisualizerTimeline.Add(new VisualizerTimelineEntry
+            {
+                Step = _visualizerStepIndex + 1,
+                Instruction = instruction.Display,
+                StackBefore = before,
+                StackAfter = after,
+                Note = note
+            });
+        }
+        else if (captureTimeline)
+        {
+            VisualizerTimeline.Add(new VisualizerTimelineEntry
+            {
+                Step = _visualizerStepIndex + 1,
+                Instruction = "(timeline truncated)",
+                StackBefore = before,
+                StackAfter = after,
+                Note = $"Showing first {MaxVisualizerTimelineEntries} steps only."
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(outputLine))
+            VisualizerRunOutput = string.IsNullOrWhiteSpace(VisualizerRunOutput) ? outputLine : $"{VisualizerRunOutput}\n{outputLine}";
+
+        RefreshVisualizerStack();
+        instruction.IsCurrent = false;
+        if (!success || halted)
+            _visualizerHalted = true;
+
+        _visualizerStepIndex++;
+        if (!_visualizerHalted && _visualizerStepIndex < _allVisualizerInstructions.Count)
+            _allVisualizerInstructions[_visualizerStepIndex].IsCurrent = true;
+
+        RaiseVisualizerStateChanged();
+    }
+
+    private void VisualizerRunAll()
+    {
+        if (!VisualizerCanStep) return;
+        var startStep = _visualizerStepIndex + 1;
+        while (VisualizerCanStep)
+            ExecuteVisualizerStep(captureTimeline: false);
+
+        VisualizerTimeline.Add(new VisualizerTimelineEntry
+        {
+            Step = _visualizerStepIndex,
+            Instruction = $"Run All from step {startStep}",
+            StackBefore = "(captured in fast mode)",
+            StackAfter = VisualizerService.StackToText(_visualizerRuntimeStack),
+            Note = "Executed remaining instructions without per-step timeline details."
+        });
+    }
+
+    private void VisualizerJumpToEnd()
+    {
+        if (!VisualizerCanStep) return;
+        var startStep = _visualizerStepIndex + 1;
+        var startStack = VisualizerService.StackToText(_visualizerRuntimeStack);
+        while (VisualizerCanStep)
+            ExecuteVisualizerStep(captureTimeline: false);
+
+        VisualizerTimeline.Add(new VisualizerTimelineEntry
+        {
+            Step = _visualizerStepIndex,
+            Instruction = $"Jumped from step {startStep}",
+            StackBefore = startStack,
+            StackAfter = VisualizerService.StackToText(_visualizerRuntimeStack),
+            Note = "Fast-forwarded to final state."
+        });
+    }
+
+    private void RefreshVisualizerStack()
+    {
+        VisualizerStack.Clear();
+        foreach (var entry in VisualizerService.StackToEntries(_visualizerRuntimeStack))
+            VisualizerStack.Add(entry);
+    }
+
+    private void RaiseVisualizerStateChanged()
+    {
+        OnPropertyChanged(nameof(VisualizerCanStep));
+        OnPropertyChanged(nameof(VisualizerHasData));
+        VisualizerStepCommand.RaiseCanExecuteChanged();
+        VisualizerRunAllCommand.RaiseCanExecuteChanged();
+        VisualizerResetCommand.RaiseCanExecuteChanged();
+        VisualizerJumpToEndCommand.RaiseCanExecuteChanged();
+    }
+
+    private void ApplyVisualizerInstructionFilter()
+    {
+        VisualizerInstructions.Clear();
+        var filter = (VisualizerInstructionFilter ?? "").Trim();
+        var source = _allVisualizerInstructions.Where(i =>
+            string.IsNullOrWhiteSpace(filter) ||
+            i.Opcode.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+            i.Display.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+            i.Description.Contains(filter, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var instruction in source)
+            VisualizerInstructions.Add(instruction);
+    }
+
+    private void ApplyVisualizerConstantFilter()
+    {
+        VisualizerConstantPool.Clear();
+        var filter = (VisualizerConstantFilter ?? "").Trim();
+        for (var i = 0; i < _allVisualizerConstants.Count; i++)
+        {
+            var value = _allVisualizerConstants[i];
+            var line = $"{i}: {value}";
+            if (!string.IsNullOrWhiteSpace(filter) && !line.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                continue;
+            VisualizerConstantPool.Add(line);
+        }
+    }
+
+    private void ApplyVisualizerOpcodeFilter()
+    {
+        VisualizerOpcodeReference.Clear();
+        var filter = (VisualizerOpcodeSearch ?? "").Trim();
+        var source = _allOpcodeReference.Where(item =>
+            string.IsNullOrWhiteSpace(filter)
+            || item.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+            || item.Summary.Contains(filter, StringComparison.OrdinalIgnoreCase)
+            || item.Opcode.ToString().Contains(filter, StringComparison.OrdinalIgnoreCase));
+        foreach (var item in source)
+            VisualizerOpcodeReference.Add(item);
     }
 
     private void AddToolPair()
@@ -829,6 +1174,268 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         return diff.ToString().Trim();
+    }
+
+    private void OpenRecentProject(string? projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath)) return;
+        if (!Directory.Exists(projectPath))
+        {
+            StatusText = $"Recent project not found: {projectPath}";
+            StatusColor = Brushes.Orange;
+            Settings.RecentProjects.RemoveAll(p => string.Equals(p, projectPath, StringComparison.OrdinalIgnoreCase));
+            Settings.Save();
+            RefreshRecentCollections();
+            return;
+        }
+
+        LoadProject(projectPath);
+    }
+
+    private void OpenRecentFile(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return;
+        if (!File.Exists(filePath))
+        {
+            StatusText = $"Recent file not found: {filePath}";
+            StatusColor = Brushes.Orange;
+            Settings.RecentFiles.RemoveAll(f => string.Equals(f, filePath, StringComparison.OrdinalIgnoreCase));
+            Settings.Save();
+            RefreshRecentCollections();
+            return;
+        }
+
+        var projectRoot = Settings.ProjectRoot;
+        var fileDirectory = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrWhiteSpace(projectRoot) || string.IsNullOrWhiteSpace(fileDirectory) || !filePath.StartsWith(projectRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(fileDirectory) || !Directory.Exists(fileDirectory))
+                return;
+            LoadProject(fileDirectory);
+            if (string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+                return;
+        }
+
+        var node = FindNodeByPath(ProjectTree.FirstOrDefault(), filePath);
+        if (node is not null)
+            SetSelectedProjectNode(node);
+    }
+
+    private void AddRecentProject(string projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath)) return;
+        Settings.RecentProjects.RemoveAll(p => string.Equals(p, projectPath, StringComparison.OrdinalIgnoreCase));
+        Settings.RecentProjects.Insert(0, projectPath);
+    }
+
+    private void AddRecentFile(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return;
+        Settings.RecentFiles.RemoveAll(f => string.Equals(f, filePath, StringComparison.OrdinalIgnoreCase));
+        Settings.RecentFiles.Insert(0, filePath);
+        Settings.Save();
+    }
+
+    private void RefreshRecentCollections()
+    {
+        RecentProjects.Clear();
+        foreach (var project in Settings.RecentProjects.Where(Directory.Exists))
+            RecentProjects.Add(project);
+
+        RecentFiles.Clear();
+        foreach (var file in Settings.RecentFiles.Where(File.Exists))
+            RecentFiles.Add(file);
+    }
+
+    private void OpenQuickOpen()
+    {
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot)) return;
+        IsQuickOpenVisible = true;
+        QuickOpenQuery = "";
+        ApplyQuickOpenFilter();
+    }
+
+    private void CloseQuickOpen()
+    {
+        IsQuickOpenVisible = false;
+        QuickOpenQuery = "";
+        SelectedQuickOpenFile = null;
+    }
+
+    private void OpenSelectedQuickOpenFile()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedQuickOpenFile)) return;
+        OpenRecentFile(SelectedQuickOpenFile);
+        CloseQuickOpen();
+    }
+
+    private void ApplyQuickOpenFilter()
+    {
+        QuickOpenResults.Clear();
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot) || !Directory.Exists(Settings.ProjectRoot))
+            return;
+
+        var query = (QuickOpenQuery ?? "").Trim();
+        var files = Directory.GetFiles(Settings.ProjectRoot, "*.*", SearchOption.AllDirectories)
+            .Where(f => f.EndsWith(".fava", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+            .Where(f => string.IsNullOrWhiteSpace(query) || f.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Take(100)
+            .ToList();
+
+        foreach (var file in files)
+            QuickOpenResults.Add(file);
+
+        SelectedQuickOpenFile = QuickOpenResults.FirstOrDefault();
+    }
+
+    private void BackToEditor()
+    {
+        IsWelcomeViewVisible = false;
+        IsSettingsViewVisible = false;
+        IsToolsViewVisible = false;
+        IsVisualizerViewVisible = false;
+    }
+
+    private bool TryResolveUnsavedChanges()
+    {
+        if (!_hasUnsavedChanges || string.IsNullOrWhiteSpace(_currentFile))
+            return true;
+
+        var answer = MessageBox.Show(
+            $"You have unsaved changes in '{Path.GetFileName(_currentFile)}'. Save before continuing?",
+            "Unsaved Changes",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Warning);
+
+        if (answer == MessageBoxResult.Cancel)
+            return false;
+        if (answer == MessageBoxResult.Yes)
+            SaveFile();
+        if (answer == MessageBoxResult.No)
+        {
+            _hasUnsavedChanges = false;
+            OnPropertyChanged(nameof(CurrentFileName));
+        }
+
+        return true;
+    }
+
+    private bool CanRunCompiler(bool showStatus)
+    {
+        var hasJava = !string.IsNullOrWhiteSpace(Settings.JavaPath);
+        var hasCompilerRoot = !string.IsNullOrWhiteSpace(Settings.CompilerRoot) && Directory.Exists(Settings.CompilerRoot);
+        var hasAntlr = !string.IsNullOrWhiteSpace(Settings.AntlrJar) && File.Exists(Settings.AntlrJar);
+        if (hasJava && hasCompilerRoot && hasAntlr)
+            return true;
+
+        if (showStatus)
+        {
+            StatusText = "Configure Java path, compiler root and ANTLR jar in Settings before running.";
+            StatusColor = Brushes.Orange;
+        }
+
+        return false;
+    }
+
+    private static HashSet<string> CaptureExpandedPaths(ProjectNode? root)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CaptureExpandedPathsRecursive(root, result);
+        return result;
+    }
+
+    private static void CaptureExpandedPathsRecursive(ProjectNode? node, HashSet<string> result)
+    {
+        if (node is null) return;
+        if (node.IsExpanded && !string.IsNullOrWhiteSpace(node.FullPath))
+            result.Add(node.FullPath);
+
+        foreach (var child in node.Children)
+            CaptureExpandedPathsRecursive(child, result);
+    }
+
+    private static void RestoreExpandedPaths(ProjectNode? root, HashSet<string> expandedPaths)
+    {
+        if (root is null) return;
+        root.IsExpanded = expandedPaths.Contains(root.FullPath);
+        foreach (var child in root.Children)
+            RestoreExpandedPaths(child, expandedPaths);
+    }
+
+    private void OpenInitialProjectFile(ProjectNode root, string folder, string? previousSelectedPath)
+    {
+        ProjectNode? nodeToOpen = null;
+        if (!string.IsNullOrWhiteSpace(previousSelectedPath))
+            nodeToOpen = FindNodeByPath(root, previousSelectedPath);
+
+        if (nodeToOpen is null)
+        {
+            var recentInProject = Settings.RecentFiles
+                .FirstOrDefault(path =>
+                    path.EndsWith(".fava", StringComparison.OrdinalIgnoreCase)
+                    && File.Exists(path)
+                    && IsPathInside(path, folder));
+            if (!string.IsNullOrWhiteSpace(recentInProject))
+                nodeToOpen = FindNodeByPath(root, recentInProject);
+        }
+
+        if (nodeToOpen is null)
+            nodeToOpen = FindFirstFileNode(root, ".fava");
+        if (nodeToOpen is null)
+            nodeToOpen = FindFirstFileNode(root, ".txt");
+
+        if (nodeToOpen is not null)
+        {
+            SetSelectedProjectNode(nodeToOpen);
+            return;
+        }
+
+        _currentFile = null;
+        _suppressDirtyTracking = true;
+        _editor.Text = "";
+        _suppressDirtyTracking = false;
+        _hasUnsavedChanges = false;
+        OnPropertyChanged(nameof(CurrentFileName));
+    }
+
+    private static bool IsPathInside(string path, string rootPath)
+    {
+        var normalizedPath = Path.GetFullPath(path);
+        var normalizedRoot = Path.GetFullPath(rootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        return normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ProjectNode? FindFirstFileNode(ProjectNode? node, string extension)
+    {
+        if (node is null) return null;
+        if (!node.IsDirectory && node.Name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            return node;
+
+        foreach (var child in node.Children)
+        {
+            var found = FindFirstFileNode(child, extension);
+            if (found is not null)
+                return found;
+        }
+
+        return null;
+    }
+
+    private static ProjectNode? FindNodeByPath(ProjectNode? node, string fullPath)
+    {
+        if (node is null) return null;
+        if (string.Equals(node.FullPath, fullPath, StringComparison.OrdinalIgnoreCase))
+            return node;
+
+        foreach (var child in node.Children)
+        {
+            var found = FindNodeByPath(child, fullPath);
+            if (found is not null)
+                return found;
+        }
+
+        return null;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
