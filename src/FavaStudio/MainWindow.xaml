@@ -47,8 +47,8 @@
                     </MenuItem>
                     <MenuItem Header="Tools">
                         <MenuItem Header="Open Test Tool" Command="{Binding OpenToolsCommand}"/>
-                        <MenuItem Header="Add Input (.fava)" Command="{Binding AddToolInputFileCommand}"/>
-                        <MenuItem Header="Add Expected Output (.txt)" Command="{Binding AddToolExpectedOutputCommand}"/>
+                        <MenuItem Header="Add Pair" Command="{Binding AddToolPairCommand}"/>
+                        <MenuItem Header="Build Pairs from Folders" Command="{Binding BuildToolPairsFromFoldersCommand}"/>
                         <MenuItem Header="Run Compare" Command="{Binding RunSelectedToolPairsCommand}"/>
                         <MenuItem Header="Clear Tool Pairs" Command="{Binding ClearToolPairsCommand}"/>
                     </MenuItem>
@@ -385,26 +385,138 @@
                                 Padding="14,12"
                                 Margin="0,0,0,16"
                                 Background="{StaticResource BgPanelBrush}">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="Add Input (.fava)" Command="{Binding AddToolInputFileCommand}"/>
-                                <Button Content="Add Expected Output (.txt)" Command="{Binding AddToolExpectedOutputCommand}"/>
-                                <Button Content="Run Compare" Command="{Binding RunSelectedToolPairsCommand}" Style="{StaticResource AccentButton}"/>
-                                <Button Content="Clear" Command="{Binding ClearToolPairsCommand}"/>
-                                <CheckBox Content="Compare VM + constant pool + instructions"
-                                          IsChecked="{Binding ToolCompareFullOutput}"
-                                          Margin="14,0,0,0"
-                                          VerticalAlignment="Center"/>
+                            <StackPanel>
+                                <TextBlock Text="Auto Pair by Folder (name-based)"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Margin="0,0,0,10"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="170"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Inputs Folder" VerticalAlignment="Center" FontSize="14"/>
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ToolInputsFolder}" FontSize="14" Padding="8,6"/>
+                                    <Button Grid.Row="0" Grid.Column="2" Content="Browse…" Command="{Binding BrowseToolInputsFolderCommand}" Margin="6,0,0,0" FontSize="14" Padding="12,6"/>
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Outputs Folder" VerticalAlignment="Center" FontSize="14"/>
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ToolOutputsFolder}" FontSize="14" Padding="8,6"/>
+                                    <Button Grid.Row="2" Grid.Column="2" Content="Browse…" Command="{Binding BrowseToolOutputsFolderCommand}" Margin="6,0,0,0" FontSize="14" Padding="12,6"/>
+                                </Grid>
+
+                                <WrapPanel>
+                                    <Button Content="Build Pairs from Folders" Command="{Binding BuildToolPairsFromFoldersCommand}" Padding="14,8" FontSize="14"/>
+                                    <Button Content="Add Pair" Command="{Binding AddToolPairCommand}" Padding="14,8" FontSize="14"/>
+                                    <Button Content="Remove Selected Pair" Command="{Binding RemoveToolPairCommand}" Padding="14,8" FontSize="14"/>
+                                    <Button Content="Run Compare" Command="{Binding RunSelectedToolPairsCommand}" Style="{StaticResource AccentButton}" Padding="16,8" FontSize="14"/>
+                                    <Button Content="Clear" Command="{Binding ClearToolPairsCommand}" Padding="14,8" FontSize="14"/>
+                                    <CheckBox Content="Compare VM + constant pool + instructions"
+                                              IsChecked="{Binding ToolCompareFullOutput}"
+                                              Margin="14,0,0,0"
+                                              FontSize="14"
+                                              VerticalAlignment="Center"/>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
 
+                        <Border BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12,9"
+                                Margin="0,0,0,12"
+                                Background="{StaticResource BgPanelBrush}">
+                            <TextBlock Text="{Binding ToolRunSummary}" FontSize="15" FontWeight="SemiBold"/>
+                        </Border>
+
                         <DataGrid ItemsSource="{Binding ToolTestPairs}"
+                                  SelectedItem="{Binding SelectedToolTestPair}"
                                   AutoGenerateColumns="False">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Input (.fava)" Binding="{Binding InputFile}" Width="*"/>
-                                <DataGridTextColumn Header="Expected (.txt)" Binding="{Binding ExpectedOutputFile}" Width="*"/>
-                                <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="130"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
+                                <DataGridTemplateColumn Header="Input (.fava)" Width="*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="Set"
+                                                        Padding="10,4"
+                                                        FontSize="13"
+                                                        Command="{Binding DataContext.BrowseToolPairInputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <TextBlock Text="{Binding InputFile}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Expected (.txt)" Width="*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="Set"
+                                                        Padding="10,4"
+                                                        FontSize="13"
+                                                        Command="{Binding DataContext.BrowseToolPairExpectedOutputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <TextBlock Text="{Binding ExpectedOutputFile}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="170"/>
                             </DataGrid.Columns>
                         </DataGrid>
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <GroupBox Header="Expected Output" Grid.Column="0">
+                                <TextBox Text="{Binding SelectedToolExpectedOutput}"
+                                         AcceptsReturn="True"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         FontSize="13"
+                                         MinHeight="180"/>
+                            </GroupBox>
+                            <GroupBox Header="Actual Output" Grid.Column="2">
+                                <TextBox Text="{Binding SelectedToolActualOutput}"
+                                         AcceptsReturn="True"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         FontSize="13"
+                                         MinHeight="180"/>
+                            </GroupBox>
+                            <GroupBox Header="Diff" Grid.Column="4">
+                                <TextBox Text="{Binding SelectedToolDiffOutput}"
+                                         AcceptsReturn="True"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         FontSize="13"
+                                         MinHeight="180"/>
+                            </GroupBox>
+                        </Grid>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
