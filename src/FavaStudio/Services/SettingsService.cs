@@ -12,6 +12,8 @@ public class SettingsService
     public string OutputsDir { get; set; } = "";
     public string ProjectRoot { get; set; } = "";
     public bool ShowTestOutput { get; set; } = false;
+    public List<string> RecentProjects { get; set; } = [];
+    public List<string> RecentFiles { get; set; } = [];
 
     private static string SettingsPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -33,8 +35,28 @@ public class SettingsService
 
     public void Save()
     {
+        RecentProjects = NormalizeMostRecentList(RecentProjects, 10);
+        RecentFiles = NormalizeMostRecentList(RecentFiles, 20);
         var dir = Path.GetDirectoryName(SettingsPath) ?? Path.GetTempPath();
         Directory.CreateDirectory(dir);
         File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static List<string> NormalizeMostRecentList(IEnumerable<string>? items, int maxItems)
+    {
+        if (items is null) return [];
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var normalized = new List<string>();
+        foreach (var item in items)
+        {
+            var path = item?.Trim();
+            if (string.IsNullOrWhiteSpace(path)) continue;
+            if (seen.Add(path))
+                normalized.Add(path);
+            if (normalized.Count >= maxItems)
+                break;
+        }
+
+        return normalized;
     }
 }

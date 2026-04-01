@@ -13,6 +13,13 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
 
+    <Window.InputBindings>
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveFileCommand}"/>
+        <KeyBinding Key="P" Modifiers="Control" Command="{Binding OpenQuickOpenCommand}"/>
+        <KeyBinding Key="Escape" Command="{Binding CloseQuickOpenCommand}"/>
+        <KeyBinding Key="Enter" Command="{Binding OpenSelectedQuickOpenFileCommand}"/>
+    </Window.InputBindings>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -45,6 +52,26 @@
                     <MenuItem Header="Project">
                         <MenuItem Header="Create New Project" Command="{Binding CreateProjectCommand}"/>
                         <MenuItem Header="Open Project" Command="{Binding OpenProjectCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="Quick Open (Ctrl+P)" Command="{Binding OpenQuickOpenCommand}"/>
+                        <MenuItem Header="Recent Projects" ItemsSource="{Binding RecentProjects}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem">
+                                    <Setter Property="Header" Value="{Binding}"/>
+                                    <Setter Property="Command" Value="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Setter Property="CommandParameter" Value="{Binding}"/>
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
+                        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem">
+                                    <Setter Property="Header" Value="{Binding}"/>
+                                    <Setter Property="Command" Value="{Binding DataContext.OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Setter Property="CommandParameter" Value="{Binding}"/>
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
                     </MenuItem>
                     <MenuItem Header="Settings">
                         <MenuItem Header="Open Settings" Command="{Binding OpenSettingsCommand}"/>
@@ -292,6 +319,59 @@
                         </TabControl>
                     </Border>
                 </Grid>
+            </Grid>
+
+            <Grid Visibility="{Binding IsWelcomeViewVisible, Converter={StaticResource BoolToVisibility}}">
+                <Border Background="{StaticResource BgMainBrush}" Padding="28">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="3*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Fava Studio"
+                                       FontSize="44"
+                                       FontWeight="Bold"
+                                       Foreground="#FF9A3D"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="Welcome! Start quickly by creating a new project, opening an existing one, or continuing from your recent projects."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Margin="0,0,0,20"/>
+                            <WrapPanel>
+                                <Button Content="Create New Project" Command="{Binding CreateProjectCommand}" Style="{StaticResource AccentButton}" Padding="16,9" Margin="0,0,8,8"/>
+                                <Button Content="Open Project" Command="{Binding OpenProjectCommand}" Padding="16,9" Margin="0,0,8,8"/>
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <Border Grid.Column="2"
+                                Background="{StaticResource BgPanelBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Recent Projects"
+                                           FontWeight="SemiBold"
+                                           FontSize="18"
+                                           Margin="0,0,0,8"/>
+                                <ListBox ItemsSource="{Binding RecentProjects}" BorderThickness="0" Background="Transparent">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Content="{Binding}"
+                                                    Command="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"
+                                                    Margin="0,0,0,6"
+                                                    Padding="10,8"
+                                                    HorizontalContentAlignment="Left"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
             </Grid>
 
             <Grid Visibility="{Binding IsSettingsViewVisible, Converter={StaticResource BoolToVisibility}}">
@@ -691,6 +771,32 @@
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+
+            <Border Visibility="{Binding IsQuickOpenVisible, Converter={StaticResource BoolToVisibility}}"
+                    Background="#AA111218"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Margin="140,60,140,90"
+                    Padding="16">
+                <Grid MaxWidth="980">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBox Grid.Row="0"
+                             Text="{Binding QuickOpenQuery, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="15"
+                             Padding="10,8"
+                             ToolTip="Type to filter project files (.fava/.txt), Enter to open, Esc to close"/>
+                    <ListBox Grid.Row="2"
+                             ItemsSource="{Binding QuickOpenResults}"
+                             SelectedItem="{Binding SelectedQuickOpenFile}"
+                             FontFamily="Consolas"
+                             FontSize="13"/>
+                </Grid>
+            </Border>
         </Grid>
 
         <Border Grid.Row="2"
