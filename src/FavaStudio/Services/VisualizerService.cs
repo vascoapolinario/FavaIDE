@@ -211,12 +211,12 @@ public static class VisualizerService
                     note = "Execution halted.";
                     return true;
                 case "jump":
-                    if (!instruction.Argument.HasValue) return Fail("Missing jump target address.", out note);
+                    if (!instruction.Argument.HasValue) return Fail("Missing jump argument.", out note);
                     newIp = instruction.Argument.Value;
                     note = $"Unconditional jump to instruction {instruction.Argument.Value}.";
                     return true;
                 case "jumpf":
-                    if (!instruction.Argument.HasValue) return Fail("Missing jumpf target address.", out note);
+                    if (!instruction.Argument.HasValue) return Fail("Missing jumpf argument.", out note);
                     if (!TryPopBool(stack, out var jumpCondition, out note)) return false;
                     if (!jumpCondition)
                     {
