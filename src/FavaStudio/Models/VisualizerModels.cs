@@ -59,3 +59,10 @@ public sealed class OpcodeReferenceItem
     public string Summary { get; init; } = "";
     public string Signature => $"{Opcode} • {Name}";
 }
+
+public sealed class VisualizerGlobalEntry
+{
+    public int Address { get; init; }
+    public string Type { get; init; } = "";
+    public string Value { get; init; } = "";
+}

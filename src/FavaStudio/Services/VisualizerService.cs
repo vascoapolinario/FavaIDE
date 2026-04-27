@@ -68,14 +68,17 @@ public static class VisualizerService
     public static bool ApplyInstruction(
         VisualizerInstruction instruction,
         List<VisualizerValue> stack,
+        List<VisualizerValue?> globals,
         IReadOnlyList<string> constantPool,
         out string note,
         out string outputLine,
-        out bool halted)
+        out bool halted,
+        out int? newIp)
     {
         note = instruction.Description;
         outputLine = "";
         halted = false;
+        newIp = null;
         try
         {
             switch (instruction.Opcode)
@@ -200,12 +203,58 @@ public static class VisualizerService
                     return true;
                 case "bprint":
                     if (!TryPopBool(stack, out var boolPrint, out note)) return false;
-                    outputLine = boolPrint ? "verdadeiro" : "falso";
+                    outputLine = boolPrint ? "true" : "false";
                     note = $"Output: {outputLine}";
                     return true;
                 case "halt":
                     halted = true;
                     note = "Execution halted.";
+                    return true;
+                case "jump":
+                    if (!instruction.Argument.HasValue) return Fail("Missing jump target address.", out note);
+                    newIp = instruction.Argument.Value;
+                    note = $"Unconditional jump to instruction {instruction.Argument.Value}.";
+                    return true;
+                case "jumpf":
+                    if (!instruction.Argument.HasValue) return Fail("Missing jumpf target address.", out note);
+                    if (!TryPopBool(stack, out var jumpCondition, out note)) return false;
+                    if (!jumpCondition)
+                    {
+                        newIp = instruction.Argument.Value;
+                        note = $"Condition false: jump to instruction {instruction.Argument.Value}.";
+                    }
+                    else
+                    {
+                        note = "Condition true: no jump.";
+                    }
+                    return true;
+                case "galloc":
+                    if (!instruction.Argument.HasValue) return Fail("Missing galloc count.", out note);
+                    for (var i = 0; i < instruction.Argument.Value; i++)
+                        globals.Add(null);
+                    note = $"Allocated {instruction.Argument.Value} global slot(s). Total: {globals.Count}.";
+                    return true;
+                case "gload":
+                    if (!instruction.Argument.HasValue) return Fail("Missing gload address.", out note);
+                    var gloadAddr = instruction.Argument.Value;
+                    if (gloadAddr < 0 || gloadAddr >= globals.Count)
+                        return Fail($"gload address {gloadAddr} out of range (0..{globals.Count - 1}).", out note);
+                    var gloadVal = globals[gloadAddr];
+                    if (gloadVal is null)
+                        return Fail($"gload: globals[{gloadAddr}] is NULL (uninitialized).", out note);
+                    stack.Add(gloadVal);
+                    note = $"Pushed globals[{gloadAddr}] = {FormatValue(gloadVal)}.";
+                    return true;
+                case "gstore":
+                    if (!instruction.Argument.HasValue) return Fail("Missing gstore address.", out note);
+                    var gstoreAddr = instruction.Argument.Value;
+                    if (gstoreAddr < 0 || gstoreAddr >= globals.Count)
+                        return Fail($"gstore address {gstoreAddr} out of range (0..{globals.Count - 1}).", out note);
+                    if (stack.Count == 0) return Fail("Stack underflow on gstore.", out note);
+                    var storeVal = stack[^1];
+                    stack.RemoveAt(stack.Count - 1);
+                    globals[gstoreAddr] = storeVal;
+                    note = $"Stored {FormatValue(storeVal)} into globals[{gstoreAddr}].";
                     return true;
                 default:
                     note = $"Instruction '{instruction.Opcode}' is not supported in visualizer simulation.";
@@ -235,6 +284,22 @@ public static class VisualizerService
                 Depth = stack.Count - i,
                 Type = stack[i].Type,
                 Value = FormatValue(stack[i])
+            });
+        }
+        return rows;
+    }
+
+    public static IReadOnlyList<VisualizerGlobalEntry> GlobalsToEntries(IReadOnlyList<VisualizerValue?> globals)
+    {
+        var rows = new List<VisualizerGlobalEntry>();
+        for (var i = 0; i < globals.Count; i++)
+        {
+            var g = globals[i];
+            rows.Add(new VisualizerGlobalEntry
+            {
+                Address = i,
+                Type = g?.Type ?? "null",
+                Value = g is null ? "NULL" : FormatValue(g)
             });
         }
         return rows;
@@ -437,6 +502,11 @@ public static class VisualizerService
         { 37, ("or", "Pops two booleans and pushes logical or.") },
         { 38, ("not", "Pops one boolean and pushes logical not.") },
         { 39, ("btos", "Converts top boolean to string.") },
-        { 40, ("halt", "Stops program execution.") }
+        { 40, ("halt", "Stops program execution.") },
+        { 41, ("jump", "Unconditional jump to the given instruction address.") },
+        { 42, ("jumpf", "Pops a boolean; jumps to address if false, otherwise continues.") },
+        { 43, ("galloc", "Allocates n NULL-initialized slots in the global variable array.") },
+        { 44, ("gload", "Pushes the global variable at the given address onto the stack.") },
+        { 45, ("gstore", "Pops the top of stack and stores it in the global variable at the given address.") }
     };
 }

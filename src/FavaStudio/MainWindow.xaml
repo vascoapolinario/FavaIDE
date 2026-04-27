@@ -637,7 +637,9 @@
                                 <ColumnDefinition Width="12"/>
                                 <ColumnDefinition Width="1.05*"/>
                                 <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="1.05*"/>
+                                <ColumnDefinition Width="0.75*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="0.75*"/>
                             </Grid.ColumnDefinitions>
 
                             <GroupBox Header="Instruction Stream" Grid.Column="0">
@@ -705,6 +707,19 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Depth" Binding="{Binding Depth}" Width="70"/>
                                         <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="90"/>
+                                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+
+                            <GroupBox Header="Global Variables" Grid.Column="6">
+                                <DataGrid ItemsSource="{Binding VisualizerGlobals}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          MinHeight="260">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Addr" Binding="{Binding Address}" Width="52"/>
+                                        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="70"/>
                                         <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
