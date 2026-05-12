@@ -8,7 +8,7 @@ namespace FavaStudio.Editor;
 
 public sealed class FavaSyntaxColorizer : DocumentColorizingTransformer
 {
-    private static readonly Regex StringRegex = new("\"(?:\\\\.|[^\"])*\"", RegexOptions.Compiled);
+    private static readonly Regex StringRegex = new("\"(?:\\\\.|[^\"\\\\])*\"?", RegexOptions.Compiled);
     private static readonly Regex CommentRegex = new("//.*$", RegexOptions.Compiled);
     private static readonly Regex TypeRegex = new(@"\b(integer|real|bool|string)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex KeywordRegex = new(@"\b(function|return|if|else|while|print|true|false)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
