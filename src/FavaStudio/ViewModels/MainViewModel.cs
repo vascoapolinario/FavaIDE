@@ -62,6 +62,19 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _visualizerAutoSync = true;
     private const int MaxVisualizerTimelineEntries = 500;
 
+    // ── Debug mode ──────────────────────────────────────────────────────────
+    private readonly HashSet<int> _breakpointLines = [];
+    private bool _isDebugging;
+    private string _debugCurrentInstruction = "";
+    private string _debugCurrentNote = "";
+    private string _debugStepStatus = "";
+    private int? _debugCurrentSourceLine;
+    private readonly List<DebugSnapshot> _debugHistory = [];
+    private readonly Dictionary<int, List<int>> _sourceLineToInstructionPositions = [];
+    private readonly Dictionary<int, int> _instructionPositionToSourceLine = [];
+    private readonly List<int> _debugTraceInstructionPositions = [];
+    private string _vmTraceOutput = "";
+
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
     public ObservableCollection<TestResult> TestResults { get; } = new();
@@ -75,6 +88,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<string> RecentProjects { get; } = new();
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<string> QuickOpenResults { get; } = new();
+    public ObservableCollection<DebugStackEntry> DebugStack { get; } = new();
 
     public SettingsService Settings { get; } = SettingsService.Load();
 
@@ -96,7 +110,17 @@ public class MainViewModel : INotifyPropertyChanged
     public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); } }
     public string ConstantPoolOutput { get => _constantPoolOutput; set { _constantPoolOutput = value; OnPropertyChanged(); } }
     public string InstructionsOutput { get => _instructionsOutput; set { _instructionsOutput = value; OnPropertyChanged(); } }
-    public bool ShowDiagnostics { get => _showDiagnostics; set { _showDiagnostics = value; OnPropertyChanged(); } }
+    public bool ShowDiagnostics
+    {
+        get => _showDiagnostics;
+        set
+        {
+            _showDiagnostics = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsRightPanelVisible));
+            OnPropertyChanged(nameof(ShowDiagnosticsPanel));
+        }
+    }
     public bool IsSettingsViewVisible { get => _isSettingsViewVisible; set { _isSettingsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
     public bool IsToolsViewVisible { get => _isToolsViewVisible; set { _isToolsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
     public bool IsVisualizerViewVisible { get => _isVisualizerViewVisible; set { _isVisualizerViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
@@ -138,6 +162,54 @@ public class MainViewModel : INotifyPropertyChanged
     public bool VisualizerAutoSync { get => _visualizerAutoSync; set { _visualizerAutoSync = value; OnPropertyChanged(); } }
     public bool VisualizerCanStep => _allVisualizerInstructions.Count > 0 && !_visualizerHalted && _visualizerStepIndex < _allVisualizerInstructions.Count;
     public bool VisualizerHasData => _allVisualizerInstructions.Count > 0;
+
+    // ── Debug mode properties ────────────────────────────────────────────────
+    public bool IsDebugging
+    {
+        get => _isDebugging;
+        private set
+        {
+            _isDebugging = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsRightPanelVisible));
+            OnPropertyChanged(nameof(ShowDiagnosticsPanel));
+        }
+    }
+
+    public bool IsRightPanelVisible => _showDiagnostics || _isDebugging;
+    public bool ShowDiagnosticsPanel => _showDiagnostics && !_isDebugging;
+
+    public string DebugCurrentInstruction
+    {
+        get => _debugCurrentInstruction;
+        private set { _debugCurrentInstruction = value; OnPropertyChanged(); }
+    }
+
+    public string DebugCurrentNote
+    {
+        get => _debugCurrentNote;
+        private set { _debugCurrentNote = value; OnPropertyChanged(); }
+    }
+
+    public string DebugStepStatus
+    {
+        get => _debugStepStatus;
+        private set { _debugStepStatus = value; OnPropertyChanged(); }
+    }
+
+    public int? DebugCurrentSourceLine
+    {
+        get => _debugCurrentSourceLine;
+        private set { _debugCurrentSourceLine = value; OnPropertyChanged(); }
+    }
+
+    public bool CanDebugStep => _isDebugging && VisualizerCanStep;
+    public bool CanDebugBack => _isDebugging && _debugHistory.Count > 0;
+    public bool CanDebugContinue => _isDebugging && VisualizerCanStep;
+    public bool CanDebugJumpToCall => _isDebugging && VisualizerCanStep;
+    public bool CanDebugStop => _isDebugging;
+    public IReadOnlySet<int> BreakpointLines => _breakpointLines;
+    public bool HasBreakpoints => _breakpointLines.Count > 0;
     public string VisualizerInstructionFilter
     {
         get => _visualizerInstructionFilter;
@@ -212,6 +284,7 @@ public class MainViewModel : INotifyPropertyChanged
                 AddRecentFile(_currentFile);
                 RefreshRecentCollections();
                 OnPropertyChanged(nameof(CurrentFileName));
+                StartDebugCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -254,6 +327,15 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand VisualizerRunAllCommand { get; }
     public RelayCommand VisualizerResetCommand { get; }
     public RelayCommand VisualizerJumpToEndCommand { get; }
+
+    // ── Debug mode commands ──────────────────────────────────────────────────
+    public RelayCommand StartDebugCommand { get; }
+    public RelayCommand DebugStepCommand { get; }
+    public RelayCommand DebugContinueCommand { get; }
+    public RelayCommand DebugJumpToCallCommand { get; }
+    public RelayCommand DebugStepBackCommand { get; }
+    public RelayCommand DebugStopCommand { get; }
+    public RelayCommand ToggleBreakpointAtCaretCommand { get; }
 
     public MainViewModel(TextEditor editor)
     {
@@ -339,6 +421,14 @@ public class MainViewModel : INotifyPropertyChanged
         VisualizerRunAllCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
         VisualizerResetCommand = new RelayCommand(_ => VisualizerReset(), _ => VisualizerHasData);
         VisualizerJumpToEndCommand = new RelayCommand(_ => VisualizerJumpToEnd(), _ => VisualizerCanStep);
+
+        StartDebugCommand = new RelayCommand(_ => StartDebug(), _ => !string.IsNullOrWhiteSpace(_currentFile));
+        DebugStepCommand = new RelayCommand(_ => DebugStep(), _ => CanDebugStep);
+        DebugContinueCommand = new RelayCommand(_ => DebugContinue(), _ => CanDebugContinue);
+        DebugJumpToCallCommand = new RelayCommand(_ => DebugJumpToCall(), _ => CanDebugJumpToCall);
+        DebugStepBackCommand = new RelayCommand(_ => DebugStepBack(), _ => CanDebugBack);
+        DebugStopCommand = new RelayCommand(_ => DebugStop(), _ => CanDebugStop);
+        ToggleBreakpointAtCaretCommand = new RelayCommand(_ => ToggleBreakpointAtCaret(), _ => _editor.Document is not null);
 
         RefreshRecentCollections();
         IsWelcomeViewVisible = true;
@@ -615,11 +705,15 @@ public class MainViewModel : INotifyPropertyChanged
     {
         ConstantPoolOutput = SliceSection(fullOutput,
             ["constant pool"],
-            ["instructions", "vm output"]);
+            ["instructions", "vm output", "vm trace"]);
 
         InstructionsOutput = SliceSection(fullOutput,
             ["instructions"],
-            ["vm output"]);
+            ["vm output", "vm trace"]);
+
+        _vmTraceOutput = SliceSection(fullOutput,
+            ["vm trace"],
+            []);
 
         if (ShowOutputOnly)
         {
@@ -824,6 +918,299 @@ public class MainViewModel : INotifyPropertyChanged
         VisualizerRunAllCommand.RaiseCanExecuteChanged();
         VisualizerResetCommand.RaiseCanExecuteChanged();
         VisualizerJumpToEndCommand.RaiseCanExecuteChanged();
+    }
+
+    // ── Breakpoint management ────────────────────────────────────────────────
+
+    public event Action? BreakpointsChanged;
+
+    public void ToggleBreakpoint(int lineNumber)
+    {
+        if (lineNumber <= 0) return;
+        if (!_breakpointLines.Remove(lineNumber))
+            _breakpointLines.Add(lineNumber);
+        BreakpointsChanged?.Invoke();
+        OnPropertyChanged(nameof(HasBreakpoints));
+    }
+
+    private void ToggleBreakpointAtCaret()
+    {
+        if (_editor.TextArea.Caret is null) return;
+        ToggleBreakpoint(_editor.TextArea.Caret.Line);
+    }
+
+    // ── Debug mode ───────────────────────────────────────────────────────────
+
+    private async void StartDebug()
+    {
+        if (string.IsNullOrWhiteSpace(_currentFile)) return;
+        if (!CanRunCompiler(showStatus: true)) return;
+
+        SaveFile();
+        StatusText = "Starting debug session…";
+        StatusColor = Brushes.LightGray;
+
+        var runner = new JavaCompilerService(Settings);
+        var result = await runner.RunFileAsync(_currentFile, includeTrace: true);
+        UpdateOutputs(result.Output);
+        LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+
+        if (_allVisualizerInstructions.Count == 0)
+        {
+            StatusText = "Debug: no instructions to step through.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
+        _sourceLineToInstructionPositions.Clear();
+        foreach (var kvp in DebugSourceMapService.BuildLineToInstructionPositions(_editor.Text, _allVisualizerInstructions))
+            _sourceLineToInstructionPositions[kvp.Key] = kvp.Value;
+        RebuildInstructionToSourceLineMap();
+        PopulateDebugTraceInstructionPositions();
+        ApplyTraceHintsToInstructionToLineMap();
+
+        _debugHistory.Clear();
+        IsDebugging = true;
+        var firstBreakpointPosition = DebugSourceMapService.FindNextInstructionPositionForBreakpoints(
+            _breakpointLines,
+            _sourceLineToInstructionPositions,
+            0);
+
+        RunToInitialDebugStop();
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+        StatusText = firstBreakpointPosition.HasValue
+            ? $"🔴 Debug mode — paused at first breakpoint (instruction {firstBreakpointPosition.Value + 1})"
+            : "🔴 Debug mode — no breakpoints found, executed to completion";
+        StatusColor = Brushes.IndianRed;
+    }
+
+    private void DebugStep()
+    {
+        if (!CanDebugStep) return;
+        SaveDebugSnapshot();
+        ExecuteVisualizerStep(captureTimeline: true);
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+    }
+
+    private void DebugContinue()
+    {
+        if (!CanDebugContinue) return;
+        SaveDebugSnapshot();
+
+        // Run until a mapped breakpoint instruction is reached, or until end if none.
+        if (_breakpointLines.Count == 0)
+        {
+            while (VisualizerCanStep)
+                ExecuteVisualizerStep(captureTimeline: false);
+        }
+        else
+        {
+            // Always advance at least one step past the current position so we don't
+            // immediately re-trigger the breakpoint we're already sitting on.
+            ExecuteVisualizerStep(captureTimeline: false);
+
+            var targetPosition = DebugSourceMapService.FindNextInstructionPositionForBreakpoints(
+                _breakpointLines,
+                _sourceLineToInstructionPositions,
+                _visualizerStepIndex);
+
+            if (targetPosition.HasValue)
+            {
+                while (VisualizerCanStep && _visualizerStepIndex < targetPosition.Value)
+                    ExecuteVisualizerStep(captureTimeline: false);
+            }
+            else
+            {
+                while (VisualizerCanStep)
+                    ExecuteVisualizerStep(captureTimeline: false);
+            }
+        }
+
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+    }
+
+    private void RunToInitialDebugStop()
+    {
+        if (_breakpointLines.Count == 0)
+        {
+            while (VisualizerCanStep)
+                ExecuteVisualizerStep(captureTimeline: false);
+            return;
+        }
+
+        var targetPosition = DebugSourceMapService.FindNextInstructionPositionForBreakpoints(
+            _breakpointLines,
+            _sourceLineToInstructionPositions,
+            _visualizerStepIndex);
+
+        if (!targetPosition.HasValue)
+        {
+            while (VisualizerCanStep)
+                ExecuteVisualizerStep(captureTimeline: false);
+            return;
+        }
+
+        while (VisualizerCanStep && _visualizerStepIndex < targetPosition.Value)
+            ExecuteVisualizerStep(captureTimeline: false);
+    }
+
+    private void RebuildInstructionToSourceLineMap()
+    {
+        _instructionPositionToSourceLine.Clear();
+        foreach (var (line, positions) in _sourceLineToInstructionPositions.OrderBy(kvp => kvp.Key))
+        {
+            foreach (var position in positions)
+            {
+                if (!_instructionPositionToSourceLine.ContainsKey(position))
+                    _instructionPositionToSourceLine[position] = line;
+            }
+        }
+    }
+
+    private void DebugJumpToCall()
+    {
+        if (!CanDebugJumpToCall) return;
+        SaveDebugSnapshot();
+
+        // Step until we hit (and execute) a call / ret / retval instruction, then pause.
+        while (VisualizerCanStep)
+        {
+            var instr = _allVisualizerInstructions[_visualizerStepIndex];
+            ExecuteVisualizerStep(captureTimeline: false);
+            if (instr.Opcode is "call" or "ret" or "retval")
+                break;
+        }
+
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+    }
+
+    private void DebugStepBack()
+    {
+        if (!CanDebugBack) return;
+        RestoreDebugSnapshot(_debugHistory[^1]);
+        _debugHistory.RemoveAt(_debugHistory.Count - 1);
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+    }
+
+    private void DebugStop()
+    {
+        IsDebugging = false;
+        _debugHistory.Clear();
+        _sourceLineToInstructionPositions.Clear();
+        _instructionPositionToSourceLine.Clear();
+        _debugTraceInstructionPositions.Clear();
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+        StatusText = "Debug session stopped.";
+        StatusColor = Brushes.LightGray;
+    }
+
+    private void SaveDebugSnapshot()
+    {
+        _debugHistory.Add(new DebugSnapshot
+        {
+            Stack = _visualizerRuntimeStack.Select(v => new VisualizerValue { Type = v.Type, Value = v.Value }).ToList(),
+            Globals = _visualizerGlobals.Select(g => g is null ? null : new VisualizerValue { Type = g.Type, Value = g.Value }).ToList<VisualizerValue?>(),
+            Frames = _visualizerFrames.Select(f => new VisualizerFrameState { FramePointer = f.FramePointer, LocalCount = f.LocalCount }).ToList(),
+            FramePointer = _visualizerFramePointer,
+            StepIndex = _visualizerStepIndex,
+            Halted = _visualizerHalted,
+            RunOutput = _visualizerRunOutput
+        });
+    }
+
+    private void RestoreDebugSnapshot(DebugSnapshot snapshot)
+    {
+        _visualizerRuntimeStack.Clear();
+        _visualizerRuntimeStack.AddRange(snapshot.Stack);
+        _visualizerGlobals.Clear();
+        _visualizerGlobals.AddRange(snapshot.Globals);
+        _visualizerFrames.Clear();
+        _visualizerFrames.AddRange(snapshot.Frames);
+        _visualizerFramePointer = snapshot.FramePointer;
+        _visualizerStepIndex = snapshot.StepIndex;
+        _visualizerHalted = snapshot.Halted;
+        _visualizerRunOutput = snapshot.RunOutput;
+        OnPropertyChanged(nameof(VisualizerRunOutput));
+
+        foreach (var instr in _allVisualizerInstructions)
+            instr.IsCurrent = false;
+        if (_visualizerStepIndex < _allVisualizerInstructions.Count)
+            _allVisualizerInstructions[_visualizerStepIndex].IsCurrent = true;
+
+        RefreshVisualizerStack();
+        RaiseVisualizerStateChanged();
+    }
+
+    private void UpdateDebugPanel()
+    {
+        if (!_isDebugging)
+        {
+            DebugCurrentInstruction = "";
+            DebugCurrentNote = "";
+            DebugStepStatus = "";
+            DebugCurrentSourceLine = null;
+            DebugStack.Clear();
+            return;
+        }
+
+        var total = _allVisualizerInstructions.Count;
+        var current = Math.Min(_visualizerStepIndex, total);
+
+        if (_visualizerHalted)
+        {
+            DebugCurrentInstruction = "— Halted —";
+            DebugCurrentNote = "Execution has stopped (halt instruction or error).";
+            DebugStepStatus = $"Halted at step {current} / {total}";
+            DebugCurrentSourceLine = null;
+        }
+        else if (_visualizerStepIndex >= total)
+        {
+            DebugCurrentInstruction = "— End of program —";
+            DebugCurrentNote = "All instructions executed.";
+            DebugStepStatus = $"Finished  ({total} / {total})";
+            DebugCurrentSourceLine = null;
+        }
+        else
+        {
+            var instr = _allVisualizerInstructions[_visualizerStepIndex];
+            DebugCurrentInstruction = instr.Display;
+            DebugCurrentNote = instr.Description;
+            DebugStepStatus = $"Step {_visualizerStepIndex + 1} / {total}";
+            DebugCurrentSourceLine = ResolveCurrentDebugSourceLine(_visualizerStepIndex);
+        }
+
+        DebugStack.Clear();
+        var entries = VisualizerService.StackToEntries(_visualizerRuntimeStack);
+        for (var i = 0; i < entries.Count; i++)
+            DebugStack.Add(new DebugStackEntry
+            {
+                Depth = entries[i].Depth,
+                Type = entries[i].Type,
+                Value = entries[i].Value,
+                IsTop = i == 0
+            });
+    }
+
+    private void RaiseDebugStateChanged()
+    {
+        OnPropertyChanged(nameof(CanDebugStep));
+        OnPropertyChanged(nameof(CanDebugBack));
+        OnPropertyChanged(nameof(CanDebugContinue));
+        OnPropertyChanged(nameof(CanDebugJumpToCall));
+        OnPropertyChanged(nameof(CanDebugStop));
+        StartDebugCommand.RaiseCanExecuteChanged();
+        DebugStepCommand.RaiseCanExecuteChanged();
+        DebugContinueCommand.RaiseCanExecuteChanged();
+        DebugJumpToCallCommand.RaiseCanExecuteChanged();
+        DebugStepBackCommand.RaiseCanExecuteChanged();
+        DebugStopCommand.RaiseCanExecuteChanged();
+        RaiseVisualizerStateChanged();
     }
 
     private void ApplyVisualizerInstructionFilter()
@@ -1162,6 +1549,63 @@ public class MainViewModel : INotifyPropertyChanged
         return normalized.ToLowerInvariant();
     }
 
+    private void PopulateDebugTraceInstructionPositions()
+    {
+        _debugTraceInstructionPositions.Clear();
+        if (string.IsNullOrWhiteSpace(_vmTraceOutput))
+            return;
+
+        var addressToPosition = _allVisualizerInstructions
+            .Select((instruction, position) => new { instruction.Index, position })
+            .ToDictionary(item => item.Index, item => item.position);
+
+        foreach (var address in VisualizerService.ParseTraceInstructionAddresses(_vmTraceOutput))
+        {
+            if (addressToPosition.TryGetValue(address, out var position))
+                _debugTraceInstructionPositions.Add(position);
+        }
+    }
+
+    private void ApplyTraceHintsToInstructionToLineMap()
+    {
+        if (_debugTraceInstructionPositions.Count == 0 || _instructionPositionToSourceLine.Count == 0)
+            return;
+
+        int? activeLine = null;
+        foreach (var position in _debugTraceInstructionPositions)
+        {
+            if (_instructionPositionToSourceLine.TryGetValue(position, out var mappedLine))
+            {
+                activeLine = mappedLine;
+                continue;
+            }
+
+            if (activeLine.HasValue)
+                _instructionPositionToSourceLine[position] = activeLine.Value;
+        }
+    }
+
+    private int? ResolveCurrentDebugSourceLine(int instructionPosition)
+    {
+        if (_instructionPositionToSourceLine.TryGetValue(instructionPosition, out var directLine))
+            return directLine;
+
+        var previous = _instructionPositionToSourceLine
+            .Where(kvp => kvp.Key < instructionPosition)
+            .OrderByDescending(kvp => kvp.Key)
+            .Select(kvp => (int?)kvp.Value)
+            .FirstOrDefault();
+
+        if (previous.HasValue)
+            return previous.Value;
+
+        return _instructionPositionToSourceLine
+            .Where(kvp => kvp.Key > instructionPosition)
+            .OrderBy(kvp => kvp.Key)
+            .Select(kvp => (int?)kvp.Value)
+            .FirstOrDefault();
+    }
+
     private void UpdateSelectedToolPairDetails()
     {
         SelectedToolExpectedOutput = SelectedToolTestPair?.ExpectedOutput ?? "";
@@ -1431,6 +1875,7 @@ public class MainViewModel : INotifyPropertyChanged
         _suppressDirtyTracking = false;
         _hasUnsavedChanges = false;
         OnPropertyChanged(nameof(CurrentFileName));
+        StartDebugCommand.RaiseCanExecuteChanged();
     }
 
     private static bool IsPathInside(string path, string rootPath)

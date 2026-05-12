@@ -12,7 +12,7 @@ public class JavaCompilerService
         _settings = settings;
     }
 
-    public async Task<(bool Success, string Output)> RunFileAsync(string filePath)
+    public async Task<(bool Success, string Output)> RunFileAsync(string filePath, bool includeTrace = false)
     {
         var result = await EnsureCompiledAsync();
         if (!result.Success) return result;
@@ -23,7 +23,9 @@ public class JavaCompilerService
         var psi = new ProcessStartInfo
         {
             FileName = _settings.JavaPath,
-            Arguments = $"-cp \"{classpath}\" FavaCompileAndRun \"{filePath}\"",
+            Arguments = includeTrace
+                ? $"-cp \"{classpath}\" FavaCompileAndRun \"{filePath}\" -trace"
+                : $"-cp \"{classpath}\" FavaCompileAndRun \"{filePath}\"",
             WorkingDirectory = Path.Combine(_settings.CompilerRoot, "src"),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
