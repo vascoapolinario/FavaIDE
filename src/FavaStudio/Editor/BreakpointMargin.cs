@@ -11,9 +11,13 @@ namespace FavaStudio.Editor;
 public sealed class BreakpointMargin : AbstractMargin
 {
     private HashSet<int> _breakpoints = [];
+    private bool _isHovering;
 
     private static readonly SolidColorBrush BreakpointFill;
     private static readonly Pen BreakpointBorder;
+    private static readonly SolidColorBrush LaneBrush;
+    private static readonly SolidColorBrush LaneHoverBrush;
+    private static readonly Pen LaneDividerPen;
 
     static BreakpointMargin()
     {
@@ -23,6 +27,21 @@ public sealed class BreakpointMargin : AbstractMargin
         borderBrush.Freeze();
         BreakpointBorder = new Pen(borderBrush, 0.8);
         BreakpointBorder.Freeze();
+
+        LaneBrush = new SolidColorBrush(Color.FromArgb(32, 170, 40, 40));
+        LaneBrush.Freeze();
+        LaneHoverBrush = new SolidColorBrush(Color.FromArgb(56, 180, 50, 50));
+        LaneHoverBrush.Freeze();
+        var laneDividerBrush = new SolidColorBrush(Color.FromArgb(120, 120, 70, 70));
+        laneDividerBrush.Freeze();
+        LaneDividerPen = new Pen(laneDividerBrush, 1);
+        LaneDividerPen.Freeze();
+    }
+
+    public BreakpointMargin()
+    {
+        Cursor = Cursors.Hand;
+        ToolTip = "Click to toggle breakpoint";
     }
 
     public event Action<int>? BreakpointToggled;
@@ -52,6 +71,9 @@ public sealed class BreakpointMargin : AbstractMargin
         var tv = TextView;
         if (tv is null || !tv.VisualLinesValid) return;
 
+        drawingContext.DrawRectangle(_isHovering ? LaneHoverBrush : LaneBrush, null, new Rect(0, 0, ActualWidth, ActualHeight));
+        drawingContext.DrawLine(LaneDividerPen, new Point(ActualWidth - 0.5, 0), new Point(ActualWidth - 0.5, ActualHeight));
+
         foreach (var vl in tv.VisualLines)
         {
             var lineNum = vl.FirstDocumentLine.LineNumber;
@@ -80,5 +102,19 @@ public sealed class BreakpointMargin : AbstractMargin
                 break;
             }
         }
+    }
+
+    protected override void OnMouseEnter(MouseEventArgs e)
+    {
+        base.OnMouseEnter(e);
+        _isHovering = true;
+        InvalidateVisual();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _isHovering = false;
+        InvalidateVisual();
     }
 }

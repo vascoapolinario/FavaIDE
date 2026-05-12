@@ -18,6 +18,7 @@
     <Window.InputBindings>
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveFileCommand}"/>
         <KeyBinding Key="P" Modifiers="Control" Command="{Binding OpenQuickOpenCommand}"/>
+        <KeyBinding Key="F9" Command="{Binding ToggleBreakpointAtCaretCommand}"/>
         <KeyBinding Key="F5" Command="{Binding StartDebugCommand}"/>
         <KeyBinding Key="F10" Command="{Binding DebugStepCommand}"/>
         <KeyBinding Key="F5" Modifiers="Shift" Command="{Binding DebugStopCommand}"/>
@@ -90,10 +91,11 @@
                         <MenuItem Header="Save Current File" Command="{Binding SaveFileCommand}"/>
                         <MenuItem Header="Toggle Errors Panel" Command="{Binding ToggleDiagnosticsCommand}"/>
                         <Separator/>
+                        <MenuItem Header="● Toggle Breakpoint (F9)" Command="{Binding ToggleBreakpointAtCaretCommand}"/>
                         <MenuItem Header="▶  Start Debug (F5)" Command="{Binding StartDebugCommand}"/>
                         <MenuItem Header="→  Step (F10)" Command="{Binding DebugStepCommand}"/>
                         <MenuItem Header="⏭  Jump to Next Call" Command="{Binding DebugJumpToCallCommand}"/>
-                        <MenuItem Header="▶▶ Continue to End" Command="{Binding DebugContinueCommand}"/>
+                        <MenuItem Header="▶▶ Continue (to breakpoint/end)" Command="{Binding DebugContinueCommand}"/>
                         <MenuItem Header="←  Step Back" Command="{Binding DebugStepBackCommand}"/>
                         <MenuItem Header="■  Stop Debug (Shift+F5)" Command="{Binding DebugStopCommand}"/>
                     </MenuItem>
@@ -342,10 +344,15 @@
                                         Background="#2A1010"
                                         BorderBrush="#5A2222"
                                         BorderThickness="0,0,0,1">
-                                    <TextBlock Text="🔴  DEBUG SESSION"
-                                               FontSize="12"
-                                               FontWeight="Bold"
-                                               Foreground="IndianRed"/>
+                                    <DockPanel LastChildFill="False">
+                                        <TextBlock Text="🔴  DEBUG SESSION"
+                                                   FontSize="12"
+                                                   FontWeight="Bold"
+                                                   Foreground="IndianRed"/>
+                                        <TextBlock Text="   • Click red gutter lane or press F9 to toggle breakpoint"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                    </DockPanel>
                                 </Border>
 
                                 <!-- Step status -->

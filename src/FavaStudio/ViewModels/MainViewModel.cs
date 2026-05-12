@@ -69,6 +69,7 @@ public class MainViewModel : INotifyPropertyChanged
     private string _debugCurrentNote = "";
     private string _debugStepStatus = "";
     private readonly List<DebugSnapshot> _debugHistory = [];
+    private readonly Dictionary<int, List<int>> _sourceLineToInstructionPositions = [];
 
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
@@ -198,6 +199,7 @@ public class MainViewModel : INotifyPropertyChanged
     public bool CanDebugJumpToCall => _isDebugging && VisualizerCanStep;
     public bool CanDebugStop => _isDebugging;
     public IReadOnlySet<int> BreakpointLines => _breakpointLines;
+    public bool HasBreakpoints => _breakpointLines.Count > 0;
     public string VisualizerInstructionFilter
     {
         get => _visualizerInstructionFilter;
@@ -272,6 +274,7 @@ public class MainViewModel : INotifyPropertyChanged
                 AddRecentFile(_currentFile);
                 RefreshRecentCollections();
                 OnPropertyChanged(nameof(CurrentFileName));
+                StartDebugCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -322,6 +325,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand DebugJumpToCallCommand { get; }
     public RelayCommand DebugStepBackCommand { get; }
     public RelayCommand DebugStopCommand { get; }
+    public RelayCommand ToggleBreakpointAtCaretCommand { get; }
 
     public MainViewModel(TextEditor editor)
     {
@@ -414,6 +418,7 @@ public class MainViewModel : INotifyPropertyChanged
         DebugJumpToCallCommand = new RelayCommand(_ => DebugJumpToCall(), _ => CanDebugJumpToCall);
         DebugStepBackCommand = new RelayCommand(_ => DebugStepBack(), _ => CanDebugBack);
         DebugStopCommand = new RelayCommand(_ => DebugStop(), _ => CanDebugStop);
+        ToggleBreakpointAtCaretCommand = new RelayCommand(_ => ToggleBreakpointAtCaret(), _ => _editor.Document is not null);
 
         RefreshRecentCollections();
         IsWelcomeViewVisible = true;
@@ -907,9 +912,17 @@ public class MainViewModel : INotifyPropertyChanged
 
     public void ToggleBreakpoint(int lineNumber)
     {
+        if (lineNumber <= 0) return;
         if (!_breakpointLines.Remove(lineNumber))
             _breakpointLines.Add(lineNumber);
         BreakpointsChanged?.Invoke();
+        OnPropertyChanged(nameof(HasBreakpoints));
+    }
+
+    private void ToggleBreakpointAtCaret()
+    {
+        if (_editor.TextArea.Caret is null) return;
+        ToggleBreakpoint(_editor.TextArea.Caret.Line);
     }
 
     // ── Debug mode ───────────────────────────────────────────────────────────
@@ -935,11 +948,15 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        _sourceLineToInstructionPositions.Clear();
+        foreach (var kvp in DebugSourceMapService.BuildLineToInstructionPositions(_editor.Text, _allVisualizerInstructions))
+            _sourceLineToInstructionPositions[kvp.Key] = kvp.Value;
+
         _debugHistory.Clear();
         IsDebugging = true;
         UpdateDebugPanel();
         RaiseDebugStateChanged();
-        StatusText = $"🔴 Debug mode — {_allVisualizerInstructions.Count} instruction(s) loaded";
+        StatusText = $"🔴 Debug mode — {_allVisualizerInstructions.Count} instruction(s), {_sourceLineToInstructionPositions.Count} mapped source line(s)";
         StatusColor = Brushes.IndianRed;
     }
 
@@ -957,8 +974,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (!CanDebugContinue) return;
         SaveDebugSnapshot();
 
-        // Run until a breakpoint line is "hit" (simulated: nearest instruction index),
-        // or until end if no breakpoints are set.
+        // Run until a mapped breakpoint instruction is reached, or until end if none.
         if (_breakpointLines.Count == 0)
         {
             while (VisualizerCanStep)
@@ -970,15 +986,20 @@ public class MainViewModel : INotifyPropertyChanged
             // immediately re-trigger the breakpoint we're already sitting on.
             ExecuteVisualizerStep(captureTimeline: false);
 
-            // Then, before each subsequent step, check whether the upcoming instruction
-            // falls within a breakpoint region.  This ensures we pause BEFORE executing
-            // the breakpoint instruction (i.e. it is shown as "current").
-            while (VisualizerCanStep)
+            var targetPosition = DebugSourceMapService.FindNextInstructionPositionForBreakpoints(
+                _breakpointLines,
+                _sourceLineToInstructionPositions,
+                _visualizerStepIndex);
+
+            if (targetPosition.HasValue)
             {
-                var nextInstr = _allVisualizerInstructions[_visualizerStepIndex];
-                if (_breakpointLines.Contains(nextInstr.Index + 1))
-                    break;
-                ExecuteVisualizerStep(captureTimeline: false);
+                while (VisualizerCanStep && _visualizerStepIndex < targetPosition.Value)
+                    ExecuteVisualizerStep(captureTimeline: false);
+            }
+            else
+            {
+                while (VisualizerCanStep)
+                    ExecuteVisualizerStep(captureTimeline: false);
             }
         }
 
@@ -1017,6 +1038,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         IsDebugging = false;
         _debugHistory.Clear();
+        _sourceLineToInstructionPositions.Clear();
         UpdateDebugPanel();
         RaiseDebugStateChanged();
         StatusText = "Debug session stopped.";
@@ -1727,6 +1749,7 @@ public class MainViewModel : INotifyPropertyChanged
         _suppressDirtyTracking = false;
         _hasUnsavedChanges = false;
         OnPropertyChanged(nameof(CurrentFileName));
+        StartDebugCommand.RaiseCanExecuteChanged();
     }
 
     private static bool IsPathInside(string path, string rootPath)
