@@ -44,7 +44,7 @@ public class MainViewModel : INotifyPropertyChanged
     private string _selectedToolActualOutput = "";
     private string _selectedToolDiffOutput = "";
     private TestResult? _selectedTestResult;
-    private string _testSummary = "";
+    private string _testSummary = "No tests run yet.";
     private readonly List<VisualizerInstruction> _allVisualizerInstructions = [];
     private readonly List<string> _allVisualizerConstants = [];
     private readonly List<VisualizerValue> _visualizerRuntimeStack = [];
@@ -246,7 +246,12 @@ public class MainViewModel : INotifyPropertyChanged
     public TestResult? SelectedTestResult
     {
         get => _selectedTestResult;
-        set { _selectedTestResult = value; OnPropertyChanged(); }
+        set
+        {
+            _selectedTestResult = value;
+            OnPropertyChanged();
+            RunSelectedTestsCommand.RaiseCanExecuteChanged();
+        }
     }
 
     public TestFilePair? SelectedToolTestPair
@@ -1408,12 +1413,15 @@ public class MainViewModel : INotifyPropertyChanged
     private async void RunAllTests()
     {
         TestResults.Clear();
+        SelectedTestResult = null;
         TestSummary = "Running tests…";
         StatusColor = Brushes.LightGray;
 
         var runner = new TestRunnerService(Settings);
         var results = await runner.RunAllTestsAsync();
         foreach (var r in results) TestResults.Add(r);
+        if (results.Count > 0)
+            SelectedTestResult = TestResults[0];
 
         var passed = results.Count(r => r.Passed);
         var total = results.Count;

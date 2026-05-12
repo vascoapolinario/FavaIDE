@@ -115,71 +115,198 @@
                         Background="{StaticResource BgPanelBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,1,0">
-                    <DockPanel>
-                        <Border DockPanel.Dock="Top"
-                                Padding="10,7"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,0,0,1"
-                                Background="{StaticResource BgPanelAltBrush}">
-                            <TextBlock Text="PROJECT"
-                                       FontSize="10"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
-                        </Border>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="3*"/>
+                            <RowDefinition Height="5"/>
+                            <RowDefinition Height="2*"/>
+                        </Grid.RowDefinitions>
 
-                        <Border DockPanel.Dock="Top"
-                                Padding="10,6"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <TextBlock Text="{Binding CurrentProjectDirectory}"
-                                       FontFamily="Consolas"
-                                       FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       TextWrapping="Wrap"/>
-                        </Border>
+                        <DockPanel Grid.Row="0">
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,7"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Background="{StaticResource BgPanelAltBrush}">
+                                <TextBlock Text="PROJECT"
+                                           FontSize="10"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                            </Border>
 
-                        <TreeView ItemsSource="{Binding ProjectTree}"
-                                  SelectedItemChanged="ProjectTree_OnSelectedItemChanged"
-                                  Margin="4,4,4,0"
-                                  Background="Transparent"
-                                  BorderThickness="0">
-                            <TreeView.Resources>
-                                <HierarchicalDataTemplate DataType="{x:Type local:ProjectNode}" ItemsSource="{Binding Children}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Icon}" Margin="0,0,6,0" FontSize="13"/>
-                                        <TextBlock Text="{Binding Name}" FontSize="14"/>
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,6"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1">
+                                <TextBlock Text="{Binding CurrentProjectDirectory}"
+                                           FontFamily="Consolas"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+
+                            <TreeView ItemsSource="{Binding ProjectTree}"
+                                      SelectedItemChanged="ProjectTree_OnSelectedItemChanged"
+                                      Margin="4,4,4,0"
+                                      Background="Transparent"
+                                      BorderThickness="0">
+                                <TreeView.Resources>
+                                    <HierarchicalDataTemplate DataType="{x:Type local:ProjectNode}" ItemsSource="{Binding Children}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Icon}" Margin="0,0,6,0" FontSize="13"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="14"/>
+                                        </StackPanel>
+                                    </HierarchicalDataTemplate>
+                                </TreeView.Resources>
+                                <TreeView.ItemContainerStyle>
+                                    <Style TargetType="TreeViewItem">
+                                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                        <Setter Property="Tag"
+                                                Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        <Setter Property="ContextMenu">
+                                            <Setter.Value>
+                                                <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                                    <MenuItem Header="Add">
+                                                        <MenuItem Header="New Folder"
+                                                                  Command="{Binding NewDirectoryCommand}"
+                                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                        <MenuItem Header="New Fava File"
+                                                                  Command="{Binding NewFavaFileCommand}"
+                                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                        <MenuItem Header="New Text File"
+                                                                  Command="{Binding NewTextFileCommand}"
+                                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Delete"
+                                                              Command="{Binding DeleteNodeCommand}"
+                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                </ContextMenu>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </TreeView.ItemContainerStyle>
+                            </TreeView>
+                        </DockPanel>
+
+                        <GridSplitter Grid.Row="1"
+                                      Height="5"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
+                                      ResizeDirection="Rows"
+                                      Background="{StaticResource BorderBrush}"/>
+
+                        <DockPanel Grid.Row="2">
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,7"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,1,0,1"
+                                    Background="{StaticResource BgPanelAltBrush}">
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock DockPanel.Dock="Left"
+                                               Text="TEST SUITE"
+                                               FontSize="10"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="Run All"
+                                                Command="{Binding RunAllTestsCommand}"
+                                                Style="{StaticResource AccentButton}"
+                                                Padding="8,3"
+                                                FontSize="11"
+                                                Margin="0,0,6,0"/>
+                                        <Button Content="Run Selected"
+                                                Command="{Binding RunSelectedTestsCommand}"
+                                                Padding="8,3"
+                                                FontSize="11"/>
                                     </StackPanel>
-                                </HierarchicalDataTemplate>
-                            </TreeView.Resources>
-                            <TreeView.ItemContainerStyle>
-                                <Style TargetType="TreeViewItem">
-                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                    <Setter Property="Tag"
-                                            Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
-                                    <Setter Property="ContextMenu">
-                                        <Setter.Value>
-                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-                                                <MenuItem Header="Add">
-                                                    <MenuItem Header="New Folder"
-                                                              Command="{Binding NewDirectoryCommand}"
-                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                    <MenuItem Header="New Fava File"
-                                                              Command="{Binding NewFavaFileCommand}"
-                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                    <MenuItem Header="New Text File"
-                                                              Command="{Binding NewTextFileCommand}"
-                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                </MenuItem>
-                                                <MenuItem Header="Delete"
-                                                          Command="{Binding DeleteNodeCommand}"
-                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                            </ContextMenu>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </TreeView.ItemContainerStyle>
-                        </TreeView>
-                    </DockPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,6"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1">
+                                <TextBlock Text="{Binding TestSummary}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="3*"/>
+                                    <RowDefinition Height="2*"/>
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0">
+                                    <ListBox ItemsSource="{Binding TestResults}"
+                                             SelectedItem="{Binding SelectedTestResult}"
+                                             Margin="4,4,4,0"
+                                             Background="Transparent"
+                                             BorderThickness="0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel Margin="0,2">
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding Status}"
+                                                               FontSize="11"
+                                                               FontWeight="Bold"
+                                                               Margin="8,0,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#FF6D6D"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Passed}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#5AD18A"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding Name}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               FontSize="12"/>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <TextBlock Text="No tests run yet. Click 'Run All'."
+                                               Margin="12,10,12,0"
+                                               FontStyle="Italic"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TestResults.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+
+                                <GroupBox Grid.Row="1"
+                                          Header="Selected Test Details"
+                                          Margin="8,6,8,8">
+                                    <TextBox Text="{Binding SelectedTestResult.Message}"
+                                             IsReadOnly="True"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             BorderThickness="0"
+                                             Background="{StaticResource BgMainBrush}"
+                                             FontFamily="Consolas"
+                                             FontSize="12"
+                                             Padding="8"/>
+                                </GroupBox>
+                            </Grid>
+                        </DockPanel>
+                    </Grid>
                 </Border>
 
                 <GridSplitter Grid.Column="1"
