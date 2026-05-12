@@ -49,6 +49,8 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly List<string> _allVisualizerConstants = [];
     private readonly List<VisualizerValue> _visualizerRuntimeStack = [];
     private readonly List<VisualizerValue?> _visualizerGlobals = [];
+    private readonly List<VisualizerFrameState> _visualizerFrames = [];
+    private int _visualizerFramePointer = -1;
     private readonly List<OpcodeReferenceItem> _allOpcodeReference = VisualizerService.BuildReference().ToList();
     private int _visualizerStepIndex;
     private bool _visualizerHalted;
@@ -677,6 +679,8 @@ public class MainViewModel : INotifyPropertyChanged
     {
         _visualizerRuntimeStack.Clear();
         _visualizerGlobals.Clear();
+        _visualizerFrames.Clear();
+        _visualizerFramePointer = -1;
         VisualizerStack.Clear();
         VisualizerGlobals.Clear();
         VisualizerTimeline.Clear();
@@ -703,7 +707,18 @@ public class MainViewModel : INotifyPropertyChanged
         var instruction = _allVisualizerInstructions[_visualizerStepIndex];
         instruction.IsCurrent = true;
         var before = VisualizerService.StackToText(_visualizerRuntimeStack);
-        var success = VisualizerService.ApplyInstruction(instruction, _visualizerRuntimeStack, _visualizerGlobals, _allVisualizerConstants, out var note, out var outputLine, out var halted, out var newIp);
+        var success = VisualizerService.ApplyInstruction(
+            instruction,
+            _visualizerRuntimeStack,
+            _visualizerGlobals,
+            _visualizerFrames,
+            ref _visualizerFramePointer,
+            instruction.Index,
+            _allVisualizerConstants,
+            out var note,
+            out var outputLine,
+            out var halted,
+            out var newIp);
         var after = VisualizerService.StackToText(_visualizerRuntimeStack);
         if (captureTimeline && VisualizerTimeline.Count < MaxVisualizerTimelineEntries)
         {

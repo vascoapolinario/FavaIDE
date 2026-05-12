@@ -66,3 +66,9 @@ public sealed class VisualizerGlobalEntry
     public string Type { get; init; } = "";
     public string Value { get; init; } = "";
 }
+
+public sealed class VisualizerFrameState
+{
+    public int FramePointer { get; set; }
+    public int LocalCount { get; set; }
+}
