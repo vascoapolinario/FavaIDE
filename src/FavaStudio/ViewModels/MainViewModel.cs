@@ -954,9 +954,27 @@ public class MainViewModel : INotifyPropertyChanged
 
         _debugHistory.Clear();
         IsDebugging = true;
+        var firstBreakpointPosition = DebugSourceMapService.FindNextInstructionPositionForBreakpoints(
+            _breakpointLines,
+            _sourceLineToInstructionPositions,
+            0);
+
+        if (firstBreakpointPosition.HasValue)
+        {
+            while (VisualizerCanStep && _visualizerStepIndex < firstBreakpointPosition.Value)
+                ExecuteVisualizerStep(captureTimeline: false);
+        }
+        else
+        {
+            while (VisualizerCanStep)
+                ExecuteVisualizerStep(captureTimeline: false);
+        }
+
         UpdateDebugPanel();
         RaiseDebugStateChanged();
-        StatusText = $"🔴 Debug mode — {_allVisualizerInstructions.Count} instruction(s), {_sourceLineToInstructionPositions.Count} mapped source line(s)";
+        StatusText = firstBreakpointPosition.HasValue
+            ? $"🔴 Debug mode — paused at first breakpoint (instruction {_visualizerStepIndex + 1})"
+            : "🔴 Debug mode — no breakpoints found, executed to completion";
         StatusColor = Brushes.IndianRed;
     }
 
