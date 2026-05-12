@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using FavaStudio.Models;
 
 namespace FavaStudio.Services;
@@ -6,6 +7,9 @@ namespace FavaStudio.Services;
 public static class VisualizerService
 {
     private const double DoubleComparisonTolerance = 1e-9;
+    private static readonly Regex TraceLineRegex = new(
+        @"^\s*(?<ip>\d+)\s*:\s*[A-Za-z_][A-Za-z0-9_]*\b",
+        RegexOptions.Compiled);
 
     public static List<string> ParseConstantPool(string constantPoolSection)
     {
@@ -51,6 +55,23 @@ public static class VisualizerService
             });
         }
         return result.OrderBy(i => i.Index).ToList();
+    }
+
+    public static List<int> ParseTraceInstructionAddresses(string traceSection)
+    {
+        var lines = traceSection.Replace("\r\n", "\n").Split('\n');
+        var result = new List<int>();
+        foreach (var line in lines)
+        {
+            var match = TraceLineRegex.Match(line);
+            if (!match.Success)
+                continue;
+
+            if (int.TryParse(match.Groups["ip"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ip))
+                result.Add(ip);
+        }
+
+        return result;
     }
 
     public static IReadOnlyList<OpcodeReferenceItem> BuildReference() =>

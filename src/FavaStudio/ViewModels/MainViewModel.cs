@@ -72,6 +72,8 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly List<DebugSnapshot> _debugHistory = [];
     private readonly Dictionary<int, List<int>> _sourceLineToInstructionPositions = [];
     private readonly Dictionary<int, int> _instructionPositionToSourceLine = [];
+    private readonly List<int> _debugTraceInstructionPositions = [];
+    private string _vmTraceOutput = "";
 
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
@@ -703,11 +705,15 @@ public class MainViewModel : INotifyPropertyChanged
     {
         ConstantPoolOutput = SliceSection(fullOutput,
             ["constant pool"],
-            ["instructions", "vm output"]);
+            ["instructions", "vm output", "vm trace"]);
 
         InstructionsOutput = SliceSection(fullOutput,
             ["instructions"],
-            ["vm output"]);
+            ["vm output", "vm trace"]);
+
+        _vmTraceOutput = SliceSection(fullOutput,
+            ["vm trace"],
+            []);
 
         if (ShowOutputOnly)
         {
@@ -945,7 +951,7 @@ public class MainViewModel : INotifyPropertyChanged
         StatusColor = Brushes.LightGray;
 
         var runner = new JavaCompilerService(Settings);
-        var result = await runner.RunFileAsync(_currentFile);
+        var result = await runner.RunFileAsync(_currentFile, includeTrace: true);
         UpdateOutputs(result.Output);
         LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
 
@@ -960,6 +966,8 @@ public class MainViewModel : INotifyPropertyChanged
         foreach (var kvp in DebugSourceMapService.BuildLineToInstructionPositions(_editor.Text, _allVisualizerInstructions))
             _sourceLineToInstructionPositions[kvp.Key] = kvp.Value;
         RebuildInstructionToSourceLineMap();
+        PopulateDebugTraceInstructionPositions();
+        ApplyTraceHintsToInstructionToLineMap();
 
         _debugHistory.Clear();
         IsDebugging = true;
@@ -1095,6 +1103,7 @@ public class MainViewModel : INotifyPropertyChanged
         _debugHistory.Clear();
         _sourceLineToInstructionPositions.Clear();
         _instructionPositionToSourceLine.Clear();
+        _debugTraceInstructionPositions.Clear();
         UpdateDebugPanel();
         RaiseDebugStateChanged();
         StatusText = "Debug session stopped.";
@@ -1173,9 +1182,7 @@ public class MainViewModel : INotifyPropertyChanged
             DebugCurrentInstruction = instr.Display;
             DebugCurrentNote = instr.Description;
             DebugStepStatus = $"Step {_visualizerStepIndex + 1} / {total}";
-            DebugCurrentSourceLine = _instructionPositionToSourceLine.TryGetValue(_visualizerStepIndex, out var line)
-                ? line
-                : null;
+            DebugCurrentSourceLine = ResolveCurrentDebugSourceLine(_visualizerStepIndex);
         }
 
         DebugStack.Clear();
@@ -1540,6 +1547,63 @@ public class MainViewModel : INotifyPropertyChanged
         if (normalized.EndsWith(':'))
             normalized = normalized[..^1];
         return normalized.ToLowerInvariant();
+    }
+
+    private void PopulateDebugTraceInstructionPositions()
+    {
+        _debugTraceInstructionPositions.Clear();
+        if (string.IsNullOrWhiteSpace(_vmTraceOutput))
+            return;
+
+        var addressToPosition = _allVisualizerInstructions
+            .Select((instruction, position) => new { instruction.Index, position })
+            .ToDictionary(item => item.Index, item => item.position);
+
+        foreach (var address in VisualizerService.ParseTraceInstructionAddresses(_vmTraceOutput))
+        {
+            if (addressToPosition.TryGetValue(address, out var position))
+                _debugTraceInstructionPositions.Add(position);
+        }
+    }
+
+    private void ApplyTraceHintsToInstructionToLineMap()
+    {
+        if (_debugTraceInstructionPositions.Count == 0 || _instructionPositionToSourceLine.Count == 0)
+            return;
+
+        int? activeLine = null;
+        foreach (var position in _debugTraceInstructionPositions)
+        {
+            if (_instructionPositionToSourceLine.TryGetValue(position, out var mappedLine))
+            {
+                activeLine = mappedLine;
+                continue;
+            }
+
+            if (activeLine.HasValue)
+                _instructionPositionToSourceLine[position] = activeLine.Value;
+        }
+    }
+
+    private int? ResolveCurrentDebugSourceLine(int instructionPosition)
+    {
+        if (_instructionPositionToSourceLine.TryGetValue(instructionPosition, out var directLine))
+            return directLine;
+
+        var previous = _instructionPositionToSourceLine
+            .Where(kvp => kvp.Key < instructionPosition)
+            .OrderByDescending(kvp => kvp.Key)
+            .Select(kvp => (int?)kvp.Value)
+            .FirstOrDefault();
+
+        if (previous.HasValue)
+            return previous.Value;
+
+        return _instructionPositionToSourceLine
+            .Where(kvp => kvp.Key > instructionPosition)
+            .OrderBy(kvp => kvp.Key)
+            .Select(kvp => (int?)kvp.Value)
+            .FirstOrDefault();
     }
 
     private void UpdateSelectedToolPairDetails()
