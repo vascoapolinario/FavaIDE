@@ -15,6 +15,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _diagnosticUnderlineRenderer = new DiagnosticUnderlineRenderer(Editor);
         Editor.TextArea.TextView.BackgroundRenderers.Add(_diagnosticUnderlineRenderer);
+        Editor.TextArea.TextView.LineTransformers.Add(new FavaSyntaxColorizer());
 
         var vm = new MainViewModel(Editor);
         DataContext = vm;

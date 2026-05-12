@@ -68,14 +68,20 @@ public static class VisualizerService
     public static bool ApplyInstruction(
         VisualizerInstruction instruction,
         List<VisualizerValue> stack,
+        List<VisualizerValue?> globals,
+        List<VisualizerFrameState> frames,
+        ref int currentFramePointer,
+        int currentInstructionAddress,
         IReadOnlyList<string> constantPool,
         out string note,
         out string outputLine,
-        out bool halted)
+        out bool halted,
+        out int? newIp)
     {
         note = instruction.Description;
         outputLine = "";
         halted = false;
+        newIp = null;
         try
         {
             switch (instruction.Opcode)
@@ -200,12 +206,119 @@ public static class VisualizerService
                     return true;
                 case "bprint":
                     if (!TryPopBool(stack, out var boolPrint, out note)) return false;
-                    outputLine = boolPrint ? "verdadeiro" : "falso";
+                    outputLine = boolPrint ? "true" : "false";
                     note = $"Output: {outputLine}";
                     return true;
                 case "halt":
                     halted = true;
                     note = "Execution halted.";
+                    return true;
+                case "jump":
+                    if (!instruction.Argument.HasValue) return Fail("Missing jump argument.", out note);
+                    newIp = instruction.Argument.Value;
+                    note = $"Unconditional jump to instruction {instruction.Argument.Value}.";
+                    return true;
+                case "jumpf":
+                    if (!instruction.Argument.HasValue) return Fail("Missing jumpf argument.", out note);
+                    if (!TryPopBool(stack, out var jumpCondition, out note)) return false;
+                    if (!jumpCondition)
+                    {
+                        newIp = instruction.Argument.Value;
+                        note = $"Condition false: jump to instruction {instruction.Argument.Value}.";
+                    }
+                    else
+                    {
+                        note = "Condition true: no jump.";
+                    }
+                    return true;
+                case "galloc":
+                    if (!instruction.Argument.HasValue) return Fail("Missing galloc count.", out note);
+                    for (var i = 0; i < instruction.Argument.Value; i++)
+                        globals.Add(null);
+                    note = $"Allocated {instruction.Argument.Value} global slot(s). Total: {globals.Count}.";
+                    return true;
+                case "gload":
+                    if (!instruction.Argument.HasValue) return Fail("Missing gload address.", out note);
+                    var gloadAddr = instruction.Argument.Value;
+                    if (gloadAddr < 0 || gloadAddr >= globals.Count)
+                        return Fail($"gload address {gloadAddr} out of range (0..{globals.Count - 1}).", out note);
+                    var gloadVal = globals[gloadAddr];
+                    if (gloadVal is null)
+                        return Fail($"gload: globals[{gloadAddr}] is NULL (uninitialized).", out note);
+                    stack.Add(gloadVal);
+                    note = $"Pushed globals[{gloadAddr}] = {FormatValue(gloadVal)}.";
+                    return true;
+                case "gstore":
+                    if (!instruction.Argument.HasValue) return Fail("Missing gstore address.", out note);
+                    var gstoreAddr = instruction.Argument.Value;
+                    if (gstoreAddr < 0 || gstoreAddr >= globals.Count)
+                        return Fail($"gstore address {gstoreAddr} out of range (0..{globals.Count - 1}).", out note);
+                    if (stack.Count == 0) return Fail("Stack underflow on gstore.", out note);
+                    var storeVal = stack[^1];
+                    stack.RemoveAt(stack.Count - 1);
+                    globals[gstoreAddr] = storeVal;
+                    note = $"Stored {FormatValue(storeVal)} into globals[{gstoreAddr}].";
+                    return true;
+                case "lalloc":
+                    if (!instruction.Argument.HasValue) return Fail("Missing lalloc count.", out note);
+                    if (instruction.Argument.Value < 0) return Fail("lalloc count cannot be negative.", out note);
+                    if (frames.Count == 0) return Fail("lalloc requires an active call frame.", out note);
+                    for (var i = 0; i < instruction.Argument.Value; i++)
+                        stack.Add(new VisualizerValue { Type = "null", Value = "NULL" });
+                    frames[^1].LocalCount += instruction.Argument.Value;
+                    note = $"Allocated {instruction.Argument.Value} local slot(s).";
+                    return true;
+                case "lload":
+                    if (!instruction.Argument.HasValue) return Fail("Missing lload address.", out note);
+                    if (!TryResolveFrameAddress(currentFramePointer, instruction.Argument.Value, stack, out var lloadIndex, out note))
+                        return false;
+                    var lloadValue = stack[lloadIndex];
+                    if (string.Equals(lloadValue.Type, "null", StringComparison.OrdinalIgnoreCase))
+                        return Fail($"lload: stack[{lloadIndex}] is NULL (uninitialized).", out note);
+                    stack.Add(CloneValue(lloadValue));
+                    note = $"Loaded local/arg at FP{FormatOffset(instruction.Argument.Value)}.";
+                    return true;
+                case "lstore":
+                    if (!instruction.Argument.HasValue) return Fail("Missing lstore address.", out note);
+                    if (!TryResolveFrameAddress(currentFramePointer, instruction.Argument.Value, stack, out var lstoreIndex, out note))
+                        return false;
+                    if (stack.Count == 0) return Fail("Stack underflow on lstore.", out note);
+                    var lstoreValue = stack[^1];
+                    stack.RemoveAt(stack.Count - 1);
+                    stack[lstoreIndex] = CloneValue(lstoreValue);
+                    note = $"Stored value into FP{FormatOffset(instruction.Argument.Value)}.";
+                    return true;
+                case "pop":
+                    if (!instruction.Argument.HasValue) return Fail("Missing pop count.", out note);
+                    if (instruction.Argument.Value < 0) return Fail("pop count cannot be negative.", out note);
+                    if (stack.Count < instruction.Argument.Value) return Fail("Stack underflow on pop.", out note);
+                    stack.RemoveRange(stack.Count - instruction.Argument.Value, instruction.Argument.Value);
+                    note = $"Popped {instruction.Argument.Value} value(s).";
+                    return true;
+                case "call":
+                    if (!instruction.Argument.HasValue) return Fail("Missing call target address.", out note);
+                    var previousFp = currentFramePointer;
+                    stack.Add(new VisualizerValue { Type = "frameptr", Value = previousFp });
+                    currentFramePointer = stack.Count - 1;
+                    stack.Add(new VisualizerValue { Type = "retaddr", Value = currentInstructionAddress + 1 });
+                    frames.Add(new VisualizerFrameState { FramePointer = currentFramePointer, LocalCount = 0 });
+                    newIp = instruction.Argument.Value;
+                    note = $"Called function at instruction {instruction.Argument.Value}.";
+                    return true;
+                case "retval":
+                    if (!instruction.Argument.HasValue) return Fail("Missing retval argument count.", out note);
+                    if (!TryReturnWithValue(stack, frames, ref currentFramePointer, instruction.Argument.Value, out var returnValue, out var returnAddress, out note))
+                        return false;
+                    stack.Add(returnValue);
+                    newIp = returnAddress;
+                    note = $"Returned value to instruction {returnAddress}.";
+                    return true;
+                case "ret":
+                    if (!instruction.Argument.HasValue) return Fail("Missing ret argument count.", out note);
+                    if (!TryReturnVoid(stack, frames, ref currentFramePointer, instruction.Argument.Value, out var retAddress, out note))
+                        return false;
+                    newIp = retAddress;
+                    note = $"Returned to instruction {retAddress}.";
                     return true;
                 default:
                     note = $"Instruction '{instruction.Opcode}' is not supported in visualizer simulation.";
@@ -239,6 +352,174 @@ public static class VisualizerService
         }
         return rows;
     }
+
+    public static IReadOnlyList<VisualizerGlobalEntry> GlobalsToEntries(IReadOnlyList<VisualizerValue?> globals)
+    {
+        var rows = new List<VisualizerGlobalEntry>();
+        for (var i = 0; i < globals.Count; i++)
+        {
+            var g = globals[i];
+            rows.Add(new VisualizerGlobalEntry
+            {
+                Address = i,
+                Type = g?.Type ?? "null",
+                Value = g is null ? "NULL" : FormatValue(g)
+            });
+        }
+        return rows;
+    }
+
+    private static bool TryResolveFrameAddress(int framePointer, int offset, IReadOnlyList<VisualizerValue> stack, out int index, out string note)
+    {
+        index = framePointer + offset;
+        if (framePointer < 0)
+        {
+            note = "No active frame pointer for local access.";
+            return false;
+        }
+
+        if (index < 0 || index >= stack.Count)
+        {
+            note = $"Frame address FP{FormatOffset(offset)} resolved to invalid stack index {index}.";
+            return false;
+        }
+
+        note = "";
+        return true;
+    }
+
+    private static bool TryReturnWithValue(
+        List<VisualizerValue> stack,
+        List<VisualizerFrameState> frames,
+        ref int currentFramePointer,
+        int argumentCount,
+        out VisualizerValue returnValue,
+        out int returnAddress,
+        out string note)
+    {
+        returnValue = new VisualizerValue();
+        returnAddress = -1;
+
+        if (argumentCount < 0)
+        {
+            note = "retval argument count cannot be negative.";
+            return false;
+        }
+
+        if (stack.Count == 0)
+        {
+            note = "Stack underflow on retval.";
+            return false;
+        }
+
+        returnValue = CloneValue(stack[^1]);
+        stack.RemoveAt(stack.Count - 1);
+        if (!TryUnwindFrame(stack, frames, ref currentFramePointer, argumentCount, out returnAddress, out note))
+            return false;
+
+        return true;
+    }
+
+    private static bool TryReturnVoid(
+        List<VisualizerValue> stack,
+        List<VisualizerFrameState> frames,
+        ref int currentFramePointer,
+        int argumentCount,
+        out int returnAddress,
+        out string note)
+    {
+        returnAddress = -1;
+
+        if (argumentCount < 0)
+        {
+            note = "ret argument count cannot be negative.";
+            return false;
+        }
+
+        return TryUnwindFrame(stack, frames, ref currentFramePointer, argumentCount, out returnAddress, out note);
+    }
+
+    private static bool TryUnwindFrame(
+        List<VisualizerValue> stack,
+        List<VisualizerFrameState> frames,
+        ref int currentFramePointer,
+        int argumentCount,
+        out int returnAddress,
+        out string note)
+    {
+        returnAddress = -1;
+        if (frames.Count == 0)
+        {
+            note = "ret/retval requires an active call frame.";
+            return false;
+        }
+
+        var frame = frames[^1];
+        if (frame.FramePointer < 0 || frame.FramePointer + 1 >= stack.Count)
+        {
+            note = "Current frame metadata is invalid.";
+            return false;
+        }
+
+        if (!TryGetIntAt(stack, frame.FramePointer, out var previousFramePointer))
+        {
+            note = "Stored frame pointer is invalid.";
+            return false;
+        }
+
+        if (!TryGetIntAt(stack, frame.FramePointer + 1, out returnAddress))
+        {
+            note = "Stored return address is invalid.";
+            return false;
+        }
+
+        var framePayloadCount = stack.Count - frame.FramePointer;
+        if (framePayloadCount < 2)
+        {
+            note = "Corrupted frame stack layout.";
+            return false;
+        }
+
+        stack.RemoveRange(frame.FramePointer, framePayloadCount);
+        frames.RemoveAt(frames.Count - 1);
+        currentFramePointer = previousFramePointer;
+
+        if (stack.Count < argumentCount)
+        {
+            note = "Stack underflow while removing call arguments.";
+            return false;
+        }
+
+        if (argumentCount > 0)
+            stack.RemoveRange(stack.Count - argumentCount, argumentCount);
+
+        note = "";
+        return true;
+    }
+
+    private static bool TryGetIntAt(IReadOnlyList<VisualizerValue> stack, int index, out int value)
+    {
+        value = 0;
+        if (index < 0 || index >= stack.Count) return false;
+        try
+        {
+            value = Convert.ToInt32(stack[index].Value, CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static VisualizerValue CloneValue(VisualizerValue value) =>
+        new()
+        {
+            Type = value.Type,
+            Value = value.Value
+        };
+
+    private static string FormatOffset(int offset) => offset >= 0 ? $"+{offset}" : offset.ToString(CultureInfo.InvariantCulture);
 
     private static bool TryGetConst(int? index, IReadOnlyList<string> constantPool, out string value)
     {
@@ -430,13 +711,25 @@ public static class VisualizerService
         { 30, ("sneq", "Pops two strings and pushes non-equality result.") },
         { 31, ("tconst", "Pushes boolean true.") },
         { 32, ("fconst", "Pushes boolean false.") },
-        { 33, ("bprint", "Pops a boolean and prints verdadeiro/falso.") },
+        { 33, ("bprint", "Pops a boolean and prints true/false.") },
         { 34, ("beq", "Pops two booleans and pushes equality result.") },
         { 35, ("bneq", "Pops two booleans and pushes non-equality result.") },
         { 36, ("and", "Pops two booleans and pushes logical and.") },
         { 37, ("or", "Pops two booleans and pushes logical or.") },
         { 38, ("not", "Pops one boolean and pushes logical not.") },
         { 39, ("btos", "Converts top boolean to string.") },
-        { 40, ("halt", "Stops program execution.") }
+        { 40, ("halt", "Stops program execution.") },
+        { 41, ("jump", "Unconditional jump to the given instruction address.") },
+        { 42, ("jumpf", "Pops a boolean; jumps to address if false, otherwise continues.") },
+        { 43, ("galloc", "Allocates n NULL-initialized slots in the global variable array.") },
+        { 44, ("gload", "Pushes the global variable at the given address onto the stack.") },
+        { 45, ("gstore", "Pops the top of stack and stores it in the global variable at the given address.") },
+        { 46, ("lalloc", "Allocates n NULL-initialized local slots in the current call frame.") },
+        { 47, ("lload", "Pushes Stack[FP + addr] onto the stack.") },
+        { 48, ("lstore", "Pops a value and stores it in Stack[FP + addr].") },
+        { 49, ("pop", "Pops n values from the top of the runtime stack.") },
+        { 50, ("call", "Creates a new call frame, saves FP/return address, and jumps to addr.") },
+        { 51, ("retval", "Returns from non-void function: keeps return value, restores frame, pops n args.") },
+        { 52, ("ret", "Returns from void function: restores frame and pops n args.") }
     };
 }

@@ -48,6 +48,9 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly List<VisualizerInstruction> _allVisualizerInstructions = [];
     private readonly List<string> _allVisualizerConstants = [];
     private readonly List<VisualizerValue> _visualizerRuntimeStack = [];
+    private readonly List<VisualizerValue?> _visualizerGlobals = [];
+    private readonly List<VisualizerFrameState> _visualizerFrames = [];
+    private int _visualizerFramePointer = -1;
     private readonly List<OpcodeReferenceItem> _allOpcodeReference = VisualizerService.BuildReference().ToList();
     private int _visualizerStepIndex;
     private bool _visualizerHalted;
@@ -67,6 +70,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<string> VisualizerConstantPool { get; } = new();
     public ObservableCollection<VisualizerTimelineEntry> VisualizerTimeline { get; } = new();
     public ObservableCollection<VisualizerStackEntry> VisualizerStack { get; } = new();
+    public ObservableCollection<VisualizerGlobalEntry> VisualizerGlobals { get; } = new();
     public ObservableCollection<OpcodeReferenceItem> VisualizerOpcodeReference { get; } = new();
     public ObservableCollection<string> RecentProjects { get; } = new();
     public ObservableCollection<string> RecentFiles { get; } = new();
@@ -674,7 +678,11 @@ public class MainViewModel : INotifyPropertyChanged
     private void VisualizerReset()
     {
         _visualizerRuntimeStack.Clear();
+        _visualizerGlobals.Clear();
+        _visualizerFrames.Clear();
+        _visualizerFramePointer = -1;
         VisualizerStack.Clear();
+        VisualizerGlobals.Clear();
         VisualizerTimeline.Clear();
         _visualizerStepIndex = 0;
         _visualizerHalted = false;
@@ -699,7 +707,18 @@ public class MainViewModel : INotifyPropertyChanged
         var instruction = _allVisualizerInstructions[_visualizerStepIndex];
         instruction.IsCurrent = true;
         var before = VisualizerService.StackToText(_visualizerRuntimeStack);
-        var success = VisualizerService.ApplyInstruction(instruction, _visualizerRuntimeStack, _allVisualizerConstants, out var note, out var outputLine, out var halted);
+        var success = VisualizerService.ApplyInstruction(
+            instruction,
+            _visualizerRuntimeStack,
+            _visualizerGlobals,
+            _visualizerFrames,
+            ref _visualizerFramePointer,
+            instruction.Index,
+            _allVisualizerConstants,
+            out var note,
+            out var outputLine,
+            out var halted,
+            out var newIp);
         var after = VisualizerService.StackToText(_visualizerRuntimeStack);
         if (captureTimeline && VisualizerTimeline.Count < MaxVisualizerTimelineEntries)
         {
@@ -732,9 +751,21 @@ public class MainViewModel : INotifyPropertyChanged
         if (!success || halted)
             _visualizerHalted = true;
 
-        _visualizerStepIndex++;
-        if (!_visualizerHalted && _visualizerStepIndex < _allVisualizerInstructions.Count)
-            _allVisualizerInstructions[_visualizerStepIndex].IsCurrent = true;
+        if (!_visualizerHalted)
+        {
+            if (newIp.HasValue)
+            {
+                var targetIndex = _allVisualizerInstructions.FindIndex(i => i.Index == newIp.Value);
+                _visualizerStepIndex = targetIndex >= 0 ? targetIndex : _allVisualizerInstructions.Count;
+            }
+            else
+            {
+                _visualizerStepIndex++;
+            }
+
+            if (_visualizerStepIndex < _allVisualizerInstructions.Count)
+                _allVisualizerInstructions[_visualizerStepIndex].IsCurrent = true;
+        }
 
         RaiseVisualizerStateChanged();
     }
@@ -779,6 +810,10 @@ public class MainViewModel : INotifyPropertyChanged
         VisualizerStack.Clear();
         foreach (var entry in VisualizerService.StackToEntries(_visualizerRuntimeStack))
             VisualizerStack.Add(entry);
+
+        VisualizerGlobals.Clear();
+        foreach (var entry in VisualizerService.GlobalsToEntries(_visualizerGlobals))
+            VisualizerGlobals.Add(entry);
     }
 
     private void RaiseVisualizerStateChanged()
