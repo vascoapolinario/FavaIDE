@@ -8,7 +8,7 @@ public static class VisualizerService
 {
     private const double DoubleComparisonTolerance = 1e-9;
     private static readonly Regex TraceLineRegex = new(
-        @"^\s*(?<ip>\d+)\s*:\s*[A-Za-z_][A-Za-z0-9_]*\b",
+        @"^\s*(?<ip>\d+)\s*:\s*(?<opcode>[A-Za-z_][A-Za-z0-9_]*)\b",
         RegexOptions.Compiled);
 
     public static List<string> ParseConstantPool(string constantPoolSection)
@@ -65,6 +65,8 @@ public static class VisualizerService
         {
             var match = TraceLineRegex.Match(line);
             if (!match.Success)
+                continue;
+            if (string.IsNullOrWhiteSpace(match.Groups["opcode"].Value))
                 continue;
 
             if (int.TryParse(match.Groups["ip"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ip))

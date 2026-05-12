@@ -980,7 +980,7 @@ public class MainViewModel : INotifyPropertyChanged
         UpdateDebugPanel();
         RaiseDebugStateChanged();
         StatusText = firstBreakpointPosition.HasValue
-            ? $"🔴 Debug mode — paused at first breakpoint (instruction {_visualizerStepIndex + 1})"
+            ? $"🔴 Debug mode — paused at first breakpoint (instruction {firstBreakpointPosition.Value + 1})"
             : "🔴 Debug mode — no breakpoints found, executed to completion";
         StatusColor = Brushes.IndianRed;
     }
