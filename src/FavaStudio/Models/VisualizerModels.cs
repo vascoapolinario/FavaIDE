@@ -72,3 +72,11 @@ public sealed class VisualizerFrameState
     public int FramePointer { get; set; }
     public int LocalCount { get; set; }
 }
+
+public sealed class DebugStackEntry
+{
+    public int Depth { get; init; }
+    public string Type { get; init; } = "";
+    public string Value { get; init; } = "";
+    public bool IsTop { get; init; }
+}

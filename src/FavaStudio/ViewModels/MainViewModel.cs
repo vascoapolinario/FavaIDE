@@ -62,6 +62,14 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _visualizerAutoSync = true;
     private const int MaxVisualizerTimelineEntries = 500;
 
+    // ── Debug mode ──────────────────────────────────────────────────────────
+    private readonly HashSet<int> _breakpointLines = [];
+    private bool _isDebugging;
+    private string _debugCurrentInstruction = "";
+    private string _debugCurrentNote = "";
+    private string _debugStepStatus = "";
+    private readonly List<DebugSnapshot> _debugHistory = [];
+
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
     public ObservableCollection<TestResult> TestResults { get; } = new();
@@ -75,6 +83,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<string> RecentProjects { get; } = new();
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<string> QuickOpenResults { get; } = new();
+    public ObservableCollection<DebugStackEntry> DebugStack { get; } = new();
 
     public SettingsService Settings { get; } = SettingsService.Load();
 
@@ -96,7 +105,17 @@ public class MainViewModel : INotifyPropertyChanged
     public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); } }
     public string ConstantPoolOutput { get => _constantPoolOutput; set { _constantPoolOutput = value; OnPropertyChanged(); } }
     public string InstructionsOutput { get => _instructionsOutput; set { _instructionsOutput = value; OnPropertyChanged(); } }
-    public bool ShowDiagnostics { get => _showDiagnostics; set { _showDiagnostics = value; OnPropertyChanged(); } }
+    public bool ShowDiagnostics
+    {
+        get => _showDiagnostics;
+        set
+        {
+            _showDiagnostics = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsRightPanelVisible));
+            OnPropertyChanged(nameof(ShowDiagnosticsPanel));
+        }
+    }
     public bool IsSettingsViewVisible { get => _isSettingsViewVisible; set { _isSettingsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
     public bool IsToolsViewVisible { get => _isToolsViewVisible; set { _isToolsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
     public bool IsVisualizerViewVisible { get => _isVisualizerViewVisible; set { _isVisualizerViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
@@ -138,6 +157,47 @@ public class MainViewModel : INotifyPropertyChanged
     public bool VisualizerAutoSync { get => _visualizerAutoSync; set { _visualizerAutoSync = value; OnPropertyChanged(); } }
     public bool VisualizerCanStep => _allVisualizerInstructions.Count > 0 && !_visualizerHalted && _visualizerStepIndex < _allVisualizerInstructions.Count;
     public bool VisualizerHasData => _allVisualizerInstructions.Count > 0;
+
+    // ── Debug mode properties ────────────────────────────────────────────────
+    public bool IsDebugging
+    {
+        get => _isDebugging;
+        private set
+        {
+            _isDebugging = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsRightPanelVisible));
+            OnPropertyChanged(nameof(ShowDiagnosticsPanel));
+        }
+    }
+
+    public bool IsRightPanelVisible => _showDiagnostics || _isDebugging;
+    public bool ShowDiagnosticsPanel => _showDiagnostics && !_isDebugging;
+
+    public string DebugCurrentInstruction
+    {
+        get => _debugCurrentInstruction;
+        private set { _debugCurrentInstruction = value; OnPropertyChanged(); }
+    }
+
+    public string DebugCurrentNote
+    {
+        get => _debugCurrentNote;
+        private set { _debugCurrentNote = value; OnPropertyChanged(); }
+    }
+
+    public string DebugStepStatus
+    {
+        get => _debugStepStatus;
+        private set { _debugStepStatus = value; OnPropertyChanged(); }
+    }
+
+    public bool CanDebugStep => _isDebugging && VisualizerCanStep;
+    public bool CanDebugBack => _isDebugging && _debugHistory.Count > 0;
+    public bool CanDebugContinue => _isDebugging && VisualizerCanStep;
+    public bool CanDebugJumpToCall => _isDebugging && VisualizerCanStep;
+    public bool CanDebugStop => _isDebugging;
+    public IReadOnlySet<int> BreakpointLines => _breakpointLines;
     public string VisualizerInstructionFilter
     {
         get => _visualizerInstructionFilter;
@@ -255,6 +315,14 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand VisualizerResetCommand { get; }
     public RelayCommand VisualizerJumpToEndCommand { get; }
 
+    // ── Debug mode commands ──────────────────────────────────────────────────
+    public RelayCommand StartDebugCommand { get; }
+    public RelayCommand DebugStepCommand { get; }
+    public RelayCommand DebugContinueCommand { get; }
+    public RelayCommand DebugJumpToCallCommand { get; }
+    public RelayCommand DebugStepBackCommand { get; }
+    public RelayCommand DebugStopCommand { get; }
+
     public MainViewModel(TextEditor editor)
     {
         _editor = editor;
@@ -339,6 +407,13 @@ public class MainViewModel : INotifyPropertyChanged
         VisualizerRunAllCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
         VisualizerResetCommand = new RelayCommand(_ => VisualizerReset(), _ => VisualizerHasData);
         VisualizerJumpToEndCommand = new RelayCommand(_ => VisualizerJumpToEnd(), _ => VisualizerCanStep);
+
+        StartDebugCommand = new RelayCommand(_ => StartDebug(), _ => !string.IsNullOrWhiteSpace(_currentFile));
+        DebugStepCommand = new RelayCommand(_ => DebugStep(), _ => CanDebugStep);
+        DebugContinueCommand = new RelayCommand(_ => DebugContinue(), _ => CanDebugContinue);
+        DebugJumpToCallCommand = new RelayCommand(_ => DebugJumpToCall(), _ => CanDebugJumpToCall);
+        DebugStepBackCommand = new RelayCommand(_ => DebugStepBack(), _ => CanDebugBack);
+        DebugStopCommand = new RelayCommand(_ => DebugStop(), _ => CanDebugStop);
 
         RefreshRecentCollections();
         IsWelcomeViewVisible = true;
@@ -824,6 +899,227 @@ public class MainViewModel : INotifyPropertyChanged
         VisualizerRunAllCommand.RaiseCanExecuteChanged();
         VisualizerResetCommand.RaiseCanExecuteChanged();
         VisualizerJumpToEndCommand.RaiseCanExecuteChanged();
+    }
+
+    // ── Breakpoint management ────────────────────────────────────────────────
+
+    public event Action? BreakpointsChanged;
+
+    public void ToggleBreakpoint(int lineNumber)
+    {
+        if (!_breakpointLines.Remove(lineNumber))
+            _breakpointLines.Add(lineNumber);
+        BreakpointsChanged?.Invoke();
+    }
+
+    // ── Debug mode ───────────────────────────────────────────────────────────
+
+    private async void StartDebug()
+    {
+        if (string.IsNullOrWhiteSpace(_currentFile)) return;
+        if (!CanRunCompiler(showStatus: true)) return;
+
+        SaveFile();
+        StatusText = "Starting debug session…";
+        StatusColor = Brushes.LightGray;
+
+        var runner = new JavaCompilerService(Settings);
+        var result = await runner.RunFileAsync(_currentFile);
+        UpdateOutputs(result.Output);
+        LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+
+        if (_allVisualizerInstructions.Count == 0)
+        {
+            StatusText = "Debug: no instructions to step through.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
+        _debugHistory.Clear();
+        IsDebugging = true;
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+        StatusText = $"🔴 Debug mode — {_allVisualizerInstructions.Count} instruction(s) loaded";
+        StatusColor = Brushes.IndianRed;
+    }
+
+    private void DebugStep()
+    {
+        if (!CanDebugStep) return;
+        SaveDebugSnapshot();
+        ExecuteVisualizerStep(captureTimeline: true);
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+    }
+
+    private void DebugContinue()
+    {
+        if (!CanDebugContinue) return;
+        SaveDebugSnapshot();
+
+        // Run until a breakpoint line is "hit" (simulated: nearest instruction index),
+        // or until end if no breakpoints are set.
+        if (_breakpointLines.Count == 0)
+        {
+            while (VisualizerCanStep)
+                ExecuteVisualizerStep(captureTimeline: false);
+        }
+        else
+        {
+            // Always advance at least one step past the current position so we don't
+            // immediately re-trigger the breakpoint we're already sitting on.
+            ExecuteVisualizerStep(captureTimeline: false);
+
+            // Then, before each subsequent step, check whether the upcoming instruction
+            // falls within a breakpoint region.  This ensures we pause BEFORE executing
+            // the breakpoint instruction (i.e. it is shown as "current").
+            while (VisualizerCanStep)
+            {
+                var nextInstr = _allVisualizerInstructions[_visualizerStepIndex];
+                if (_breakpointLines.Contains(nextInstr.Index + 1))
+                    break;
+                ExecuteVisualizerStep(captureTimeline: false);
+            }
+        }
+
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+    }
+
+    private void DebugJumpToCall()
+    {
+        if (!CanDebugJumpToCall) return;
+        SaveDebugSnapshot();
+
+        // Step until we hit (and execute) a call / ret / retval instruction, then pause.
+        while (VisualizerCanStep)
+        {
+            var instr = _allVisualizerInstructions[_visualizerStepIndex];
+            ExecuteVisualizerStep(captureTimeline: false);
+            if (instr.Opcode is "call" or "ret" or "retval")
+                break;
+        }
+
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+    }
+
+    private void DebugStepBack()
+    {
+        if (!CanDebugBack) return;
+        RestoreDebugSnapshot(_debugHistory[^1]);
+        _debugHistory.RemoveAt(_debugHistory.Count - 1);
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+    }
+
+    private void DebugStop()
+    {
+        IsDebugging = false;
+        _debugHistory.Clear();
+        UpdateDebugPanel();
+        RaiseDebugStateChanged();
+        StatusText = "Debug session stopped.";
+        StatusColor = Brushes.LightGray;
+    }
+
+    private void SaveDebugSnapshot()
+    {
+        _debugHistory.Add(new DebugSnapshot
+        {
+            Stack = _visualizerRuntimeStack.Select(v => new VisualizerValue { Type = v.Type, Value = v.Value }).ToList(),
+            Globals = _visualizerGlobals.Select(g => g is null ? null : new VisualizerValue { Type = g.Type, Value = g.Value }).ToList<VisualizerValue?>(),
+            Frames = _visualizerFrames.Select(f => new VisualizerFrameState { FramePointer = f.FramePointer, LocalCount = f.LocalCount }).ToList(),
+            FramePointer = _visualizerFramePointer,
+            StepIndex = _visualizerStepIndex,
+            Halted = _visualizerHalted,
+            RunOutput = _visualizerRunOutput
+        });
+    }
+
+    private void RestoreDebugSnapshot(DebugSnapshot snapshot)
+    {
+        _visualizerRuntimeStack.Clear();
+        _visualizerRuntimeStack.AddRange(snapshot.Stack);
+        _visualizerGlobals.Clear();
+        _visualizerGlobals.AddRange(snapshot.Globals);
+        _visualizerFrames.Clear();
+        _visualizerFrames.AddRange(snapshot.Frames);
+        _visualizerFramePointer = snapshot.FramePointer;
+        _visualizerStepIndex = snapshot.StepIndex;
+        _visualizerHalted = snapshot.Halted;
+        _visualizerRunOutput = snapshot.RunOutput;
+        OnPropertyChanged(nameof(VisualizerRunOutput));
+
+        foreach (var instr in _allVisualizerInstructions)
+            instr.IsCurrent = false;
+        if (_visualizerStepIndex < _allVisualizerInstructions.Count)
+            _allVisualizerInstructions[_visualizerStepIndex].IsCurrent = true;
+
+        RefreshVisualizerStack();
+        RaiseVisualizerStateChanged();
+    }
+
+    private void UpdateDebugPanel()
+    {
+        if (!_isDebugging)
+        {
+            DebugCurrentInstruction = "";
+            DebugCurrentNote = "";
+            DebugStepStatus = "";
+            DebugStack.Clear();
+            return;
+        }
+
+        var total = _allVisualizerInstructions.Count;
+        var current = Math.Min(_visualizerStepIndex, total);
+
+        if (_visualizerHalted)
+        {
+            DebugCurrentInstruction = "— Halted —";
+            DebugCurrentNote = "Execution has stopped (halt instruction or error).";
+            DebugStepStatus = $"Halted at step {current} / {total}";
+        }
+        else if (_visualizerStepIndex >= total)
+        {
+            DebugCurrentInstruction = "— End of program —";
+            DebugCurrentNote = "All instructions executed.";
+            DebugStepStatus = $"Finished  ({total} / {total})";
+        }
+        else
+        {
+            var instr = _allVisualizerInstructions[_visualizerStepIndex];
+            DebugCurrentInstruction = instr.Display;
+            DebugCurrentNote = instr.Description;
+            DebugStepStatus = $"Step {_visualizerStepIndex + 1} / {total}";
+        }
+
+        DebugStack.Clear();
+        var entries = VisualizerService.StackToEntries(_visualizerRuntimeStack);
+        for (var i = 0; i < entries.Count; i++)
+            DebugStack.Add(new DebugStackEntry
+            {
+                Depth = entries[i].Depth,
+                Type = entries[i].Type,
+                Value = entries[i].Value,
+                IsTop = i == 0
+            });
+    }
+
+    private void RaiseDebugStateChanged()
+    {
+        OnPropertyChanged(nameof(CanDebugStep));
+        OnPropertyChanged(nameof(CanDebugBack));
+        OnPropertyChanged(nameof(CanDebugContinue));
+        OnPropertyChanged(nameof(CanDebugJumpToCall));
+        OnPropertyChanged(nameof(CanDebugStop));
+        StartDebugCommand.RaiseCanExecuteChanged();
+        DebugStepCommand.RaiseCanExecuteChanged();
+        DebugContinueCommand.RaiseCanExecuteChanged();
+        DebugJumpToCallCommand.RaiseCanExecuteChanged();
+        DebugStepBackCommand.RaiseCanExecuteChanged();
+        DebugStopCommand.RaiseCanExecuteChanged();
+        RaiseVisualizerStateChanged();
     }
 
     private void ApplyVisualizerInstructionFilter()

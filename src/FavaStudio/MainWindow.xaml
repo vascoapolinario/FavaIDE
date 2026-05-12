@@ -4,6 +4,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
         xmlns:local="clr-namespace:FavaStudio.Models"
+        xmlns:conv="clr-namespace:FavaStudio.Converters"
         Title="Fava Studio"
         Height="920"
         Width="1500"
@@ -11,11 +12,15 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
     </Window.Resources>
 
     <Window.InputBindings>
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveFileCommand}"/>
         <KeyBinding Key="P" Modifiers="Control" Command="{Binding OpenQuickOpenCommand}"/>
+        <KeyBinding Key="F5" Command="{Binding StartDebugCommand}"/>
+        <KeyBinding Key="F10" Command="{Binding DebugStepCommand}"/>
+        <KeyBinding Key="F5" Modifiers="Shift" Command="{Binding DebugStopCommand}"/>
         <KeyBinding Key="Escape" Command="{Binding CloseQuickOpenCommand}"/>
     </Window.InputBindings>
 
@@ -84,6 +89,13 @@
                         <MenuItem Header="Run Current File" Command="{Binding RunCurrentCommand}"/>
                         <MenuItem Header="Save Current File" Command="{Binding SaveFileCommand}"/>
                         <MenuItem Header="Toggle Errors Panel" Command="{Binding ToggleDiagnosticsCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="▶  Start Debug (F5)" Command="{Binding StartDebugCommand}"/>
+                        <MenuItem Header="→  Step (F10)" Command="{Binding DebugStepCommand}"/>
+                        <MenuItem Header="⏭  Jump to Next Call" Command="{Binding DebugJumpToCallCommand}"/>
+                        <MenuItem Header="▶▶ Continue to End" Command="{Binding DebugContinueCommand}"/>
+                        <MenuItem Header="←  Step Back" Command="{Binding DebugStepBackCommand}"/>
+                        <MenuItem Header="■  Stop Debug (Shift+F5)" Command="{Binding DebugStopCommand}"/>
                     </MenuItem>
                 </Menu>
             </DockPanel>
@@ -188,10 +200,60 @@
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1"
                             Padding="10,5">
-                        <TextBlock Text="{Binding CurrentFileName}"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   FontFamily="Consolas"
-                                   FontSize="12"/>
+                        <DockPanel LastChildFill="True">
+                            <!-- Debug toolbar (visible when IsDebugging=true) -->
+                            <StackPanel DockPanel.Dock="Right"
+                                        Orientation="Horizontal"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
+                                        Margin="8,0,0,0">
+                                <Button Content="← Back"
+                                        Command="{Binding DebugStepBackCommand}"
+                                        ToolTip="Step Back"
+                                        Padding="8,3"
+                                        FontSize="12"
+                                        Margin="0,0,4,0"/>
+                                <Button Content="Step →"
+                                        Command="{Binding DebugStepCommand}"
+                                        ToolTip="Step one instruction (F10)"
+                                        Style="{StaticResource AccentButton}"
+                                        Padding="8,3"
+                                        FontSize="12"
+                                        Margin="0,0,4,0"/>
+                                <Button Content="⏭ Call"
+                                        Command="{Binding DebugJumpToCallCommand}"
+                                        ToolTip="Jump to next function call / return"
+                                        Padding="8,3"
+                                        FontSize="12"
+                                        Margin="0,0,4,0"/>
+                                <Button Content="▶ Continue"
+                                        Command="{Binding DebugContinueCommand}"
+                                        ToolTip="Run to next breakpoint or end"
+                                        Padding="8,3"
+                                        FontSize="12"
+                                        Margin="0,0,4,0"/>
+                                <Button Content="■ Stop"
+                                        Command="{Binding DebugStopCommand}"
+                                        ToolTip="Stop debug session (Shift+F5)"
+                                        Background="#4A1A1A"
+                                        Foreground="IndianRed"
+                                        BorderBrush="#6A2A2A"
+                                        Padding="8,3"
+                                        FontSize="12"/>
+                            </StackPanel>
+                            <!-- Start Debug button (visible when NOT debugging) -->
+                            <Button DockPanel.Dock="Right"
+                                    Content="🔴 Debug (F5)"
+                                    Command="{Binding StartDebugCommand}"
+                                    Visibility="{Binding IsDebugging, Converter={StaticResource InverseBoolToVisibility}}"
+                                    Padding="8,3"
+                                    FontSize="12"
+                                    Margin="8,0,0,0"/>
+                            <TextBlock Text="{Binding CurrentFileName}"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"/>
+                        </DockPanel>
                     </Border>
 
                     <Grid Grid.Row="1">
@@ -203,7 +265,7 @@
                                     <Style TargetType="ColumnDefinition">
                                         <Setter Property="Width" Value="300"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding DataContext.ShowDiagnostics, ElementName=RootWindow}" Value="False">
+                                            <DataTrigger Binding="{Binding DataContext.IsRightPanelVisible, ElementName=RootWindow}" Value="False">
                                                 <Setter Property="Width" Value="0"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -231,7 +293,7 @@
                                 Background="{StaticResource BgPanelBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1,0,0,0"
-                                Visibility="{Binding ShowDiagnostics, Converter={StaticResource BoolToVisibility}}">
+                                Visibility="{Binding ShowDiagnosticsPanel, Converter={StaticResource BoolToVisibility}}">
                             <DockPanel>
                                 <Border DockPanel.Dock="Top"
                                         Padding="10,6"
@@ -264,6 +326,161 @@
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- ── Debug Panel ─────────────────────────────────── -->
+                        <Border Grid.Column="2"
+                                Background="{StaticResource BgPanelBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1,0,0,0"
+                                Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}">
+                            <DockPanel>
+                                <!-- Header -->
+                                <Border DockPanel.Dock="Top"
+                                        Padding="10,6"
+                                        Background="#2A1010"
+                                        BorderBrush="#5A2222"
+                                        BorderThickness="0,0,0,1">
+                                    <TextBlock Text="🔴  DEBUG SESSION"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               Foreground="IndianRed"/>
+                                </Border>
+
+                                <!-- Step status -->
+                                <Border DockPanel.Dock="Top"
+                                        Padding="10,5"
+                                        Background="{StaticResource BgPanelAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,0,0,1">
+                                    <TextBlock Text="{Binding DebugStepStatus}"
+                                               FontFamily="Consolas"
+                                               FontSize="12"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                </Border>
+
+                                <!-- Current instruction -->
+                                <Border DockPanel.Dock="Top"
+                                        Padding="10,8"
+                                        Background="{StaticResource BgPanelBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,0,0,1">
+                                    <StackPanel>
+                                        <TextBlock Text="CURRENT INSTRUCTION"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Margin="0,0,0,5"/>
+                                        <TextBlock Text="{Binding DebugCurrentInstruction}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#7BC1FF"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding DebugCurrentNote}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Stack heading -->
+                                <Border DockPanel.Dock="Top"
+                                        Padding="10,5"
+                                        Background="{StaticResource BgPanelAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,0,0,1">
+                                    <TextBlock Text="STACK  (top → bottom)"
+                                               FontSize="10"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                </Border>
+
+                                <!-- Empty stack hint -->
+                                <TextBlock DockPanel.Dock="Top"
+                                           Text="(stack is empty)"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="12"
+                                           FontStyle="Italic"
+                                           Margin="12,8"
+                                           Visibility="{Binding DebugStack.Count, Converter={StaticResource BoolToVisibility}, ConverterParameter=inverse}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DebugStack.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- Stack pile -->
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Padding="8,6">
+                                    <ItemsControl ItemsSource="{Binding DebugStack}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,2"
+                                                        CornerRadius="4"
+                                                        BorderThickness="1"
+                                                        Padding="8,5">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="#1A2535"/>
+                                                            <Setter Property="BorderBrush" Value="#2A3A50"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsTop}" Value="True">
+                                                                    <Setter Property="Background" Value="#1A3528"/>
+                                                                    <Setter Property="BorderBrush" Value="#2A5A3A"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="60"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Top-of-stack arrow -->
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="▲ "
+                                                                   Foreground="#5AD18A"
+                                                                   FontSize="11"
+                                                                   FontWeight="Bold"
+                                                                   VerticalAlignment="Center"
+                                                                   Visibility="{Binding IsTop, Converter={StaticResource BoolToVisibility}}"/>
+
+                                                        <!-- Type label -->
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Type}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="12"
+                                                                   Foreground="#7BC1FF"
+                                                                   VerticalAlignment="Center"/>
+
+                                                        <!-- Value -->
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding Value}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#E3C75F"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
                             </DockPanel>
                         </Border>
                     </Grid>
