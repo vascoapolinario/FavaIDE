@@ -5,7 +5,29 @@ namespace FavaStudio.Services;
 
 public static class DebugSourceMapService
 {
-    private static readonly Regex ExecutableTokenRegex = new(@"[A-Za-z_][A-Za-z0-9_]*|\d+|""(?:\\.|[^""\\])*""", RegexOptions.Compiled);
+    private static readonly Regex DeclarationRegex = new(@"^(integer|real|bool|string)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex PrintRegex = new(@"^print\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ReturnRegex = new(@"^return\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex IfRegex = new(@"^if\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WhileRegex = new(@"^while\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex FunctionCallRegex = new(@"^[A-Za-z_][A-Za-z0-9_]*\s*\(", RegexOptions.Compiled);
+
+    public static IReadOnlyList<(int Line, string Text)> GetExecutableLines(string sourceText)
+    {
+        var lines = sourceText.Replace("\r\n", "\n").Split('\n');
+        var executableLines = new List<(int Line, string Text)>();
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var lineNumber = i + 1;
+            var line = StripComment(lines[i]).Trim();
+            if (!IsExecutableLine(line))
+                continue;
+
+            executableLines.Add((lineNumber, line));
+        }
+
+        return executableLines;
+    }
 
     public static Dictionary<int, List<int>> BuildLineToInstructionPositions(string sourceText, IReadOnlyList<VisualizerInstruction> instructions)
     {
@@ -13,60 +35,23 @@ public static class DebugSourceMapService
         if (instructions.Count == 0)
             return map;
 
-        var lines = sourceText.Replace("\r\n", "\n").Split('\n');
-        var executableLines = new List<(int Line, string Text)>();
-        for (var i = 0; i < lines.Length; i++)
-        {
-            var lineNumber = i + 1;
-            var line = StripComment(lines[i]).Trim();
-            if (string.IsNullOrWhiteSpace(line) || line is "{" or "}")
-                continue;
-            if (line.StartsWith("function ", StringComparison.OrdinalIgnoreCase))
-                continue;
-            executableLines.Add((lineNumber, line));
-        }
+        var statements = GetExecutableStatements(sourceText);
 
-        if (executableLines.Count == 0)
+        if (statements.Count == 0)
             return map;
 
         var currentInstructionPosition = 0;
-        for (var i = 0; i < executableLines.Count && currentInstructionPosition < instructions.Count; i++)
+        foreach (var statement in statements)
         {
-            var (lineNumber, text) = executableLines[i];
-            var remainingLines = executableLines.Count - i;
-            var remainingInstructions = instructions.Count - currentInstructionPosition;
-            var estimatedForLine = EstimateInstructionCount(text);
-            var minimumForRemaining = Math.Max(remainingLines - 1, 0);
-            var maxForCurrent = Math.Max(remainingInstructions - minimumForRemaining, 1);
-            var assigned = Math.Clamp(estimatedForLine, 1, maxForCurrent);
+            if (currentInstructionPosition >= instructions.Count)
+                break;
 
-            if (!map.TryGetValue(lineNumber, out var positions))
-            {
-                positions = [];
-                map[lineNumber] = positions;
-            }
+            var positions = MapStatementToInstructionPositions(
+                statement.Text,
+                instructions,
+                ref currentInstructionPosition);
 
-            for (var j = 0; j < assigned && currentInstructionPosition < instructions.Count; j++)
-            {
-                positions.Add(currentInstructionPosition);
-                currentInstructionPosition++;
-            }
-        }
-
-        if (currentInstructionPosition < instructions.Count)
-        {
-            var fallbackLine = executableLines[^1].Line;
-            if (!map.TryGetValue(fallbackLine, out var positions))
-            {
-                positions = [];
-                map[fallbackLine] = positions;
-            }
-
-            while (currentInstructionPosition < instructions.Count)
-            {
-                positions.Add(currentInstructionPosition);
-                currentInstructionPosition++;
-            }
+            AddPositions(map, statement.Line, positions);
         }
 
         return map;
@@ -129,25 +114,252 @@ public static class DebugSourceMapService
         return index < 0 ? line : line[..index];
     }
 
-    private static int EstimateInstructionCount(string line)
+    private static bool IsExecutableLine(string line)
     {
-        var tokenCount = ExecutableTokenRegex.Matches(line).Count;
-        if (tokenCount <= 1) return 1;
-
-        var budget = 1;
-        if (line.Contains('='))
-            budget += 1;
-        if (line.Contains('+') || line.Contains('-') || line.Contains('*') || line.Contains('/') || line.Contains('%'))
-            budget += 2;
-        if (line.Contains("if", StringComparison.OrdinalIgnoreCase) || line.Contains("while", StringComparison.OrdinalIgnoreCase))
-            budget += 2;
-        if (line.Contains("print", StringComparison.OrdinalIgnoreCase))
-            budget += 1;
-        if (line.Contains("return", StringComparison.OrdinalIgnoreCase))
-            budget += 1;
-        if (line.Contains('(') && line.Contains(')') && !line.StartsWith("if ", StringComparison.OrdinalIgnoreCase) && !line.StartsWith("while ", StringComparison.OrdinalIgnoreCase))
-            budget += 2;
-
-        return Math.Max(1, Math.Min(6, budget));
+        if (string.IsNullOrWhiteSpace(line) || line is "{" or "}")
+            return false;
+        if (line.StartsWith("function ", StringComparison.OrdinalIgnoreCase))
+            return false;
+        return true;
     }
+
+    private static IReadOnlyList<(int Line, string Text)> GetExecutableStatements(string sourceText)
+    {
+        var statements = new List<(int Line, string Text)>();
+        foreach (var (line, text) in GetExecutableLines(sourceText))
+        {
+            foreach (var statement in SplitStatements(text))
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                    statements.Add((line, statement.Trim()));
+            }
+        }
+
+        return statements;
+    }
+
+    private static IReadOnlyList<string> SplitStatements(string line)
+    {
+        var statements = new List<string>();
+        var start = 0;
+        var inString = false;
+        var escaped = false;
+
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (inString)
+            {
+                escaped = !escaped && ch == '\\';
+                if (ch == '"' && !escaped)
+                    inString = false;
+                if (ch != '\\')
+                    escaped = false;
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (ch == ';')
+            {
+                statements.Add(line[start..i]);
+                start = i + 1;
+            }
+        }
+
+        if (start < line.Length)
+            statements.Add(line[start..]);
+
+        return statements;
+    }
+
+    private static IReadOnlyList<int> MapStatementToInstructionPositions(
+        string statement,
+        IReadOnlyList<VisualizerInstruction> instructions,
+        ref int cursor)
+    {
+        if (statement == "}")
+            return MapNextSingle(instructions, ref cursor, IsPop);
+
+        if (PrintRegex.IsMatch(statement))
+            return MapNextSingle(instructions, ref cursor, IsPrint);
+
+        if (DeclarationRegex.IsMatch(statement))
+            return MapDeclaration(statement, instructions, ref cursor);
+
+        if (IsAssignment(statement))
+            return MapThroughRepeatedTargets(statement, instructions, ref cursor, IsStore, CountAssignments(statement));
+
+        if (ReturnRegex.IsMatch(statement))
+            return MapNextSingle(instructions, ref cursor, i => i.Opcode is "ret" or "retval");
+
+        if (IfRegex.IsMatch(statement) || WhileRegex.IsMatch(statement))
+            return MapRangeToNext(instructions, ref cursor, i => i.Opcode == "jumpf");
+
+        if (FunctionCallRegex.IsMatch(statement))
+            return MapRangeToNext(instructions, ref cursor, i => i.Opcode == "call");
+
+        return MapNextNonStructural(instructions, ref cursor);
+    }
+
+    private static IReadOnlyList<int> MapDeclaration(string statement, IReadOnlyList<VisualizerInstruction> instructions, ref int cursor)
+    {
+        var start = FindNext(instructions, cursor, i => i.Opcode is "galloc" or "lalloc");
+        if (start < 0)
+            return MapThroughRepeatedTargets(statement, instructions, ref cursor, IsStore, CountInitializers(statement));
+
+        var initializerCount = CountInitializers(statement);
+        if (initializerCount == 0)
+        {
+            cursor = start + 1;
+            return [start];
+        }
+
+        var positions = new List<int>();
+        var searchFrom = start;
+        var lastStore = -1;
+        for (var i = 0; i < initializerCount; i++)
+        {
+            lastStore = FindNext(instructions, searchFrom, IsStore);
+            if (lastStore < 0)
+                break;
+            searchFrom = lastStore + 1;
+        }
+
+        if (lastStore < 0)
+        {
+            cursor = start + 1;
+            return [start];
+        }
+
+        for (var i = start; i <= lastStore; i++)
+            positions.Add(i);
+
+        cursor = lastStore + 1;
+        return positions;
+    }
+
+    private static IReadOnlyList<int> MapThroughRepeatedTargets(
+        string statement,
+        IReadOnlyList<VisualizerInstruction> instructions,
+        ref int cursor,
+        Func<VisualizerInstruction, bool> predicate,
+        int count)
+    {
+        if (count <= 0)
+            return MapNextNonStructural(instructions, ref cursor);
+
+        var positions = new List<int>();
+        var start = -1;
+        var searchFrom = cursor;
+        var last = -1;
+        for (var i = 0; i < count; i++)
+        {
+            last = FindNext(instructions, searchFrom, predicate);
+            if (last < 0)
+                break;
+            start = start < 0 ? searchFrom : start;
+            searchFrom = last + 1;
+        }
+
+        if (last < 0)
+            return MapNextNonStructural(instructions, ref cursor);
+
+        for (var i = Math.Max(0, start); i <= last; i++)
+            positions.Add(i);
+
+        cursor = last + 1;
+        return positions;
+    }
+
+    private static IReadOnlyList<int> MapNextSingle(
+        IReadOnlyList<VisualizerInstruction> instructions,
+        ref int cursor,
+        Func<VisualizerInstruction, bool> predicate)
+    {
+        var position = FindNext(instructions, cursor, predicate);
+        if (position < 0)
+            return MapNextNonStructural(instructions, ref cursor);
+
+        cursor = position + 1;
+        return [position];
+    }
+
+    private static IReadOnlyList<int> MapRangeToNext(
+        IReadOnlyList<VisualizerInstruction> instructions,
+        ref int cursor,
+        Func<VisualizerInstruction, bool> predicate)
+    {
+        var end = FindNext(instructions, cursor, predicate);
+        if (end < 0)
+            return MapNextNonStructural(instructions, ref cursor);
+
+        var positions = Enumerable.Range(cursor, end - cursor + 1).ToList();
+        cursor = end + 1;
+        return positions;
+    }
+
+    private static IReadOnlyList<int> MapNextNonStructural(IReadOnlyList<VisualizerInstruction> instructions, ref int cursor)
+    {
+        var position = FindNext(instructions, cursor, i => !IsStructural(i));
+        if (position < 0)
+            return [];
+
+        cursor = position + 1;
+        return [position];
+    }
+
+    private static int FindNext(IReadOnlyList<VisualizerInstruction> instructions, int start, Func<VisualizerInstruction, bool> predicate)
+    {
+        for (var i = Math.Max(0, start); i < instructions.Count; i++)
+        {
+            if (predicate(instructions[i]))
+                return i;
+        }
+
+        return -1;
+    }
+
+    private static void AddPositions(Dictionary<int, List<int>> map, int line, IReadOnlyList<int> positions)
+    {
+        if (positions.Count == 0)
+            return;
+
+        if (!map.TryGetValue(line, out var mapped))
+        {
+            mapped = [];
+            map[line] = mapped;
+        }
+
+        foreach (var position in positions)
+        {
+            if (!mapped.Contains(position))
+                mapped.Add(position);
+        }
+    }
+
+    private static bool IsAssignment(string statement) =>
+        statement.Contains(":=", StringComparison.Ordinal);
+
+    private static int CountAssignments(string statement) =>
+        Regex.Matches(statement, @":=").Count;
+
+    private static int CountInitializers(string statement) =>
+        CountAssignments(statement);
+
+    private static bool IsPrint(VisualizerInstruction instruction) =>
+        instruction.Opcode.EndsWith("print", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsStore(VisualizerInstruction instruction) =>
+        instruction.Opcode is "gstore" or "lstore";
+
+    private static bool IsPop(VisualizerInstruction instruction) =>
+        instruction.Opcode == "pop";
+
+    private static bool IsStructural(VisualizerInstruction instruction) =>
+        instruction.Opcode is "call" or "halt" or "ret" or "retval" or "jump" or "jumpf" or "pop";
 }

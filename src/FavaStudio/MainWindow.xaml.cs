@@ -11,6 +11,7 @@ public partial class MainWindow : Window
     private readonly DiagnosticUnderlineRenderer _diagnosticUnderlineRenderer;
     private readonly BreakpointMargin _breakpointMargin;
     private readonly BreakpointLineHighlighter _breakpointHighlighter;
+    private readonly DebugCurrentLineHighlighter _debugCurrentLineHighlighter;
 
     public MainWindow()
     {
@@ -23,6 +24,9 @@ public partial class MainWindow : Window
         _breakpointHighlighter = new BreakpointLineHighlighter(Editor);
         Editor.TextArea.TextView.BackgroundRenderers.Insert(0, _breakpointHighlighter);
 
+        _debugCurrentLineHighlighter = new DebugCurrentLineHighlighter(Editor);
+        Editor.TextArea.TextView.BackgroundRenderers.Insert(1, _debugCurrentLineHighlighter);
+
         _breakpointMargin = new BreakpointMargin();
         Editor.TextArea.LeftMargins.Insert(0, _breakpointMargin);
 
@@ -34,6 +38,12 @@ public partial class MainWindow : Window
         {
             if (e.PropertyName == nameof(vm.VmOutput))
                 VmOutputBox.ScrollToEnd();
+            if (e.PropertyName == nameof(vm.DebugCurrentSourceLine))
+            {
+                _debugCurrentLineHighlighter.SetLine(vm.DebugCurrentSourceLine);
+                if (vm.DebugCurrentSourceLine is int line)
+                    Editor.ScrollToLine(line);
+            }
         };
 
         vm.Diagnostics.CollectionChanged += (_, _) => _diagnosticUnderlineRenderer.SetDiagnostics(vm.Diagnostics.ToList());

@@ -68,8 +68,10 @@ public class MainViewModel : INotifyPropertyChanged
     private string _debugCurrentInstruction = "";
     private string _debugCurrentNote = "";
     private string _debugStepStatus = "";
+    private int? _debugCurrentSourceLine;
     private readonly List<DebugSnapshot> _debugHistory = [];
     private readonly Dictionary<int, List<int>> _sourceLineToInstructionPositions = [];
+    private readonly Dictionary<int, int> _instructionPositionToSourceLine = [];
 
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
@@ -191,6 +193,12 @@ public class MainViewModel : INotifyPropertyChanged
     {
         get => _debugStepStatus;
         private set { _debugStepStatus = value; OnPropertyChanged(); }
+    }
+
+    public int? DebugCurrentSourceLine
+    {
+        get => _debugCurrentSourceLine;
+        private set { _debugCurrentSourceLine = value; OnPropertyChanged(); }
     }
 
     public bool CanDebugStep => _isDebugging && VisualizerCanStep;
@@ -951,6 +959,7 @@ public class MainViewModel : INotifyPropertyChanged
         _sourceLineToInstructionPositions.Clear();
         foreach (var kvp in DebugSourceMapService.BuildLineToInstructionPositions(_editor.Text, _allVisualizerInstructions))
             _sourceLineToInstructionPositions[kvp.Key] = kvp.Value;
+        RebuildInstructionToSourceLineMap();
 
         _debugHistory.Clear();
         IsDebugging = true;
@@ -959,17 +968,7 @@ public class MainViewModel : INotifyPropertyChanged
             _sourceLineToInstructionPositions,
             0);
 
-        if (firstBreakpointPosition.HasValue)
-        {
-            while (VisualizerCanStep && _visualizerStepIndex < firstBreakpointPosition.Value)
-                ExecuteVisualizerStep(captureTimeline: false);
-        }
-        else
-        {
-            while (VisualizerCanStep)
-                ExecuteVisualizerStep(captureTimeline: false);
-        }
-
+        RunToInitialDebugStop();
         UpdateDebugPanel();
         RaiseDebugStateChanged();
         StatusText = firstBreakpointPosition.HasValue
@@ -1025,6 +1024,44 @@ public class MainViewModel : INotifyPropertyChanged
         RaiseDebugStateChanged();
     }
 
+    private void RunToInitialDebugStop()
+    {
+        if (_breakpointLines.Count == 0)
+        {
+            while (VisualizerCanStep)
+                ExecuteVisualizerStep(captureTimeline: false);
+            return;
+        }
+
+        var targetPosition = DebugSourceMapService.FindNextInstructionPositionForBreakpoints(
+            _breakpointLines,
+            _sourceLineToInstructionPositions,
+            _visualizerStepIndex);
+
+        if (!targetPosition.HasValue)
+        {
+            while (VisualizerCanStep)
+                ExecuteVisualizerStep(captureTimeline: false);
+            return;
+        }
+
+        while (VisualizerCanStep && _visualizerStepIndex < targetPosition.Value)
+            ExecuteVisualizerStep(captureTimeline: false);
+    }
+
+    private void RebuildInstructionToSourceLineMap()
+    {
+        _instructionPositionToSourceLine.Clear();
+        foreach (var (line, positions) in _sourceLineToInstructionPositions.OrderBy(kvp => kvp.Key))
+        {
+            foreach (var position in positions)
+            {
+                if (!_instructionPositionToSourceLine.ContainsKey(position))
+                    _instructionPositionToSourceLine[position] = line;
+            }
+        }
+    }
+
     private void DebugJumpToCall()
     {
         if (!CanDebugJumpToCall) return;
@@ -1057,6 +1094,7 @@ public class MainViewModel : INotifyPropertyChanged
         IsDebugging = false;
         _debugHistory.Clear();
         _sourceLineToInstructionPositions.Clear();
+        _instructionPositionToSourceLine.Clear();
         UpdateDebugPanel();
         RaiseDebugStateChanged();
         StatusText = "Debug session stopped.";
@@ -1107,6 +1145,7 @@ public class MainViewModel : INotifyPropertyChanged
             DebugCurrentInstruction = "";
             DebugCurrentNote = "";
             DebugStepStatus = "";
+            DebugCurrentSourceLine = null;
             DebugStack.Clear();
             return;
         }
@@ -1119,12 +1158,14 @@ public class MainViewModel : INotifyPropertyChanged
             DebugCurrentInstruction = "— Halted —";
             DebugCurrentNote = "Execution has stopped (halt instruction or error).";
             DebugStepStatus = $"Halted at step {current} / {total}";
+            DebugCurrentSourceLine = null;
         }
         else if (_visualizerStepIndex >= total)
         {
             DebugCurrentInstruction = "— End of program —";
             DebugCurrentNote = "All instructions executed.";
             DebugStepStatus = $"Finished  ({total} / {total})";
+            DebugCurrentSourceLine = null;
         }
         else
         {
@@ -1132,6 +1173,9 @@ public class MainViewModel : INotifyPropertyChanged
             DebugCurrentInstruction = instr.Display;
             DebugCurrentNote = instr.Description;
             DebugStepStatus = $"Step {_visualizerStepIndex + 1} / {total}";
+            DebugCurrentSourceLine = _instructionPositionToSourceLine.TryGetValue(_visualizerStepIndex, out var line)
+                ? line
+                : null;
         }
 
         DebugStack.Clear();
