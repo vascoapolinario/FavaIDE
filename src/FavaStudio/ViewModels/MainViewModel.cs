@@ -1520,6 +1520,7 @@ public class MainViewModel : INotifyPropertyChanged
         var testNames = Directory.GetFiles(Settings.InputsDir, "*.fava")
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => !string.IsNullOrWhiteSpace(name))
+            .OfType<string>()
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -1529,7 +1530,7 @@ public class MainViewModel : INotifyPropertyChanged
             var expected = Path.Combine(Settings.OutputsDir, $"{name}.txt");
             TestResults.Add(new TestResult
             {
-                Name = name!,
+                Name = name,
                 InputFile = input,
                 ExpectedOutputFile = expected,
                 HasRun = false,
@@ -1582,7 +1583,15 @@ public class MainViewModel : INotifyPropertyChanged
             return;
 
         var outputPath = Path.Combine(Settings.OutputsDir, $"{testName}.txt");
-        Directory.CreateDirectory(Path.GetDirectoryName(inputPath) ?? Settings.InputsDir);
+        var inputDirectory = Path.GetDirectoryName(inputPath);
+        if (string.IsNullOrWhiteSpace(inputDirectory))
+        {
+            StatusText = "Failed to create test: invalid input file path.";
+            StatusColor = Brushes.IndianRed;
+            return;
+        }
+
+        Directory.CreateDirectory(inputDirectory);
         Directory.CreateDirectory(Settings.OutputsDir);
         if (!File.Exists(inputPath))
             FileService.WriteText(inputPath, "");
