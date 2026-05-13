@@ -28,12 +28,18 @@ public class TestRunnerService
     {
         var tc = DiscoverTests().FirstOrDefault(t => t.Name == name);
         if (tc is null)
-            return new TestResult { Name = name, Passed = false, Message = $"Test '{name}' not found." };
+            return new TestResult { Name = name, Passed = false, HasRun = true, Message = $"Test '{name}' not found." };
         return await RunTestAsync(tc);
     }
 
     private List<TestCase> DiscoverTests()
     {
+        if (string.IsNullOrWhiteSpace(_settings.InputsDir) || !Directory.Exists(_settings.InputsDir))
+            return [];
+
+        if (string.IsNullOrWhiteSpace(_settings.OutputsDir))
+            return [];
+
         var inputs = Directory.GetFiles(_settings.InputsDir, "*.fava");
         var cases = new List<TestCase>();
 
@@ -56,6 +62,9 @@ public class TestRunnerService
             return new TestResult
             {
                 Name = tc.Name,
+                InputFile = tc.InputFile,
+                ExpectedOutputFile = tc.ExpectedOutputFile,
+                HasRun = true,
                 Passed = false,
                 Message = "Compiler/runtime error:\n" + result.Output
             };
@@ -70,6 +79,9 @@ public class TestRunnerService
         return new TestResult
         {
             Name = tc.Name,
+            InputFile = tc.InputFile,
+            ExpectedOutputFile = tc.ExpectedOutputFile,
+            HasRun = true,
             Passed = passed,
             Message = passed
                 ? "Matched expected output."

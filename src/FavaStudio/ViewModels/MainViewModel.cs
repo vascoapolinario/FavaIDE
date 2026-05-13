@@ -44,6 +44,7 @@ public class MainViewModel : INotifyPropertyChanged
     private string _selectedToolActualOutput = "";
     private string _selectedToolDiffOutput = "";
     private TestResult? _selectedTestResult;
+    private bool _suppressTestSelectionOpen;
     private string _testSummary = "No tests run yet.";
     private readonly List<VisualizerInstruction> _allVisualizerInstructions = [];
     private readonly List<string> _allVisualizerConstants = [];
@@ -251,6 +252,10 @@ public class MainViewModel : INotifyPropertyChanged
             _selectedTestResult = value;
             OnPropertyChanged();
             RunSelectedTestsCommand.RaiseCanExecuteChanged();
+            OpenSelectedTestInputCommand.RaiseCanExecuteChanged();
+            OpenSelectedTestExpectedOutputCommand.RaiseCanExecuteChanged();
+            if (!_suppressTestSelectionOpen && _selectedTestResult is not null)
+                OpenSelectedTestInputFile();
         }
     }
 
@@ -327,6 +332,9 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand ClearToolPairsCommand { get; }
     public RelayCommand RunAllTestsCommand { get; }
     public RelayCommand RunSelectedTestsCommand { get; }
+    public RelayCommand CreateTestPairCommand { get; }
+    public RelayCommand OpenSelectedTestInputCommand { get; }
+    public RelayCommand OpenSelectedTestExpectedOutputCommand { get; }
     public RelayCommand VisualizerLoadCurrentCommand { get; }
     public RelayCommand VisualizerStepCommand { get; }
     public RelayCommand VisualizerRunAllCommand { get; }
@@ -421,6 +429,9 @@ public class MainViewModel : INotifyPropertyChanged
 
         RunAllTestsCommand = new RelayCommand(_ => RunAllTests());
         RunSelectedTestsCommand = new RelayCommand(_ => RunSelectedTest(), _ => SelectedTestResult != null);
+        CreateTestPairCommand = new RelayCommand(_ => CreateTestPairFromSuite(), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        OpenSelectedTestInputCommand = new RelayCommand(_ => OpenSelectedTestInputFile(), _ => SelectedTestResult is not null);
+        OpenSelectedTestExpectedOutputCommand = new RelayCommand(_ => OpenSelectedTestExpectedOutputFile(), _ => SelectedTestResult is not null);
         VisualizerLoadCurrentCommand = new RelayCommand(_ => LoadVisualizerFromCurrentFile());
         VisualizerStepCommand = new RelayCommand(_ => VisualizerStep(), _ => VisualizerCanStep);
         VisualizerRunAllCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
@@ -500,12 +511,15 @@ public class MainViewModel : INotifyPropertyChanged
             AddRecentProject(folder);
             Settings.Save();
             RefreshRecentCollections();
+            EnsureTestFoldersConfigured(createIfMissing: false);
+            RefreshTestSuiteCases();
             IsWelcomeViewVisible = false;
             BackToEditor();
             StatusText = $"Loaded project: {folder}";
             StatusColor = Brushes.LightBlue;
             OnPropertyChanged(nameof(CurrentProjectDirectory));
             OnPropertyChanged(nameof(IsWorkspaceVisible));
+            CreateTestPairCommand.RaiseCanExecuteChanged();
 
             RestoreExpandedPaths(root, expandedPaths);
             OpenInitialProjectFile(root, folder, selectedPath);
@@ -1412,16 +1426,27 @@ public class MainViewModel : INotifyPropertyChanged
 
     private async void RunAllTests()
     {
-        TestResults.Clear();
+        var selectedName = SelectedTestResult?.Name;
+        RefreshTestSuiteCases(selectedName);
+        if (TestResults.Count == 0)
+        {
+            TestSummary = "No tests found. Use 'New Test' to create one.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
         SelectedTestResult = null;
         TestSummary = "Running tests…";
         StatusColor = Brushes.LightGray;
 
         var runner = new TestRunnerService(Settings);
         var results = await runner.RunAllTestsAsync();
-        foreach (var r in results) TestResults.Add(r);
-        if (results.Count > 0)
-            SelectedTestResult = TestResults[0];
+        TestResults.Clear();
+        foreach (var r in results.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+            TestResults.Add(r);
+        if (!string.IsNullOrWhiteSpace(selectedName))
+            SelectedTestResult = TestResults.FirstOrDefault(t => t.Name == selectedName);
+        SelectedTestResult ??= TestResults.FirstOrDefault();
 
         var passed = results.Count(r => r.Passed);
         var total = results.Count;
@@ -1443,6 +1468,157 @@ public class MainViewModel : INotifyPropertyChanged
         SelectedTestResult = result;
         TestSummary = result.Passed ? $"✅ '{name}' passed" : $"❌ '{name}' failed";
         StatusColor = result.Passed ? Brushes.LightGreen : Brushes.IndianRed;
+    }
+
+    private void EnsureTestFoldersConfigured(bool createIfMissing)
+    {
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            return;
+
+        var changed = false;
+        if (string.IsNullOrWhiteSpace(Settings.InputsDir))
+        {
+            Settings.InputsDir = Path.Combine(Settings.ProjectRoot, "tests", "inputs");
+            changed = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(Settings.OutputsDir))
+        {
+            Settings.OutputsDir = Path.Combine(Settings.ProjectRoot, "tests", "outputs");
+            changed = true;
+        }
+
+        if (createIfMissing)
+        {
+            Directory.CreateDirectory(Settings.InputsDir);
+            Directory.CreateDirectory(Settings.OutputsDir);
+        }
+
+        if (changed)
+            Settings.Save();
+    }
+
+    private void RefreshTestSuiteCases(string? selectedName = null)
+    {
+        EnsureTestFoldersConfigured(createIfMissing: false);
+        TestResults.Clear();
+
+        if (string.IsNullOrWhiteSpace(Settings.InputsDir) || !Directory.Exists(Settings.InputsDir))
+        {
+            TestSummary = "No tests configured yet. Use 'New Test' to create one.";
+            SelectedTestResult = null;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Settings.OutputsDir))
+        {
+            TestSummary = "Configure outputs folder in Settings or use 'New Test'.";
+            SelectedTestResult = null;
+            return;
+        }
+
+        var testNames = Directory.GetFiles(Settings.InputsDir, "*.fava")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var name in testNames)
+        {
+            var input = Path.Combine(Settings.InputsDir, $"{name}.fava");
+            var expected = Path.Combine(Settings.OutputsDir, $"{name}.txt");
+            TestResults.Add(new TestResult
+            {
+                Name = name!,
+                InputFile = input,
+                ExpectedOutputFile = expected,
+                HasRun = false,
+                Passed = false,
+                Message = $"Input: {input}\nExpected output: {expected}"
+            });
+        }
+
+        TestSummary = testNames.Count == 0
+            ? "No tests found. Use 'New Test' to create one."
+            : $"Discovered {testNames.Count} test(s).";
+
+        _suppressTestSelectionOpen = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(selectedName))
+                SelectedTestResult = TestResults.FirstOrDefault();
+            else
+                SelectedTestResult = TestResults.FirstOrDefault(t => t.Name == selectedName) ?? TestResults.FirstOrDefault();
+        }
+        finally
+        {
+            _suppressTestSelectionOpen = false;
+        }
+    }
+
+    private void CreateTestPairFromSuite()
+    {
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            return;
+
+        EnsureTestFoldersConfigured(createIfMissing: true);
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Create Input Test File",
+            InitialDirectory = Settings.InputsDir,
+            Filter = "Fava file (*.fava)|*.fava",
+            DefaultExt = ".fava",
+            AddExtension = true,
+            FileName = "test"
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        var inputPath = dialog.FileName;
+        var testName = Path.GetFileNameWithoutExtension(inputPath);
+        if (string.IsNullOrWhiteSpace(testName))
+            return;
+
+        var outputPath = Path.Combine(Settings.OutputsDir, $"{testName}.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(inputPath) ?? Settings.InputsDir);
+        Directory.CreateDirectory(Settings.OutputsDir);
+        if (!File.Exists(inputPath))
+            FileService.WriteText(inputPath, "");
+        if (!File.Exists(outputPath))
+            FileService.WriteText(outputPath, "");
+
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
+        RefreshTestSuiteCases(testName);
+        StatusText = $"Created test pair: {testName}.fava + {testName}.txt";
+        StatusColor = Brushes.LightGreen;
+    }
+
+    private void OpenSelectedTestInputFile()
+    {
+        var inputPath = SelectedTestResult?.InputFile;
+        if (string.IsNullOrWhiteSpace(inputPath))
+            return;
+        if (!File.Exists(inputPath))
+            return;
+        OpenRecentFile(inputPath);
+    }
+
+    private void OpenSelectedTestExpectedOutputFile()
+    {
+        var expectedPath = SelectedTestResult?.ExpectedOutputFile;
+        if (string.IsNullOrWhiteSpace(expectedPath))
+            return;
+
+        var directory = Path.GetDirectoryName(expectedPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+        if (!File.Exists(expectedPath))
+            FileService.WriteText(expectedPath, "");
+
+        OpenRecentFile(expectedPath);
     }
 
     private void BrowseJavaPath()
