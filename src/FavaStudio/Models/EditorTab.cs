@@ -11,6 +11,18 @@ public class EditorTab : INotifyPropertyChanged
 
     public string FilePath { get; set; } = "";
     public string FileName => Path.GetFileName(FilePath);
+    public string FileBadge
+    {
+        get
+        {
+            var extension = Path.GetExtension(FilePath);
+            if (extension.Equals(".fava", StringComparison.OrdinalIgnoreCase))
+                return "F";
+            if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
+                return "T";
+            return "..";
+        }
+    }
     public string Header => _isDirty ? $"{FileName} *" : FileName;
 
     public string Content

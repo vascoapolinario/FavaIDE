@@ -28,6 +28,12 @@
     <SolidColorBrush x:Key="ControlDarkBrush" Color="#2F3136"/>
     <SolidColorBrush x:Key="ControlDarkerBrush" Color="#25262A"/>
     <SolidColorBrush x:Key="ControlTextDarkBrush" Color="#E6EAF0"/>
+    <SolidColorBrush x:Key="TabStripBrush" Color="#202226"/>
+    <SolidColorBrush x:Key="TabInactiveBrush" Color="#26282D"/>
+    <SolidColorBrush x:Key="TabInactiveHoverBrush" Color="#30343A"/>
+    <SolidColorBrush x:Key="TabActiveBrush" Color="#1E1F22"/>
+    <SolidColorBrush x:Key="TabCloseHoverBrush" Color="#4A2026"/>
+    <SolidColorBrush x:Key="FavaFileBadgeBrush" Color="#FF9A3D"/>
 
     <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#1E1F22"/>
     <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#2B2D30"/>
@@ -260,7 +266,7 @@
     </Style>
 
     <Style TargetType="TabControl">
-        <Setter Property="Background" Value="{StaticResource BgMainBrush}"/>
+        <Setter Property="Background" Value="{StaticResource TabStripBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
         <Setter Property="Padding" Value="0"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -268,25 +274,96 @@
     </Style>
 
     <Style TargetType="TabItem">
-        <Setter Property="Background" Value="{StaticResource BgPanelAltBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="Background" Value="{StaticResource TabInactiveBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="MinWidth" Value="140"/>
-        <Setter Property="Padding" Value="14,8"/>
-        <Setter Property="Margin" Value="2"/>
+        <Setter Property="MaxWidth" Value="260"/>
+        <Setter Property="Padding" Value="12,7"/>
+        <Setter Property="Margin" Value="0,0,2,0"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="BorderThickness" Value="1,1,1,0"/>
+        <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4,4,0,0">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" ContentSource="Header"/>
+                    <Grid>
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5,5,0,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center"
+                                              ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <Border x:Name="ActiveLine"
+                                Height="2"
+                                VerticalAlignment="Top"
+                                Background="{StaticResource AccentBrush}"
+                                CornerRadius="2"
+                                Opacity="0"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource TabInactiveHoverBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Panel.ZIndex" Value="1"/>
+                            <Setter Property="Background" Value="{StaticResource TabActiveBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="ActiveLine" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="TabCloseButton" TargetType="Button">
+        <Setter Property="Width" Value="18"/>
+        <Setter Property="Height" Value="18"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="4,0,0,0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="CloseChrome"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4"
+                            Width="{TemplateBinding Width}"
+                            Height="{TemplateBinding Height}">
+                        <Path x:Name="CloseGlyph"
+                              Data="M 5,5 L 13,13 M 13,5 L 5,13"
+                              Stroke="{TemplateBinding Foreground}"
+                              StrokeThickness="1.7"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="{StaticResource BgPanelBrush}"/>
-                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="CloseChrome" Property="Background" Value="{StaticResource TabCloseHoverBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="CloseChrome" Property="Background" Value="{StaticResource DangerBrush}"/>
+                            <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

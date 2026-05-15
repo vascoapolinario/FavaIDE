@@ -1,5 +1,5 @@
-using System.Collections.ObjectModel;
 using System;
+using System.Collections.ObjectModel;
 
 namespace FavaStudio.Models;
 
@@ -12,10 +12,10 @@ public class ProjectNode
     public ObservableCollection<ProjectNode> Children { get; } = new();
 
     public string Icon => IsDirectory
-        ? "📁"
+        ? "DIR"
         : Name.EndsWith(".fava", StringComparison.OrdinalIgnoreCase)
-            ? "🟧F"
+            ? "F"
             : Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
-                ? "📝"
-                : "📄";
+                ? "TXT"
+                : "FILE";
 }

@@ -152,9 +152,26 @@
                                       BorderThickness="0">
                                 <TreeView.Resources>
                                     <HierarchicalDataTemplate DataType="{x:Type local:ProjectNode}" ItemsSource="{Binding Children}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Icon}" Margin="0,0,6,0" FontSize="13"/>
-                                            <TextBlock Text="{Binding Name}" FontSize="14"/>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border MinWidth="24"
+                                                    Height="18"
+                                                    CornerRadius="4"
+                                                    Background="{StaticResource ControlDarkerBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1"
+                                                    Margin="0,0,7,0"
+                                                    Padding="4,0">
+                                                <TextBlock Text="{Binding Icon}"
+                                                           Foreground="{StaticResource AccentSoftBrush}"
+                                                           FontSize="9"
+                                                           FontWeight="Bold"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding Name}"
+                                                       Foreground="{StaticResource TextMainBrush}"
+                                                       FontSize="14"
+                                                       VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </HierarchicalDataTemplate>
                                 </TreeView.Resources>
@@ -423,32 +440,45 @@
                             BorderThickness="0,0,0,1">
                         <TabControl ItemsSource="{Binding OpenEditorTabs}"
                                     SelectedItem="{Binding SelectedEditorTab}"
-                                    Margin="6,6,6,2"
+                                    Margin="0"
                                     FontSize="13"
-                                    Background="{StaticResource BgPanelAltBrush}"
+                                    Background="{StaticResource TabStripBrush}"
                                     BorderThickness="0">
                             <TabControl.ItemContainerStyle>
-                                <Style TargetType="TabItem">
+                                <Style TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
                                     <Setter Property="MinWidth" Value="120"/>
-                                    <Setter Property="Padding" Value="10,5"/>
-                                    <Setter Property="Margin" Value="1,0,1,0"/>
+                                    <Setter Property="Padding" Value="10,7"/>
                                 </Style>
                             </TabControl.ItemContainerStyle>
                             <TabControl.ItemTemplate>
                                 <DataTemplate>
-                                    <DockPanel LastChildFill="False">
-                                        <TextBlock Text="{Binding Header}"
-                                                   Foreground="{StaticResource TextMainBrush}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,6,0"/>
-                                        <Button Content="✕"
-                                                Width="16"
-                                                Height="16"
-                                                FontSize="10"
-                                                Padding="0"
+                                    <DockPanel LastChildFill="False" MinWidth="96" MaxWidth="230">
+                                        <Border DockPanel.Dock="Left"
+                                                Width="18"
+                                                Height="18"
+                                                CornerRadius="4"
+                                                Background="{StaticResource FavaFileBadgeBrush}"
+                                                Margin="0,0,7,0">
+                                            <TextBlock Text="{Binding FileBadge}"
+                                                       Foreground="#1A1110"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding FileName}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="*"
+                                                       Foreground="{StaticResource AccentSoftBrush}"
+                                                       FontWeight="Bold"
+                                                       Margin="4,0,0,0"
+                                                       Visibility="{Binding IsDirty, Converter={StaticResource BoolToVisibility}}"/>
+                                        </StackPanel>
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource TabCloseButton}"
                                                 VerticalAlignment="Center"
-                                                Cursor="Hand"
                                                 ToolTip="Close tab"
                                                 Command="{Binding DataContext.CloseEditorTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}"/>
