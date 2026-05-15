@@ -407,18 +407,13 @@
                                         FontSize="12"/>
                             </StackPanel>
                             <!-- Start Debug button (visible when NOT debugging) -->
-                            <Button DockPanel.Dock="Right"
-                                    Content="🔴 Debug (F5)"
-                                    Command="{Binding StartDebugCommand}"
-                                    Visibility="{Binding IsDebugging, Converter={StaticResource InverseBoolToVisibility}}"
-                                    Padding="8,3"
-                                    FontSize="12"
-                                    Margin="8,0,0,0"/>
-                            <TextBlock Text="{Binding CurrentFileName}"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       FontFamily="Consolas"
-                                       FontSize="12"
-                                       VerticalAlignment="Center"/>
+                             <Button DockPanel.Dock="Right"
+                                     Content="🔴 Debug (F5)"
+                                     Command="{Binding StartDebugCommand}"
+                                     Visibility="{Binding IsDebugging, Converter={StaticResource InverseBoolToVisibility}}"
+                                     Padding="8,3"
+                                     FontSize="12"
+                                     Margin="8,0,0,0"/>
                         </DockPanel>
                     </Border>
 
@@ -428,14 +423,36 @@
                             BorderThickness="0,0,0,1">
                         <TabControl ItemsSource="{Binding OpenEditorTabs}"
                                     SelectedItem="{Binding SelectedEditorTab}"
-                                    Margin="6,6,6,0"
+                                    Margin="6,6,6,2"
+                                    FontSize="15"
                                     Background="{StaticResource BgPanelAltBrush}"
                                     BorderThickness="0">
+                            <TabControl.ItemContainerStyle>
+                                <Style TargetType="TabItem">
+                                    <Setter Property="MinWidth" Value="200"/>
+                                    <Setter Property="Padding" Value="18,9"/>
+                                    <Setter Property="Margin" Value="2,0,2,0"/>
+                                </Style>
+                            </TabControl.ItemContainerStyle>
                             <TabControl.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Header}"
-                                               Foreground="{StaticResource TextMainBrush}"
-                                               TextTrimming="CharacterEllipsis"/>
+                                    <DockPanel LastChildFill="False">
+                                        <TextBlock Text="{Binding Header}"
+                                                   Foreground="{StaticResource TextMainBrush}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0"/>
+                                        <Button Content="✕"
+                                                Width="20"
+                                                Height="20"
+                                                FontSize="11"
+                                                Padding="0"
+                                                VerticalAlignment="Center"
+                                                Cursor="Hand"
+                                                ToolTip="Close tab"
+                                                Command="{Binding DataContext.CloseEditorTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DockPanel>
                                 </DataTemplate>
                             </TabControl.ItemTemplate>
                             <TabControl.ContentTemplate>

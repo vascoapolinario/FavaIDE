@@ -40,6 +40,7 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _toolCompareFullOutput;
     private TestFilePair? _selectedToolTestPair;
     private EditorTab? _selectedEditorTab;
+    private readonly HashSet<string> _currentTestTabPaths = new(StringComparer.OrdinalIgnoreCase);
     private string _toolRunSummary = "No tool runs yet.";
     private string _selectedToolExpectedOutput = "";
     private string _selectedToolActualOutput = "";
@@ -331,6 +332,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand CreateTestPairCommand { get; }
     public RelayCommand OpenSelectedTestInputCommand { get; }
     public RelayCommand OpenSelectedTestExpectedOutputCommand { get; }
+    public RelayCommand CloseEditorTabCommand { get; }
     public RelayCommand VisualizerLoadCurrentCommand { get; }
     public RelayCommand VisualizerStepCommand { get; }
     public RelayCommand VisualizerRunAllCommand { get; }
@@ -431,6 +433,7 @@ public class MainViewModel : INotifyPropertyChanged
         CreateTestPairCommand = new RelayCommand(_ => CreateTestPairFromSuite(), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         OpenSelectedTestInputCommand = new RelayCommand(_ => OpenSelectedTestInputFile(), _ => SelectedTestResult is not null);
         OpenSelectedTestExpectedOutputCommand = new RelayCommand(_ => OpenSelectedTestExpectedOutputFile(), _ => SelectedTestResult is not null);
+        CloseEditorTabCommand = new RelayCommand(tab => CloseEditorTab(tab as EditorTab), tab => tab is EditorTab);
         VisualizerLoadCurrentCommand = new RelayCommand(_ => LoadVisualizerFromCurrentFile());
         VisualizerStepCommand = new RelayCommand(_ => VisualizerStep(), _ => VisualizerCanStep);
         VisualizerRunAllCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
@@ -474,6 +477,72 @@ public class MainViewModel : INotifyPropertyChanged
 
         if (focus || SelectedEditorTab is null)
             SelectedEditorTab = existing;
+    }
+
+    private void CloseEditorTab(EditorTab? tab)
+    {
+        if (tab is null)
+            return;
+        TryCloseEditorTab(tab);
+    }
+
+    private bool TryCloseEditorTab(EditorTab tab)
+    {
+        if (tab.IsDirty)
+        {
+            var answer = MessageBox.Show(
+                $"Save changes to '{tab.FileName}' before closing?",
+                "Unsaved Changes",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Warning);
+
+            if (answer == MessageBoxResult.Cancel)
+                return false;
+
+            if (answer == MessageBoxResult.Yes)
+            {
+                FileService.WriteText(tab.FilePath, tab.Content);
+                tab.IsDirty = false;
+            }
+            else
+            {
+                tab.Content = FileService.ReadText(tab.FilePath);
+                tab.IsDirty = false;
+            }
+        }
+
+        var removedIndex = OpenEditorTabs.IndexOf(tab);
+        var wasSelected = ReferenceEquals(_selectedEditorTab, tab);
+
+        OpenEditorTabs.Remove(tab);
+        _currentTestTabPaths.Remove(tab.FilePath);
+
+        if (!wasSelected)
+            return true;
+
+        _hasUnsavedChanges = false;
+        var newSelectedTab = OpenEditorTabs.Count == 0
+            ? null
+            : OpenEditorTabs[Math.Clamp(removedIndex, 0, OpenEditorTabs.Count - 1)];
+
+        SelectEditorTab(newSelectedTab);
+        return true;
+    }
+
+    private bool ClosePreviousTestTabs(IReadOnlyCollection<string> newTestPaths)
+    {
+        var newSet = new HashSet<string>(newTestPaths, StringComparer.OrdinalIgnoreCase);
+        var tabsToClose = OpenEditorTabs
+            .Where(tab => _currentTestTabPaths.Contains(tab.FilePath) && !newSet.Contains(tab.FilePath))
+            .ToList();
+
+        foreach (var tab in tabsToClose)
+        {
+            if (!TryCloseEditorTab(tab))
+                return false;
+        }
+
+        return true;
     }
 
     private void SelectEditorTab(EditorTab? tab)
@@ -551,6 +620,7 @@ public class MainViewModel : INotifyPropertyChanged
             return;
 
         OpenEditorTabs.Clear();
+        _currentTestTabPaths.Clear();
         _selectedEditorTab = null;
         _currentFile = null;
         _hasUnsavedChanges = false;
@@ -1705,18 +1775,36 @@ public class MainViewModel : INotifyPropertyChanged
         if (!File.Exists(selectedTest.InputFile))
             return;
 
-        OpenFileInEditorTab(selectedTest.InputFile, focus: true);
+        var testPaths = new List<string> { selectedTest.InputFile };
 
         if (string.IsNullOrWhiteSpace(selectedTest.ExpectedOutputFile))
-            return;
+        {
+            if (!ClosePreviousTestTabs(testPaths))
+                return;
 
-        var outputDirectory = Path.GetDirectoryName(selectedTest.ExpectedOutputFile);
+            _currentTestTabPaths.Clear();
+            _currentTestTabPaths.Add(selectedTest.InputFile);
+            OpenFileInEditorTab(selectedTest.InputFile, focus: true);
+            return;
+        }
+
+        var outputPath = selectedTest.ExpectedOutputFile;
+        var outputDirectory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrWhiteSpace(outputDirectory))
             Directory.CreateDirectory(outputDirectory);
-        if (!File.Exists(selectedTest.ExpectedOutputFile))
-            FileService.WriteText(selectedTest.ExpectedOutputFile, "");
+        if (!File.Exists(outputPath))
+            FileService.WriteText(outputPath, "");
 
-        OpenFileInEditorTab(selectedTest.ExpectedOutputFile, focus: false);
+        testPaths.Add(outputPath);
+        if (!ClosePreviousTestTabs(testPaths))
+            return;
+
+        _currentTestTabPaths.Clear();
+        foreach (var path in testPaths)
+            _currentTestTabPaths.Add(path);
+
+        OpenFileInEditorTab(selectedTest.InputFile, focus: true);
+        OpenFileInEditorTab(outputPath, focus: false);
     }
 
     private void BrowseJavaPath()
@@ -2172,6 +2260,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         OpenEditorTabs.Clear();
+        _currentTestTabPaths.Clear();
         _selectedEditorTab = null;
         _currentFile = null;
         _suppressDirtyTracking = true;
