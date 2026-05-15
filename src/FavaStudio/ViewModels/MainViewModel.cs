@@ -90,6 +90,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<VisualizerGlobalEntry> VisualizerGlobals { get; } = new();
     public ObservableCollection<OpcodeReferenceItem> VisualizerOpcodeReference { get; } = new();
     public ObservableCollection<string> RecentProjects { get; } = new();
+    public ObservableCollection<RecentProjectItem> WelcomeRecentProjects { get; } = new();
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<string> QuickOpenResults { get; } = new();
     public ObservableCollection<DebugStackEntry> DebugStack { get; } = new();
@@ -112,6 +113,62 @@ public class MainViewModel : INotifyPropertyChanged
         set => SelectEditorTab(value);
     }
     public string CurrentProjectDirectory => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Project directory: (not set)" : Settings.ProjectRoot;
+    public string SettingsProjectName => string.IsNullOrWhiteSpace(Settings.ProjectRoot)
+        ? "No project loaded"
+        : Path.GetFileName(Settings.ProjectRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+    public string SettingsProjectPath => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Open a project to enable project-local workflows." : Settings.ProjectRoot;
+    public string JavaPath
+    {
+        get => Settings.JavaPath;
+        set
+        {
+            if (Settings.JavaPath == value) return;
+            Settings.JavaPath = value;
+            OnPropertyChanged();
+            RaiseSettingsValidationChanged();
+        }
+    }
+    public string CompilerRoot
+    {
+        get => Settings.CompilerRoot;
+        set
+        {
+            if (Settings.CompilerRoot == value) return;
+            Settings.CompilerRoot = value;
+            OnPropertyChanged();
+            RaiseSettingsValidationChanged();
+        }
+    }
+    public string AntlrJar
+    {
+        get => Settings.AntlrJar;
+        set
+        {
+            if (Settings.AntlrJar == value) return;
+            Settings.AntlrJar = value;
+            OnPropertyChanged();
+            RaiseSettingsValidationChanged();
+        }
+    }
+    public string CompilerStatusText => IsCompilerConfigured ? "Ready to run" : "Needs configuration";
+    public Brush CompilerStatusBrush => IsCompilerConfigured ? Brushes.LightGreen : Brushes.Orange;
+    public string JavaStatusText => string.IsNullOrWhiteSpace(Settings.JavaPath) ? "Required" : "Configured";
+    public Brush JavaStatusBrush => string.IsNullOrWhiteSpace(Settings.JavaPath) ? Brushes.Orange : Brushes.LightGreen;
+    public string CompilerRootStatusText => Directory.Exists(Settings.CompilerRoot) ? "Folder found" : "Missing folder";
+    public Brush CompilerRootStatusBrush => Directory.Exists(Settings.CompilerRoot) ? Brushes.LightGreen : Brushes.Orange;
+    public string AntlrStatusText => File.Exists(Settings.AntlrJar) ? "Jar found" : "Missing jar";
+    public Brush AntlrStatusBrush => File.Exists(Settings.AntlrJar) ? Brushes.LightGreen : Brushes.Orange;
+    public bool IsCompilerConfigured =>
+        !string.IsNullOrWhiteSpace(Settings.JavaPath) &&
+        Directory.Exists(Settings.CompilerRoot) &&
+        File.Exists(Settings.AntlrJar);
+    public string TestFoldersStatusText => Directory.Exists(Settings.InputsDir) && !string.IsNullOrWhiteSpace(Settings.OutputsDir)
+        ? "Test folders configured"
+        : "Test folders need setup";
+    public Brush TestFoldersStatusBrush => Directory.Exists(Settings.InputsDir) && !string.IsNullOrWhiteSpace(Settings.OutputsDir)
+        ? Brushes.LightGreen
+        : Brushes.Orange;
+    public string RecentSummary => $"{RecentProjects.Count} projects | {RecentFiles.Count} files";
     public string DiagnosticsHeader => Diagnostics.Count == 0 ? "Errors" : $"Errors ({Diagnostics.Count})";
 
     public Brush StatusColor { get => _statusColor; set { _statusColor = value; OnPropertyChanged(); } }
@@ -158,8 +215,8 @@ public class MainViewModel : INotifyPropertyChanged
     }
     public bool ShowOutputOnly { get => _showOutputOnly; set { _showOutputOnly = value; OnPropertyChanged(); } }
     public bool ToolCompareFullOutput { get => _toolCompareFullOutput; set { _toolCompareFullOutput = value; OnPropertyChanged(); } }
-    public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); } }
-    public string ToolOutputsFolder { get => Settings.OutputsDir; set { Settings.OutputsDir = value; Settings.Save(); OnPropertyChanged(); } }
+    public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); RaiseSettingsValidationChanged(); } }
+    public string ToolOutputsFolder { get => Settings.OutputsDir; set { Settings.OutputsDir = value; Settings.Save(); OnPropertyChanged(); RaiseSettingsValidationChanged(); } }
     public string ToolRunSummary { get => _toolRunSummary; set { _toolRunSummary = value; OnPropertyChanged(); } }
     public string SelectedToolExpectedOutput { get => _selectedToolExpectedOutput; set { _selectedToolExpectedOutput = value; OnPropertyChanged(); } }
     public string SelectedToolActualOutput { get => _selectedToolActualOutput; set { _selectedToolActualOutput = value; OnPropertyChanged(); } }
@@ -311,6 +368,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BrowseCompilerRootCommand { get; }
     public RelayCommand BrowseAntlrJarCommand { get; }
     public RelayCommand SaveSettingsCommand { get; }
+    public RelayCommand ClearRecentProjectsCommand { get; }
+    public RelayCommand ClearRecentFilesCommand { get; }
     public RelayCommand OpenToolsCommand { get; }
     public RelayCommand OpenVisualizerCommand { get; }
     public RelayCommand OpenRecentProjectCommand { get; }
@@ -389,9 +448,27 @@ public class MainViewModel : INotifyPropertyChanged
         });
         BackToEditorCommand = new RelayCommand(_ => BackToEditor());
         BrowseJavaPathCommand = new RelayCommand(_ => BrowseJavaPath());
-        BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => Settings.CompilerRoot = v, "Compiler Root Folder"));
+        BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => CompilerRoot = v, "Compiler Root Folder"));
         BrowseAntlrJarCommand = new RelayCommand(_ => BrowseAntlrJar());
         SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
+        ClearRecentProjectsCommand = new RelayCommand(_ =>
+        {
+            Settings.RecentProjects.Clear();
+            Settings.Save();
+            RefreshRecentCollections();
+            RaiseSettingsValidationChanged();
+            StatusText = "Recent projects cleared.";
+            StatusColor = Brushes.LightGreen;
+        });
+        ClearRecentFilesCommand = new RelayCommand(_ =>
+        {
+            Settings.RecentFiles.Clear();
+            Settings.Save();
+            RefreshRecentCollections();
+            RaiseSettingsValidationChanged();
+            StatusText = "Recent files cleared.";
+            StatusColor = Brushes.LightGreen;
+        });
 
         OpenToolsCommand = new RelayCommand(_ =>
         {
@@ -651,6 +728,7 @@ public class MainViewModel : INotifyPropertyChanged
             StatusColor = Brushes.LightBlue;
             OnPropertyChanged(nameof(CurrentProjectDirectory));
             OnPropertyChanged(nameof(IsWorkspaceVisible));
+            RaiseSettingsValidationChanged();
             CreateTestPairCommand.RaiseCanExecuteChanged();
 
             RestoreExpandedPaths(root, expandedPaths);
@@ -1274,7 +1352,7 @@ public class MainViewModel : INotifyPropertyChanged
             Stack = _visualizerRuntimeStack.Select(v => new VisualizerValue { Type = v.Type, Value = v.Value }).ToList(),
             Globals = _visualizerGlobals.Select(g => g is null ? null : new VisualizerValue { Type = g.Type, Value = g.Value }).ToList<VisualizerValue?>(),
             Frames = _visualizerFrames.Select(f => new VisualizerFrameState { FramePointer = f.FramePointer, LocalCount = f.LocalCount }).ToList(),
-            FramePointer = _visualizerFramePointer,
+              FramePointer = _visualizerFramePointer,
             StepIndex = _visualizerStepIndex,
             Halted = _visualizerHalted,
             RunOutput = _visualizerRunOutput
@@ -1816,8 +1894,7 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() == true)
         {
-            Settings.JavaPath = dialog.FileName;
-            OnPropertyChanged(nameof(Settings));
+            JavaPath = dialog.FileName;
         }
     }
 
@@ -1830,8 +1907,7 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() == true)
         {
-            Settings.AntlrJar = dialog.FileName;
-            OnPropertyChanged(nameof(Settings));
+            AntlrJar = dialog.FileName;
         }
     }
 
@@ -1842,6 +1918,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             setter(dialog.FolderName);
             OnPropertyChanged(nameof(Settings));
+            RaiseSettingsValidationChanged();
         }
     }
 
@@ -1850,6 +1927,7 @@ public class MainViewModel : INotifyPropertyChanged
         Settings.Save();
         StatusText = "Settings saved.";
         StatusColor = Brushes.LightGreen;
+        RaiseSettingsValidationChanged();
     }
 
     public void SetSelectedProjectNode(ProjectNode? node) => SelectedProjectNode = node;
@@ -2091,9 +2169,15 @@ public class MainViewModel : INotifyPropertyChanged
         foreach (var project in Settings.RecentProjects.Where(Directory.Exists))
             RecentProjects.Add(project);
 
+        WelcomeRecentProjects.Clear();
+        foreach (var project in RecentProjects)
+            WelcomeRecentProjects.Add(new RecentProjectItem(project));
+
         RecentFiles.Clear();
         foreach (var file in Settings.RecentFiles.Where(File.Exists))
             RecentFiles.Add(file);
+
+        OnPropertyChanged(nameof(RecentSummary));
     }
 
     private void OpenQuickOpen()
@@ -2316,4 +2400,23 @@ public class MainViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private void RaiseSettingsValidationChanged()
+    {
+        OnPropertyChanged(nameof(Settings));
+        OnPropertyChanged(nameof(SettingsProjectName));
+        OnPropertyChanged(nameof(SettingsProjectPath));
+        OnPropertyChanged(nameof(CompilerStatusText));
+        OnPropertyChanged(nameof(CompilerStatusBrush));
+        OnPropertyChanged(nameof(JavaStatusText));
+        OnPropertyChanged(nameof(JavaStatusBrush));
+        OnPropertyChanged(nameof(CompilerRootStatusText));
+        OnPropertyChanged(nameof(CompilerRootStatusBrush));
+        OnPropertyChanged(nameof(AntlrStatusText));
+        OnPropertyChanged(nameof(AntlrStatusBrush));
+        OnPropertyChanged(nameof(TestFoldersStatusText));
+        OnPropertyChanged(nameof(TestFoldersStatusBrush));
+        OnPropertyChanged(nameof(IsCompilerConfigured));
+        OnPropertyChanged(nameof(RecentSummary));
+    }
 }

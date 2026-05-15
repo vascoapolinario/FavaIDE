@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Windows.Media;
 
 namespace FavaStudio.Models;
 
@@ -11,18 +12,40 @@ public class EditorTab : INotifyPropertyChanged
 
     public string FilePath { get; set; } = "";
     public string FileName => Path.GetFileName(FilePath);
-    public string FileBadge
+    public string FileBadge => GetFileBadge(FilePath);
+    public Brush FileBadgeBrush => GetFileBadgeBrush(FilePath);
+    public Brush FileBadgeTextBrush => GetFileBadgeTextBrush(FilePath);
+
+    public static string GetFileBadge(string filePath)
     {
-        get
-        {
-            var extension = Path.GetExtension(FilePath);
-            if (extension.Equals(".fava", StringComparison.OrdinalIgnoreCase))
-                return "F";
-            if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
-                return "T";
-            return "..";
-        }
+        var extension = Path.GetExtension(filePath);
+        if (extension.Equals(".fava", StringComparison.OrdinalIgnoreCase))
+            return "F";
+        if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
+            return "TXT";
+        return "..";
     }
+
+    public static Brush GetFileBadgeBrush(string filePath)
+    {
+        var extension = Path.GetExtension(filePath);
+        if (extension.Equals(".fava", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.FromRgb(255, 154, 61));
+        if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.FromRgb(108, 166, 255));
+        return new SolidColorBrush(Color.FromRgb(58, 63, 71));
+    }
+
+    public static Brush GetFileBadgeTextBrush(string filePath)
+    {
+        var extension = Path.GetExtension(filePath);
+        if (extension.Equals(".fava", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.FromRgb(26, 17, 16));
+        if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
+            return new SolidColorBrush(Color.FromRgb(10, 20, 36));
+        return new SolidColorBrush(Color.FromRgb(230, 234, 240));
+    }
+
     public string Header => _isDirty ? $"{FileName} *" : FileName;
 
     public string Content
