@@ -366,7 +366,7 @@
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1"
                             Padding="10,5">
-                        <DockPanel LastChildFill="True">
+                        <DockPanel LastChildFill="False">
                             <!-- Debug toolbar (visible when IsDebugging=true) -->
                             <StackPanel DockPanel.Dock="Right"
                                         Orientation="Horizontal"
@@ -424,14 +424,14 @@
                         <TabControl ItemsSource="{Binding OpenEditorTabs}"
                                     SelectedItem="{Binding SelectedEditorTab}"
                                     Margin="6,6,6,2"
-                                    FontSize="15"
+                                    FontSize="13"
                                     Background="{StaticResource BgPanelAltBrush}"
                                     BorderThickness="0">
                             <TabControl.ItemContainerStyle>
                                 <Style TargetType="TabItem">
-                                    <Setter Property="MinWidth" Value="200"/>
-                                    <Setter Property="Padding" Value="18,9"/>
-                                    <Setter Property="Margin" Value="2,0,2,0"/>
+                                    <Setter Property="MinWidth" Value="120"/>
+                                    <Setter Property="Padding" Value="10,5"/>
+                                    <Setter Property="Margin" Value="1,0,1,0"/>
                                 </Style>
                             </TabControl.ItemContainerStyle>
                             <TabControl.ItemTemplate>
@@ -441,11 +441,11 @@
                                                    Foreground="{StaticResource TextMainBrush}"
                                                    TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center"
-                                                   Margin="0,0,8,0"/>
+                                                   Margin="0,0,6,0"/>
                                         <Button Content="✕"
-                                                Width="20"
-                                                Height="20"
-                                                FontSize="11"
+                                                Width="16"
+                                                Height="16"
+                                                FontSize="10"
                                                 Padding="0"
                                                 VerticalAlignment="Center"
                                                 Cursor="Hand"
