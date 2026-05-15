@@ -39,6 +39,7 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _showOutputOnly = true;
     private bool _toolCompareFullOutput;
     private TestFilePair? _selectedToolTestPair;
+    private EditorTab? _selectedEditorTab;
     private string _toolRunSummary = "No tool runs yet.";
     private string _selectedToolExpectedOutput = "";
     private string _selectedToolActualOutput = "";
@@ -77,6 +78,7 @@ public class MainViewModel : INotifyPropertyChanged
     private string _vmTraceOutput = "";
 
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
+    public ObservableCollection<EditorTab> OpenEditorTabs { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
     public ObservableCollection<TestResult> TestResults { get; } = new();
     public ObservableCollection<TestFilePair> ToolTestPairs { get; } = new();
@@ -98,10 +100,15 @@ public class MainViewModel : INotifyPropertyChanged
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(_currentFile)) return "No file open";
-            var suffix = _hasUnsavedChanges ? " *" : "";
-            return $"{Path.GetFileName(_currentFile)}{suffix}";
+            if (_selectedEditorTab is null || string.IsNullOrWhiteSpace(_selectedEditorTab.FilePath))
+                return "No file open";
+            return _selectedEditorTab.Header;
         }
+    }
+    public EditorTab? SelectedEditorTab
+    {
+        get => _selectedEditorTab;
+        set => SelectEditorTab(value);
     }
     public string CurrentProjectDirectory => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Project directory: (not set)" : Settings.ProjectRoot;
     public string DiagnosticsHeader => Diagnostics.Count == 0 ? "Errors" : $"Errors ({Diagnostics.Count})";
@@ -255,7 +262,7 @@ public class MainViewModel : INotifyPropertyChanged
             OpenSelectedTestInputCommand.RaiseCanExecuteChanged();
             OpenSelectedTestExpectedOutputCommand.RaiseCanExecuteChanged();
             if (!_suppressTestSelectionOpen && _selectedTestResult is not null)
-                OpenSelectedTestInputFile();
+                OpenSelectedTestFilesInTabs(_selectedTestResult);
         }
     }
 
@@ -279,22 +286,11 @@ public class MainViewModel : INotifyPropertyChanged
             if (ReferenceEquals(_selectedProjectNode, value))
                 return;
 
-            if (value is not null && !value.IsDirectory && !TryResolveUnsavedChanges())
-                return;
-
             _selectedProjectNode = value;
             OnPropertyChanged();
             if (_selectedProjectNode is not null && !_selectedProjectNode.IsDirectory)
             {
-                _currentFile = _selectedProjectNode.FullPath;
-                _suppressDirtyTracking = true;
-                _editor.Text = FileService.ReadText(_currentFile);
-                _suppressDirtyTracking = false;
-                _hasUnsavedChanges = false;
-                AddRecentFile(_currentFile);
-                RefreshRecentCollections();
-                OnPropertyChanged(nameof(CurrentFileName));
-                StartDebugCommand.RaiseCanExecuteChanged();
+                OpenFileInEditorTab(_selectedProjectNode.FullPath, focus: true);
             }
         }
     }
@@ -362,8 +358,11 @@ public class MainViewModel : INotifyPropertyChanged
         };
         _editor.TextChanged += (_, _) =>
         {
-            if (!_suppressDirtyTracking && !string.IsNullOrWhiteSpace(_currentFile))
+            if (!_suppressDirtyTracking && _selectedEditorTab is not null)
             {
+                _selectedEditorTab.Content = _editor.Text;
+                _selectedEditorTab.IsDirty = true;
+                _currentFile = _selectedEditorTab.FilePath;
                 _hasUnsavedChanges = true;
                 OnPropertyChanged(nameof(CurrentFileName));
             }
@@ -451,6 +450,57 @@ public class MainViewModel : INotifyPropertyChanged
         ApplyVisualizerOpcodeFilter();
     }
 
+    private void OpenFileInEditorTab(string filePath, bool focus)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            return;
+
+        var existing = OpenEditorTabs.FirstOrDefault(tab =>
+            string.Equals(tab.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is null)
+        {
+            existing = new EditorTab
+            {
+                FilePath = filePath,
+                Content = FileService.ReadText(filePath),
+                IsDirty = false
+            };
+            OpenEditorTabs.Add(existing);
+        }
+
+        AddRecentFile(filePath);
+        RefreshRecentCollections();
+
+        if (focus || SelectedEditorTab is null)
+            SelectedEditorTab = existing;
+    }
+
+    private void SelectEditorTab(EditorTab? tab)
+    {
+        if (ReferenceEquals(_selectedEditorTab, tab))
+            return;
+
+        if (_selectedEditorTab is not null)
+        {
+            _selectedEditorTab.Content = _editor.Text;
+            _selectedEditorTab.IsDirty = _hasUnsavedChanges;
+        }
+
+        _selectedEditorTab = tab;
+        _currentFile = tab?.FilePath;
+        _hasUnsavedChanges = tab?.IsDirty ?? false;
+
+        _suppressDirtyTracking = true;
+        _editor.Text = tab?.Content ?? "";
+        _suppressDirtyTracking = false;
+
+        OnPropertyChanged(nameof(SelectedEditorTab));
+        OnPropertyChanged(nameof(CurrentFileName));
+        RunCurrentCommand.RaiseCanExecuteChanged();
+        StartDebugCommand.RaiseCanExecuteChanged();
+    }
+
     private void OpenProject()
     {
         var dialog = new OpenFolderDialog { Title = "Select Project Folder" };
@@ -499,6 +549,18 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (!skipUnsavedCheck && !TryResolveUnsavedChanges())
             return;
+
+        OpenEditorTabs.Clear();
+        _selectedEditorTab = null;
+        _currentFile = null;
+        _hasUnsavedChanges = false;
+        _suppressDirtyTracking = true;
+        _editor.Text = "";
+        _suppressDirtyTracking = false;
+        OnPropertyChanged(nameof(SelectedEditorTab));
+        OnPropertyChanged(nameof(CurrentFileName));
+        RunCurrentCommand.RaiseCanExecuteChanged();
+        StartDebugCommand.RaiseCanExecuteChanged();
 
         var expandedPaths = CaptureExpandedPaths(ProjectTree.FirstOrDefault());
         var selectedPath = SelectedProjectNode?.FullPath;
@@ -631,13 +693,19 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void SaveFile()
     {
-        if (string.IsNullOrWhiteSpace(_currentFile)) return;
-        FileService.WriteText(_currentFile, _editor.Text);
-        AddRecentFile(_currentFile);
+        var activeTab = _selectedEditorTab;
+        if (activeTab is null || string.IsNullOrWhiteSpace(activeTab.FilePath))
+            return;
+
+        activeTab.Content = _editor.Text;
+        FileService.WriteText(activeTab.FilePath, activeTab.Content);
+        activeTab.IsDirty = false;
+        _currentFile = activeTab.FilePath;
+        AddRecentFile(activeTab.FilePath);
         RefreshRecentCollections();
         _hasUnsavedChanges = false;
         OnPropertyChanged(nameof(CurrentFileName));
-        StatusText = $"Saved: {_currentFile}";
+        StatusText = $"Saved: {activeTab.FilePath}";
         StatusColor = Brushes.LightGreen;
     }
 
@@ -1612,7 +1680,7 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         if (!File.Exists(inputPath))
             return;
-        OpenRecentFile(inputPath);
+        OpenFileInEditorTab(inputPath, focus: true);
     }
 
     private void OpenSelectedTestExpectedOutputFile()
@@ -1627,7 +1695,28 @@ public class MainViewModel : INotifyPropertyChanged
         if (!File.Exists(expectedPath))
             FileService.WriteText(expectedPath, "");
 
-        OpenRecentFile(expectedPath);
+        OpenFileInEditorTab(expectedPath, focus: true);
+    }
+
+    private void OpenSelectedTestFilesInTabs(TestResult selectedTest)
+    {
+        if (string.IsNullOrWhiteSpace(selectedTest.InputFile))
+            return;
+        if (!File.Exists(selectedTest.InputFile))
+            return;
+
+        OpenFileInEditorTab(selectedTest.InputFile, focus: true);
+
+        if (string.IsNullOrWhiteSpace(selectedTest.ExpectedOutputFile))
+            return;
+
+        var outputDirectory = Path.GetDirectoryName(selectedTest.ExpectedOutputFile);
+        if (!string.IsNullOrWhiteSpace(outputDirectory))
+            Directory.CreateDirectory(outputDirectory);
+        if (!File.Exists(selectedTest.ExpectedOutputFile))
+            FileService.WriteText(selectedTest.ExpectedOutputFile, "");
+
+        OpenFileInEditorTab(selectedTest.ExpectedOutputFile, focus: false);
     }
 
     private void BrowseJavaPath()
@@ -1970,11 +2059,14 @@ public class MainViewModel : INotifyPropertyChanged
 
     private bool TryResolveUnsavedChanges()
     {
-        if (!_hasUnsavedChanges || string.IsNullOrWhiteSpace(_currentFile))
+        var dirtyTabs = OpenEditorTabs.Where(tab => tab.IsDirty).ToList();
+        if (dirtyTabs.Count == 0)
             return true;
 
         var answer = MessageBox.Show(
-            $"You have unsaved changes in '{Path.GetFileName(_currentFile)}'. Save before continuing?",
+            dirtyTabs.Count == 1
+                ? $"You have unsaved changes in '{dirtyTabs[0].FileName}'. Save before continuing?"
+                : $"You have unsaved changes in {dirtyTabs.Count} open files. Save before continuing?",
             "Unsaved Changes",
             MessageBoxButton.YesNoCancel,
             MessageBoxImage.Warning);
@@ -1982,13 +2074,30 @@ public class MainViewModel : INotifyPropertyChanged
         if (answer == MessageBoxResult.Cancel)
             return false;
         if (answer == MessageBoxResult.Yes)
-            SaveFile();
+        {
+            foreach (var tab in dirtyTabs)
+            {
+                FileService.WriteText(tab.FilePath, tab.Content);
+                tab.IsDirty = false;
+            }
+        }
         if (answer == MessageBoxResult.No)
         {
-            _hasUnsavedChanges = false;
-            OnPropertyChanged(nameof(CurrentFileName));
+            foreach (var tab in dirtyTabs)
+            {
+                tab.Content = FileService.ReadText(tab.FilePath);
+                tab.IsDirty = false;
+            }
         }
 
+        if (_selectedEditorTab is not null)
+        {
+            _hasUnsavedChanges = _selectedEditorTab.IsDirty;
+            _suppressDirtyTracking = true;
+            _editor.Text = _selectedEditorTab.Content;
+            _suppressDirtyTracking = false;
+        }
+        OnPropertyChanged(nameof(CurrentFileName));
         return true;
     }
 
@@ -2062,12 +2171,16 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        OpenEditorTabs.Clear();
+        _selectedEditorTab = null;
         _currentFile = null;
         _suppressDirtyTracking = true;
         _editor.Text = "";
         _suppressDirtyTracking = false;
         _hasUnsavedChanges = false;
+        OnPropertyChanged(nameof(SelectedEditorTab));
         OnPropertyChanged(nameof(CurrentFileName));
+        RunCurrentCommand.RaiseCanExecuteChanged();
         StartDebugCommand.RaiseCanExecuteChanged();
     }
 

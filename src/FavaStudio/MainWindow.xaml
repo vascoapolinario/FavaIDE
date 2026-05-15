@@ -355,6 +355,7 @@
                 <Grid Grid.Column="2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="4*"/>
                         <RowDefinition Height="5"/>
                         <RowDefinition Height="*"/>
@@ -421,7 +422,31 @@
                         </DockPanel>
                     </Border>
 
-                    <Grid Grid.Row="1">
+                    <Border Grid.Row="1"
+                            Background="{StaticResource BgPanelAltBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1">
+                        <TabControl ItemsSource="{Binding OpenEditorTabs}"
+                                    SelectedItem="{Binding SelectedEditorTab}"
+                                    Margin="6,6,6,0"
+                                    Background="{StaticResource BgPanelAltBrush}"
+                                    BorderThickness="0">
+                            <TabControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Header}"
+                                               Foreground="{StaticResource TextMainBrush}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </DataTemplate>
+                            </TabControl.ItemTemplate>
+                            <TabControl.ContentTemplate>
+                                <DataTemplate>
+                                    <Border Height="0" Visibility="Collapsed"/>
+                                </DataTemplate>
+                            </TabControl.ContentTemplate>
+                        </TabControl>
+                    </Border>
+
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="4*"/>
                             <ColumnDefinition Width="5"/>
@@ -655,13 +680,13 @@
                         </Border>
                     </Grid>
 
-                    <GridSplitter Grid.Row="2"
+                    <GridSplitter Grid.Row="3"
                                   Height="5"
                                   HorizontalAlignment="Stretch"
                                   ResizeDirection="Rows"
                                   Background="{StaticResource BorderBrush}"/>
 
-                    <Border Grid.Row="3"
+                    <Border Grid.Row="4"
                             Background="{StaticResource BgPanelBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,1,0,0">
