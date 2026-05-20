@@ -249,8 +249,9 @@
                                     Padding="10,6"
                                     BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="0,0,0,1">
-                                <DockPanel LastChildFill="True">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="True">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                         <Button Content="Open Input"
                                                 Command="{Binding OpenSelectedTestInputCommand}"
                                                 Padding="8,3"
@@ -260,14 +261,45 @@
                                                 Command="{Binding OpenSelectedTestExpectedOutputCommand}"
                                                 Padding="8,3"
                                                 FontSize="12"/>
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding TestSummary}"
-                                               FontSize="13"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextMainBrush}"
-                                               TextWrapping="Wrap"
-                                               VerticalAlignment="Center"/>
-                                </DockPanel>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding TestSummary}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextMainBrush}"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="{StaticResource ControlDarkerBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestTotalCount, StringFormat=Total {0}}" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Grid.Column="2" Background="#172B1D" BorderBrush="#2C663A" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestPassedCount, StringFormat=Passed {0}}" Foreground="{StaticResource SuccessBrush}" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Grid.Column="4" Background="#351A1A" BorderBrush="#6A2A2A" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestFailedCount, StringFormat=Failed {0}}" Foreground="{StaticResource DangerBrush}" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Grid.Column="6" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestPassPercentText}" Foreground="{StaticResource AccentSoftBrush}" FontWeight="SemiBold"/>
+                                        </Border>
+                                    </Grid>
+                                    <ProgressBar Minimum="0"
+                                                 Maximum="100"
+                                                 Height="5"
+                                                 Value="{Binding TestPassPercent, Mode=OneWay}"
+                                                 Margin="0,8,0,0"
+                                                 Foreground="{StaticResource SuccessBrush}"
+                                                 Background="{StaticResource ControlDarkerBrush}"/>
+                                </StackPanel>
                             </Border>
 
                             <Grid>
@@ -313,10 +345,23 @@
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
-                                                    <TextBlock Text="{Binding Name}"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               FontSize="14"
-                                                               Foreground="{StaticResource TextMainBrush}"/>
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding DurationText}"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               FontFamily="Consolas"
+                                                               FontSize="11"
+                                                               Margin="0,0,8,0"/>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   FontSize="14"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextMainBrush}"/>
+                                                        <TextBlock Text="{Binding Message}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   FontSize="11"
+                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                    </StackPanel>
                                                 </DockPanel>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
@@ -341,22 +386,76 @@
                                     </TextBlock>
                                 </Grid>
 
-                                <GroupBox Grid.Row="1"
-                                          Header="Selected Test Details"
-                                          Foreground="{StaticResource TextMainBrush}"
-                                          Margin="8,6,8,8">
-                                    <TextBox Text="{Binding SelectedTestResult.Message}"
-                                             IsReadOnly="True"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-                                             VerticalScrollBarVisibility="Auto"
-                                             BorderThickness="0"
-                                             Background="{StaticResource BgMainBrush}"
-                                             Foreground="{StaticResource TextMainBrush}"
-                                             FontFamily="Consolas"
-                                             FontSize="13"
-                                             Padding="8"/>
-                                </GroupBox>
+                                <Grid Grid.Row="1" Margin="8,6,8,8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   Text="{Binding SelectedTestDurationText}"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontFamily="Consolas"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding SelectedTestResult.Message}"
+                                                   Foreground="{StaticResource TextMainBrush}"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap"/>
+                                    </DockPanel>
+                                    <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <GroupBox Header="Expected">
+                                            <TextBox Text="{Binding SelectedTestExpectedOutput, Mode=OneWay}"
+                                                     IsReadOnly="True"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="NoWrap"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     BorderThickness="0"
+                                                     Background="{StaticResource BgMainBrush}"
+                                                     Foreground="{StaticResource TextMainBrush}"
+                                                     FontFamily="Consolas"
+                                                     FontSize="12"
+                                                     Padding="8"/>
+                                        </GroupBox>
+                                        <GroupBox Grid.Column="2" Header="Actual / Diff">
+                                            <TabControl>
+                                                <TabItem Header="Actual">
+                                                    <TextBox Text="{Binding SelectedTestActualOutput, Mode=OneWay}"
+                                                             IsReadOnly="True"
+                                                             AcceptsReturn="True"
+                                                             TextWrapping="NoWrap"
+                                                             HorizontalScrollBarVisibility="Auto"
+                                                             VerticalScrollBarVisibility="Auto"
+                                                             BorderThickness="0"
+                                                             Background="{StaticResource BgMainBrush}"
+                                                             Foreground="{StaticResource TextMainBrush}"
+                                                             FontFamily="Consolas"
+                                                             FontSize="12"
+                                                             Padding="8"/>
+                                                </TabItem>
+                                                <TabItem Header="Diff">
+                                                    <TextBox Text="{Binding SelectedTestDiffOutput, Mode=OneWay}"
+                                                             IsReadOnly="True"
+                                                             AcceptsReturn="True"
+                                                             TextWrapping="NoWrap"
+                                                             HorizontalScrollBarVisibility="Auto"
+                                                             VerticalScrollBarVisibility="Auto"
+                                                             BorderThickness="0"
+                                                             Background="{StaticResource BgMainBrush}"
+                                                             Foreground="{StaticResource TextMainBrush}"
+                                                             FontFamily="Consolas"
+                                                             FontSize="12"
+                                                             Padding="8"/>
+                                                </TabItem>
+                                            </TabControl>
+                                        </GroupBox>
+                                    </Grid>
+                                </Grid>
                             </Grid>
                         </DockPanel>
                     </Grid>
@@ -438,12 +537,18 @@
                             Background="{StaticResource BgPanelAltBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1">
-                        <TabControl ItemsSource="{Binding OpenEditorTabs}"
+                        <TabControl x:Name="EditorTabs"
+                                    ItemsSource="{Binding OpenEditorTabs}"
                                     SelectedItem="{Binding SelectedEditorTab}"
                                     Margin="0"
                                     FontSize="13"
                                     Background="{StaticResource TabStripBrush}"
-                                    BorderThickness="0">
+                                    BorderThickness="0"
+                                    AllowDrop="True"
+                                    PreviewMouseLeftButtonDown="EditorTabs_OnPreviewMouseLeftButtonDown"
+                                    PreviewMouseMove="EditorTabs_OnPreviewMouseMove"
+                                    Drop="EditorTabs_OnDrop"
+                                    DragOver="EditorTabs_OnDragOver">
                             <TabControl.ItemContainerStyle>
                                 <Style TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
                                     <Setter Property="MinWidth" Value="120"/>
@@ -599,7 +704,32 @@
                                                    ShowLineNumbers="True"
                                                    LineNumbersForeground="{StaticResource TextMutedBrush}"
                                                    Background="{StaticResource BgMainBrush}"
-                                                   Foreground="{StaticResource TextMainBrush}"/>
+                                                   Foreground="{StaticResource TextMainBrush}">
+                                <avalonedit:TextEditor.ContextMenu>
+                                    <ContextMenu Opened="EditorContextMenu_OnOpened">
+                                        <MenuItem x:Name="EditorContextCut" Header="Cut" Click="EditorContextCut_OnClick"/>
+                                        <MenuItem x:Name="EditorContextCopy" Header="Copy" Click="EditorContextCopy_OnClick"/>
+                                        <MenuItem x:Name="EditorContextPaste" Header="Paste" Click="EditorContextPaste_OnClick"/>
+                                        <MenuItem x:Name="EditorContextDelete" Header="Delete" Click="EditorContextDelete_OnClick"/>
+                                        <Separator/>
+                                        <MenuItem Header="Select All" Click="EditorContextSelectAll_OnClick"/>
+                                        <MenuItem Header="Find" Click="EditorContextFind_OnClick"/>
+                                        <MenuItem Header="Replace" Click="EditorContextReplace_OnClick"/>
+                                        <MenuItem Header="Go To Line" Click="EditorContextGoToLine_OnClick"/>
+                                        <Separator/>
+                                        <MenuItem x:Name="EditorContextFormatSelection" Header="Format Selection Indent" Click="EditorContextFormatSelection_OnClick"/>
+                                        <MenuItem Header="Format Document Indent" Click="EditorContextFormatDocument_OnClick"/>
+                                        <MenuItem x:Name="EditorContextToggleComment" Header="Toggle Line Comment" Click="EditorContextToggleComment_OnClick"/>
+                                        <MenuItem Header="Duplicate Line" Click="EditorContextDuplicateLine_OnClick"/>
+                                        <MenuItem Header="Move Line Up" Click="EditorContextMoveLineUp_OnClick"/>
+                                        <MenuItem Header="Move Line Down" Click="EditorContextMoveLineDown_OnClick"/>
+                                        <Separator/>
+                                        <MenuItem Header="Toggle Breakpoint" Click="EditorContextToggleBreakpoint_OnClick"/>
+                                        <MenuItem Header="Save File" Click="EditorContextSaveFile_OnClick"/>
+                                        <MenuItem Header="Run Current File" Click="EditorContextRunCurrentFile_OnClick"/>
+                                    </ContextMenu>
+                                </avalonedit:TextEditor.ContextMenu>
+                            </avalonedit:TextEditor>
                         </Grid>
 
                         <GridSplitter Grid.Column="1"
@@ -1237,7 +1367,7 @@
                             </Grid.ColumnDefinitions>
 
                             <GroupBox Header="Expected Output" Grid.Column="0">
-                                <TextBox Text="{Binding SelectedToolExpectedOutput}"
+                                <TextBox Text="{Binding SelectedToolExpectedOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"
@@ -1248,7 +1378,7 @@
                                          MinHeight="180"/>
                             </GroupBox>
                             <GroupBox Header="Actual Output" Grid.Column="2">
-                                <TextBox Text="{Binding SelectedToolActualOutput}"
+                                <TextBox Text="{Binding SelectedToolActualOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"
@@ -1259,7 +1389,7 @@
                                          MinHeight="180"/>
                             </GroupBox>
                             <GroupBox Header="Diff" Grid.Column="4">
-                                <TextBox Text="{Binding SelectedToolDiffOutput}"
+                                <TextBox Text="{Binding SelectedToolDiffOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"
@@ -1419,7 +1549,7 @@
                             </GroupBox>
 
                             <GroupBox Header="VM Output (simulated)" Grid.Column="2">
-                                <TextBox Text="{Binding VisualizerRunOutput}"
+                                <TextBox Text="{Binding VisualizerRunOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"

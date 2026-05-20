@@ -222,6 +222,32 @@ public class MainViewModel : INotifyPropertyChanged
     public string SelectedToolActualOutput { get => _selectedToolActualOutput; set { _selectedToolActualOutput = value; OnPropertyChanged(); } }
     public string SelectedToolDiffOutput { get => _selectedToolDiffOutput; set { _selectedToolDiffOutput = value; OnPropertyChanged(); } }
     public string TestSummary { get => _testSummary; set { _testSummary = value; OnPropertyChanged(); } }
+    public int TestTotalCount => TestResults.Count;
+    public int TestRunCount => TestResults.Count(test => test.HasRun);
+    public int TestPassedCount => TestResults.Count(test => test.HasRun && test.Passed);
+    public int TestFailedCount => TestResults.Count(test => test.HasRun && !test.Passed);
+    public double TestPassPercent
+    {
+        get => TestRunCount == 0 ? 0 : (double)TestPassedCount / TestRunCount * 100;
+        set { }
+    }
+    public string TestPassPercentText => TestRunCount == 0 ? "No runs" : $"{TestPassPercent:0}% pass";
+    public string SelectedTestExpectedOutput
+    {
+        get => SelectedTestResult?.ExpectedOutput ?? "";
+        set { }
+    }
+    public string SelectedTestActualOutput
+    {
+        get => SelectedTestResult?.ActualOutput ?? "";
+        set { }
+    }
+    public string SelectedTestDiffOutput
+    {
+        get => SelectedTestResult?.DiffOutput ?? "";
+        set { }
+    }
+    public string SelectedTestDurationText => SelectedTestResult?.DurationText ?? "--";
     public bool ShowTestOutput { get => Settings.ShowTestOutput; set { Settings.ShowTestOutput = value; OnPropertyChanged(); } }
     public string VisualizerRunOutput { get => _visualizerRunOutput; set { _visualizerRunOutput = value; OnPropertyChanged(); } }
     public string VisualizerInfo { get => _visualizerInfo; set { _visualizerInfo = value; OnPropertyChanged(); } }
@@ -319,6 +345,10 @@ public class MainViewModel : INotifyPropertyChanged
             RunSelectedTestsCommand.RaiseCanExecuteChanged();
             OpenSelectedTestInputCommand.RaiseCanExecuteChanged();
             OpenSelectedTestExpectedOutputCommand.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(SelectedTestExpectedOutput));
+            OnPropertyChanged(nameof(SelectedTestActualOutput));
+            OnPropertyChanged(nameof(SelectedTestDiffOutput));
+            OnPropertyChanged(nameof(SelectedTestDurationText));
             if (!_suppressTestSelectionOpen && _selectedTestResult is not null)
                 OpenSelectedTestFilesInTabs(_selectedTestResult);
         }
@@ -1668,6 +1698,7 @@ public class MainViewModel : INotifyPropertyChanged
         var total = results.Count;
         TestSummary = passed == total ? $"✅ ALL TESTS PASSED ({passed}/{total})" : $"❌ {passed}/{total} tests passed";
         StatusColor = passed == total ? Brushes.LightGreen : Brushes.IndianRed;
+        RaiseTestStatsChanged();
     }
 
     private async void RunSelectedTest()
@@ -1684,6 +1715,7 @@ public class MainViewModel : INotifyPropertyChanged
         SelectedTestResult = result;
         TestSummary = result.Passed ? $"✅ '{name}' passed" : $"❌ '{name}' failed";
         StatusColor = result.Passed ? Brushes.LightGreen : Brushes.IndianRed;
+        RaiseTestStatsChanged();
     }
 
     private void EnsureTestFoldersConfigured(bool createIfMissing)
@@ -1754,6 +1786,7 @@ public class MainViewModel : INotifyPropertyChanged
                 Message = $"Input: {input}\nExpected output: {expected}"
             });
         }
+        RaiseTestStatsChanged();
 
         TestSummary = testNames.Count == 0
             ? "No tests found. Use 'New Test' to create one."
@@ -2418,5 +2451,19 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TestFoldersStatusBrush));
         OnPropertyChanged(nameof(IsCompilerConfigured));
         OnPropertyChanged(nameof(RecentSummary));
+    }
+
+    private void RaiseTestStatsChanged()
+    {
+        OnPropertyChanged(nameof(TestTotalCount));
+        OnPropertyChanged(nameof(TestRunCount));
+        OnPropertyChanged(nameof(TestPassedCount));
+        OnPropertyChanged(nameof(TestFailedCount));
+        OnPropertyChanged(nameof(TestPassPercent));
+        OnPropertyChanged(nameof(TestPassPercentText));
+        OnPropertyChanged(nameof(SelectedTestExpectedOutput));
+        OnPropertyChanged(nameof(SelectedTestActualOutput));
+        OnPropertyChanged(nameof(SelectedTestDiffOutput));
+        OnPropertyChanged(nameof(SelectedTestDurationText));
     }
 }

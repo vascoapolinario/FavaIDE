@@ -9,4 +9,9 @@ public class TestResult
     public string Status => !HasRun ? "NEW" : Passed ? "PASS" : "FAIL";
     public bool Passed { get; set; }
     public string Message { get; set; } = "";
+    public string ExpectedOutput { get; set; } = "";
+    public string ActualOutput { get; set; } = "";
+    public string DiffOutput { get; set; } = "";
+    public TimeSpan Duration { get; set; }
+    public string DurationText => HasRun ? $"{Duration.TotalMilliseconds:0} ms" : "--";
 }

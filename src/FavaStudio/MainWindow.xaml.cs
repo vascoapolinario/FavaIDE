@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using ICSharpCode.AvalonEdit.Document;
@@ -21,6 +22,8 @@ public partial class MainWindow : Window
     private readonly SearchResultRenderer _searchResultRenderer;
     private readonly List<TextSegment> _searchMatches = [];
     private int _activeSearchIndex = -1;
+    private Point? _tabDragStartPoint;
+    private EditorTab? _draggedTab;
 
     public MainWindow()
     {
@@ -432,5 +435,289 @@ public partial class MainWindow : Window
         Editor.Focus();
         _currentLineHighlighter.Refresh();
         _bracketHighlightRenderer.Refresh();
+    }
+
+    private void EditorContextMenu_OnOpened(object sender, RoutedEventArgs e)
+    {
+        var hasSelection = !string.IsNullOrEmpty(Editor.SelectedText);
+        EditorContextCut.IsEnabled = hasSelection;
+        EditorContextCopy.IsEnabled = hasSelection;
+        EditorContextDelete.IsEnabled = hasSelection;
+        EditorContextFormatSelection.IsEnabled = hasSelection;
+        EditorContextToggleComment.IsEnabled = Editor.Document is not null && Editor.Document.LineCount > 0;
+    }
+
+    private void EditorContextCut_OnClick(object sender, RoutedEventArgs e)
+    {
+        Editor.Cut();
+        Editor.Focus();
+    }
+
+    private void EditorContextCopy_OnClick(object sender, RoutedEventArgs e)
+    {
+        Editor.Copy();
+        Editor.Focus();
+    }
+
+    private void EditorContextPaste_OnClick(object sender, RoutedEventArgs e)
+    {
+        Editor.Paste();
+        Editor.Focus();
+    }
+
+    private void EditorContextDelete_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (Editor.Document is null || Editor.SelectionLength <= 0)
+            return;
+
+        Editor.Document.Remove(Editor.SelectionStart, Editor.SelectionLength);
+        Editor.Focus();
+    }
+
+    private void EditorContextSelectAll_OnClick(object sender, RoutedEventArgs e)
+    {
+        Editor.SelectAll();
+        Editor.Focus();
+    }
+
+    private void EditorContextFind_OnClick(object sender, RoutedEventArgs e) => ShowFindBar(focusFind: true);
+
+    private void EditorContextReplace_OnClick(object sender, RoutedEventArgs e) => ShowFindBar(focusFind: false);
+
+    private void EditorContextGoToLine_OnClick(object sender, RoutedEventArgs e) => ShowFindBar(focusGoTo: true);
+
+    private void EditorContextFormatSelection_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (Editor.Document is null || Editor.SelectionLength <= 0)
+            return;
+
+        var startLine = Editor.Document.GetLineByOffset(Editor.SelectionStart).LineNumber;
+        var endLine = Editor.Document.GetLineByOffset(Editor.SelectionStart + Editor.SelectionLength).LineNumber;
+        FormatLines(startLine, endLine);
+        Editor.Focus();
+    }
+
+    private void EditorContextFormatDocument_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (Editor.Document is null)
+            return;
+
+        FormatLines(1, Editor.Document.LineCount);
+        Editor.Focus();
+    }
+
+    private void EditorContextToggleComment_OnClick(object sender, RoutedEventArgs e)
+    {
+        ToggleLineComment();
+        Editor.Focus();
+    }
+
+    private void EditorContextDuplicateLine_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (Editor.Document is null)
+            return;
+
+        if (Editor.SelectionLength > 0)
+        {
+            var selected = Editor.SelectedText;
+            Editor.Document.Insert(Editor.SelectionStart + Editor.SelectionLength, selected);
+            Editor.Select(Editor.SelectionStart + Editor.SelectionLength, selected.Length);
+            return;
+        }
+
+        var line = Editor.Document.GetLineByOffset(Editor.CaretOffset);
+        var lineText = Editor.Document.GetText(line.Offset, line.TotalLength);
+        if (!lineText.EndsWith("\n", StringComparison.Ordinal))
+            lineText += Environment.NewLine;
+        Editor.Document.Insert(line.Offset + line.TotalLength, lineText);
+        Editor.CaretOffset = line.Offset + line.TotalLength;
+        Editor.Focus();
+    }
+
+    private void EditorContextMoveLineUp_OnClick(object sender, RoutedEventArgs e)
+    {
+        MoveCurrentLine(up: true);
+        Editor.Focus();
+    }
+
+    private void EditorContextMoveLineDown_OnClick(object sender, RoutedEventArgs e)
+    {
+        MoveCurrentLine(up: false);
+        Editor.Focus();
+    }
+
+    private void EditorContextToggleBreakpoint_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+            return;
+
+        vm.ToggleBreakpoint(Editor.TextArea.Caret.Line);
+        RefreshBreakpointRenderers(vm);
+        Editor.Focus();
+    }
+
+    private void EditorContextSaveFile_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && vm.SaveFileCommand.CanExecute(null))
+            vm.SaveFileCommand.Execute(null);
+        Editor.Focus();
+    }
+
+    private void EditorContextRunCurrentFile_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && vm.RunCurrentCommand.CanExecute(null))
+            vm.RunCurrentCommand.Execute(null);
+        Editor.Focus();
+    }
+
+    private void FormatLines(int startLine, int endLine)
+    {
+        if (Editor.Document is null)
+            return;
+
+        startLine = Math.Clamp(startLine, 1, Editor.Document.LineCount);
+        endLine = Math.Clamp(endLine, startLine, Editor.Document.LineCount);
+        var indent = 0;
+        for (var lineNumber = 1; lineNumber <= endLine; lineNumber++)
+        {
+            var line = Editor.Document.GetLineByNumber(lineNumber);
+            var text = Editor.Document.GetText(line);
+            var trimmed = text.TrimStart();
+            if (trimmed.StartsWith("}", StringComparison.Ordinal))
+                indent = Math.Max(0, indent - 1);
+
+            if (lineNumber >= startLine && !string.IsNullOrWhiteSpace(text))
+            {
+                var newText = new string(' ', indent * Editor.Options.IndentationSize) + trimmed;
+                Editor.Document.Replace(line.Offset, line.Length, newText.TrimEnd('\r', '\n'));
+            }
+
+            if (trimmed.EndsWith("{", StringComparison.Ordinal))
+                indent++;
+        }
+    }
+
+    private void ToggleLineComment()
+    {
+        if (Editor.Document is null)
+            return;
+
+        var startLine = Editor.Document.GetLineByOffset(Editor.SelectionStart).LineNumber;
+        var endOffset = Editor.SelectionLength > 0 ? Editor.SelectionStart + Editor.SelectionLength : Editor.CaretOffset;
+        var endLine = Editor.Document.GetLineByOffset(Math.Clamp(endOffset, 0, Editor.Document.TextLength)).LineNumber;
+        var lines = Enumerable.Range(startLine, endLine - startLine + 1)
+            .Select(lineNumber => Editor.Document.GetLineByNumber(lineNumber))
+            .ToList();
+        var shouldUncomment = lines
+            .Where(line => !string.IsNullOrWhiteSpace(Editor.Document.GetText(line)))
+            .All(line => Editor.Document.GetText(line).TrimStart().StartsWith("//", StringComparison.Ordinal));
+
+        foreach (var line in lines.OrderByDescending(line => line.LineNumber))
+        {
+            var text = Editor.Document.GetText(line);
+            var leading = text.Length - text.TrimStart().Length;
+            if (shouldUncomment)
+            {
+                var commentOffset = line.Offset + leading;
+                if (commentOffset + 2 <= Editor.Document.TextLength &&
+                    Editor.Document.GetText(commentOffset, 2) == "//")
+                    Editor.Document.Remove(commentOffset, 2);
+            }
+            else
+            {
+                Editor.Document.Insert(line.Offset + leading, "//");
+            }
+        }
+    }
+
+    private void MoveCurrentLine(bool up)
+    {
+        if (Editor.Document is null)
+            return;
+
+        var line = Editor.Document.GetLineByOffset(Editor.CaretOffset);
+        if (up && line.LineNumber == 1)
+            return;
+        if (!up && line.LineNumber == Editor.Document.LineCount)
+            return;
+
+        var other = Editor.Document.GetLineByNumber(up ? line.LineNumber - 1 : line.LineNumber + 1);
+        var lineText = Editor.Document.GetText(line.Offset, line.TotalLength);
+        var otherText = Editor.Document.GetText(other.Offset, other.TotalLength);
+        var caretColumn = Editor.TextArea.Caret.Column;
+
+        if (up)
+        {
+            Editor.Document.Replace(other.Offset, other.TotalLength + line.TotalLength, lineText + otherText);
+            Editor.CaretOffset = Editor.Document.GetLineByNumber(line.LineNumber - 1).Offset + Math.Max(0, caretColumn - 1);
+        }
+        else
+        {
+            Editor.Document.Replace(line.Offset, line.TotalLength + other.TotalLength, otherText + lineText);
+            Editor.CaretOffset = Editor.Document.GetLineByNumber(line.LineNumber + 1).Offset + Math.Max(0, caretColumn - 1);
+        }
+    }
+
+    private void EditorTabs_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _tabDragStartPoint = e.GetPosition(EditorTabs);
+        _draggedTab = FindAncestor<TabItem>(e.OriginalSource as DependencyObject)?.DataContext as EditorTab;
+    }
+
+    private void EditorTabs_OnPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _tabDragStartPoint is null || _draggedTab is null)
+            return;
+
+        var position = e.GetPosition(EditorTabs);
+        if (Math.Abs(position.X - _tabDragStartPoint.Value.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(position.Y - _tabDragStartPoint.Value.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        DragDrop.DoDragDrop(EditorTabs, _draggedTab, DragDropEffects.Move);
+        _tabDragStartPoint = null;
+        _draggedTab = null;
+    }
+
+    private void EditorTabs_OnDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(typeof(EditorTab)) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void EditorTabs_OnDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(EditorTab)) || DataContext is not MainViewModel vm)
+            return;
+
+        var sourceTab = e.Data.GetData(typeof(EditorTab)) as EditorTab;
+        if (sourceTab is null)
+            return;
+
+        var targetTab = FindAncestor<TabItem>(e.OriginalSource as DependencyObject)?.DataContext as EditorTab;
+        var sourceIndex = vm.OpenEditorTabs.IndexOf(sourceTab);
+        if (sourceIndex < 0)
+            return;
+
+        var targetIndex = targetTab is null
+            ? vm.OpenEditorTabs.Count - 1
+            : vm.OpenEditorTabs.IndexOf(targetTab);
+        if (targetIndex < 0 || sourceIndex == targetIndex)
+            return;
+
+        vm.OpenEditorTabs.Move(sourceIndex, targetIndex);
+        vm.SelectedEditorTab = sourceTab;
+        e.Handled = true;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
+    {
+        while (current is not null)
+        {
+            if (current is T match)
+                return match;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
     }
 }
