@@ -1,53 +1,81 @@
 # Fava Studio
 
-A modern Windows IDE for the Fava language, built with WPF (.NET 8), focused on productivity, diagnostics, and compiler workflow.
+Fava Studio is a desktop IDE for the Fava language, built with WPF on .NET 8.
+It combines editing, diagnostics, test workflows, debugging, and VM visualization in one place so you can go from writing code to validating output fast.
 
-## ✨ IDE Highlights
+## Why Fava Studio
 
-### Core IDE Experience
-- Dark, professional UI optimized for coding sessions.
-- Fast project explorer with file/folder management.
-- AvalonEdit-powered code editor for `.fava` and text files.
-- Live diagnostics panel with inline underline rendering.
-- Integrated run pipeline for the current file.
-
-### New Productivity Features (this branch)
-1. **Welcome Start Screen**
-   - On startup (when no project is loaded), users now see a start experience with:
-     - **Create New Project**
-     - **Open Project**
-     - **Recent Projects**
-2. **Recent Projects (MRU)**
-   - Automatically tracks recently opened projects.
-   - Accessible from the welcome screen and **Project → Recent Projects**.
-3. **Recent Files (MRU)**
-   - Tracks opened/saved files.
-   - Accessible from **Project → Recent Files**.
-4. **Quick Open Palette**
-   - **Ctrl+P** (or **Project → Quick Open**) to quickly filter/open project files.
-   - Supports `.fava` and `.txt` file lookup.
-5. **Unsaved Changes Guard + File Dirty State**
-   - Current file name shows `*` when modified.
-   - Save/discard/cancel prompt when switching file/project with unsaved changes.
-
-### Existing Tooling
-- **Tools → Open Test Tool** for pair-based compare workflows.
-- **Tools → Open Visualizer** for VM/stack execution analysis.
-- Click **Fava Studio** in header to return to editor quickly.
+- Clean dark interface built for longer coding sessions.
+- End-to-end workflow: edit → run → inspect errors → debug → verify tests.
+- Dedicated tools for both everyday coding and low-level VM understanding.
 
 ---
 
-## 📸 Screenshots
+## Feature Overview
 
-### Welcome Screen + Recent Projects
+### Editor & Navigation
+
+- **Project explorer** with folder/file creation and deletion actions.
+- **Multi-tab editor** with dirty markers (`*`) and close controls.
+- **Quick Open palette** (`Ctrl+P`) to instantly filter and open `.fava` / `.txt` files.
+- **Find/Replace/Go To Line** bar with next/previous navigation, case match, and whole-word search.
+- **Context actions** in the editor for formatting, line operations, comments, save, run, and breakpoint toggling.
+
+### Diagnostics & Error Feedback
+
+- **Live diagnostics** while typing (lexer/parser/semantic errors).
+- **Inline error underline rendering** directly in the editor.
+- **Errors panel** with line/column and message details.
+- **Hover tooltips** on underlined code for quick error context.
+- **Unsaved changes popups** when switching files/projects, with save/discard/cancel options.
+
+### Run, Debug & Breakpoints
+
+- One-click **Run Current File** flow.
+- **Inline debug mode** with:
+  - Breakpoint toggling (`F9`)
+  - Start (`F5`), step (`F10`), continue, step back, jump-to-call, and stop (`Shift+F5`)
+- Dedicated debug panel with current instruction, stack state, and execution status.
+
+### Testing Workflows
+
+- Built-in **Test Suite** panel in the workspace.
+- Run **all tests** or **selected test**.
+- Pass/fail counters, progress bar, and per-test duration.
+- Detailed **Diff / Expected / Actual** result views.
+- Quick actions to open test input/output files.
+- **Create New Test** directly from the IDE flow.
+
+### Tools & Analysis
+
+- **Test Compare Tool** for folder-based input/output pairing and batch comparisons.
+- **Visualizer • Stack Explorer** with:
+  - Instruction stream filtering
+  - Constant pool filtering
+  - Stack and globals views
+  - Timeline (before/after stack evolution)
+  - VM output simulation
+  - Opcode reference search
+
+### Workspace & Settings
+
+- Startup **welcome screen** with create/open project actions.
+- **Recent projects** and **recent files** tracking.
+- Central settings for Java path, compiler root, ANTLR jar, test folders, and output preferences.
+
+---
+
+## Screenshots
+
+### Welcome screen and recent projects
 ![Welcome Screen](https://github.com/user-attachments/assets/aed53368-21d2-41d2-b402-7ea5a36284f7)
 
-### Header + Tools Navigation (Open Test Tool + Open Visualizer)
+### Main workspace header (run, tests, visualizer access)
 ![Header Tools Menu](https://github.com/user-attachments/assets/10286fa4-6942-45bc-a699-0c7d85b9645f)
 
 ---
 
-## 🧰 Requirements
+## Requirements
 
 - Windows 10/11
 - .NET 8 SDK (for building from source)
@@ -57,7 +85,7 @@ A modern Windows IDE for the Fava language, built with WPF (.NET 8), focused on 
 
 ---
 
-## 🚀 Run From Source
+## Run from Source
 
 1. Open `FavaStudio.sln` in Visual Studio 2022.
 2. Restore NuGet packages.
@@ -71,11 +99,9 @@ dotnet build FavaStudio.sln -p:EnableWindowsTargeting=true
 
 ---
 
-## 📦 Release-Ready Packaging
+## Packaging and Releases
 
-This repository now includes release automation and local publish scripts.
-
-### Local publish (Windows x64 self-contained)
+Local publish (Windows x64 self-contained):
 
 PowerShell:
 
@@ -89,11 +115,11 @@ Bash:
 ./scripts/publish-win-x64.sh
 ```
 
-Outputs are placed in `publish/win-x64`.
+Output is generated in `publish/win-x64`.
 
-### GitHub Release workflow
+GitHub Release workflow:
 
-- Workflow file: `.github/workflows/release.yml`
+- Workflow: `.github/workflows/release.yml`
 - Triggers:
   - Push tags like `v1.0.0`
   - Manual `workflow_dispatch`
@@ -103,44 +129,10 @@ Outputs are placed in `publish/win-x64`.
 
 ---
 
-## ⚙️ Settings
+## Settings Location
 
-Settings are stored in:
+Settings are stored at:
 
 - `%AppData%\FavaStudio\settings.json`
 
-Key options:
-
-| Setting | Description |
-|---------|-------------|
-| Java Path | Path to `java.exe` (or `java` on PATH) |
-| Compiler Root | Path to your FavaCompiler folder |
-| ANTLR Jar | Path to `antlr-4.13.2-complete.jar` |
-| RecentProjects | Most recently used project folders |
-| RecentFiles | Most recently used files |
-
----
-
-## 📁 Project Structure
-
-```
-FavaStudio/
-  FavaStudio.sln
-  README.md
-  .github/
-    workflows/
-      release.yml
-  scripts/
-    publish-win-x64.ps1
-    publish-win-x64.sh
-  src/
-    FavaStudio/
-      App.xaml / App.xaml.cs
-      MainWindow.xaml / MainWindow.xaml.cs
-      FavaStudio.csproj
-      Themes/
-        Theme.xaml
-      Models/
-      Services/
-      ViewModels/
-```
+Key values include Java path, compiler root, ANTLR jar, recent history, and test folder paths.
