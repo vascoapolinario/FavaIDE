@@ -37,7 +37,7 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="8,4">
-            <DockPanel LastChildFill="True">
+            <DockPanel LastChildFill="False">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <Button Command="{Binding BackToEditorCommand}"
                             Background="Transparent"
@@ -90,16 +90,88 @@
                         <MenuItem Header="Run Current File" Command="{Binding RunCurrentCommand}"/>
                         <MenuItem Header="Save Current File" Command="{Binding SaveFileCommand}"/>
                         <MenuItem Header="Toggle Errors Panel" Command="{Binding ToggleDiagnosticsCommand}"/>
+                        <MenuItem Header="Start Debug (F5)" Command="{Binding StartDebugCommand}"/>
+                        <MenuItem Header="Step (F10)" Command="{Binding DebugStepCommand}"/>
+                        <MenuItem Header="Jump to Next Call" Command="{Binding DebugJumpToCallCommand}"/>
+                        <MenuItem Header="Continue" Command="{Binding DebugContinueCommand}"/>
+                        <MenuItem Header="Step Back" Command="{Binding DebugStepBackCommand}"/>
                         <Separator/>
-                        <MenuItem Header="● Toggle Breakpoint (F9)" Command="{Binding ToggleBreakpointAtCaretCommand}"/>
-                        <MenuItem Header="▶  Start Debug (F5)" Command="{Binding StartDebugCommand}"/>
-                        <MenuItem Header="→  Step (F10)" Command="{Binding DebugStepCommand}"/>
-                        <MenuItem Header="⏭  Jump to Next Call" Command="{Binding DebugJumpToCallCommand}"/>
-                        <MenuItem Header="▶▶ Continue (to breakpoint/end)" Command="{Binding DebugContinueCommand}"/>
-                        <MenuItem Header="←  Step Back" Command="{Binding DebugStepBackCommand}"/>
-                        <MenuItem Header="■  Stop Debug (Shift+F5)" Command="{Binding DebugStopCommand}"/>
+                        <MenuItem Header="Toggle Breakpoint (F9)" Command="{Binding ToggleBreakpointAtCaretCommand}"/>
+                        <MenuItem Header="Stop Debug (Shift+F5)" Command="{Binding DebugStopCommand}"/>
                     </MenuItem>
                 </Menu>
+
+                <StackPanel DockPanel.Dock="Right"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button Command="{Binding RunCurrentCommand}"
+                            Style="{StaticResource AccentButton}"
+                            ToolTip="Run current file"
+                            Padding="16,5"
+                            Margin="8,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="12" Height="12" Margin="0,0,7,0">
+                                <Path Fill="White" Data="M 3 1 L 15 8 L 3 15 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Run" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding StartDebugCommand}"
+                            ToolTip="Start debug session"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 11 V 4 H 14 V 8 H 16 V 11 H 14 V 15 H 11 V 17 H 5 V 15 H 2 V 11 H 0 V 8 H 2 V 4 H 5 Z M 5 6 H 11 V 4 H 5 Z M 5 12 V 15 H 11 V 12 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Debug"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding SaveFileCommand}"
+                            ToolTip="Save current file"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 2 1 H 14 L 17 4 V 17 H 2 Z M 5 2 V 7 H 13 V 2 Z M 5 12 V 16 H 14 V 12 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Save"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ToggleDiagnosticsCommand}"
+                            ToolTip="Show or hide errors panel"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 8 1 L 16 15 H 0 Z M 7 6 H 9 V 10 H 7 Z M 7 12 H 9 V 14 H 7 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Errors"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding OpenToolsCommand}"
+                            ToolTip="Open test tools"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 13 V 3 H 10 V 15 H 13 V 17 H 5 V 15 H 8 V 3 H 5 Z M 1 4 H 5 V 6 H 3 V 12 H 5 V 14 H 1 Z M 13 4 H 17 V 14 H 13 V 12 H 15 V 6 H 13 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Tests"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding OpenVisualizerCommand}"
+                            ToolTip="Open visualizer"
+                            Padding="12,5"
+                            Margin="0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 2 2 H 16 V 13 H 10 V 15 H 13 V 17 H 5 V 15 H 8 V 13 H 2 Z M 4 4 V 11 H 14 V 4 Z M 5 5 H 7 V 7 H 5 Z M 8 5 H 10 V 7 H 8 Z M 11 5 H 13 V 7 H 11 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="VM"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </DockPanel>
         </Border>
 
@@ -115,71 +187,349 @@
                         Background="{StaticResource BgPanelBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,0,1,0">
-                    <DockPanel>
-                        <Border DockPanel.Dock="Top"
-                                Padding="10,7"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,0,0,1"
-                                Background="{StaticResource BgPanelAltBrush}">
-                            <TextBlock Text="PROJECT"
-                                       FontSize="10"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
-                        </Border>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="3*"/>
+                            <RowDefinition Height="5"/>
+                            <RowDefinition Height="2*"/>
+                        </Grid.RowDefinitions>
 
-                        <Border DockPanel.Dock="Top"
-                                Padding="10,6"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <TextBlock Text="{Binding CurrentProjectDirectory}"
-                                       FontFamily="Consolas"
-                                       FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       TextWrapping="Wrap"/>
-                        </Border>
+                        <DockPanel Grid.Row="0">
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,7"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Background="{StaticResource BgPanelAltBrush}">
+                                <TextBlock Text="PROJECT"
+                                           FontSize="10"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                            </Border>
 
-                        <TreeView ItemsSource="{Binding ProjectTree}"
-                                  SelectedItemChanged="ProjectTree_OnSelectedItemChanged"
-                                  Margin="4,4,4,0"
-                                  Background="Transparent"
-                                  BorderThickness="0">
-                            <TreeView.Resources>
-                                <HierarchicalDataTemplate DataType="{x:Type local:ProjectNode}" ItemsSource="{Binding Children}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Icon}" Margin="0,0,6,0" FontSize="13"/>
-                                        <TextBlock Text="{Binding Name}" FontSize="14"/>
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,6"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1">
+                                <TextBlock Text="{Binding CurrentProjectDirectory}"
+                                           FontFamily="Consolas"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+
+                            <TreeView ItemsSource="{Binding ProjectTree}"
+                                      SelectedItemChanged="ProjectTree_OnSelectedItemChanged"
+                                      Margin="4,4,4,0"
+                                      Background="Transparent"
+                                      BorderThickness="0">
+                                <TreeView.Resources>
+                                    <HierarchicalDataTemplate DataType="{x:Type local:ProjectNode}" ItemsSource="{Binding Children}">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border MinWidth="24"
+                                                    Height="18"
+                                                    CornerRadius="4"
+                                                    Background="{Binding BadgeBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1"
+                                                    Margin="0,0,7,0"
+                                                    Padding="4,0">
+                                                <TextBlock Text="{Binding Icon}"
+                                                           Foreground="{Binding BadgeTextBrush}"
+                                                           FontSize="9"
+                                                           FontWeight="Bold"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding Name}"
+                                                       Foreground="{StaticResource TextMainBrush}"
+                                                       FontSize="14"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </HierarchicalDataTemplate>
+                                </TreeView.Resources>
+                                <TreeView.ItemContainerStyle>
+                                    <Style TargetType="TreeViewItem">
+                                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                        <Setter Property="Tag"
+                                                Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        <Setter Property="ContextMenu">
+                                            <Setter.Value>
+                                                <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                                    <MenuItem Header="Add">
+                                                        <MenuItem Header="New Folder"
+                                                                  Command="{Binding NewDirectoryCommand}"
+                                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                        <MenuItem Header="New Fava File"
+                                                                  Command="{Binding NewFavaFileCommand}"
+                                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                        <MenuItem Header="New Text File"
+                                                                  Command="{Binding NewTextFileCommand}"
+                                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Delete"
+                                                              Command="{Binding DeleteNodeCommand}"
+                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                </ContextMenu>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </TreeView.ItemContainerStyle>
+                            </TreeView>
+                        </DockPanel>
+
+                        <GridSplitter Grid.Row="1"
+                                      Height="5"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
+                                      ResizeDirection="Rows"
+                                      Background="{StaticResource BorderBrush}"/>
+
+                        <DockPanel Grid.Row="2">
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,7"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,1,0,1"
+                                    Background="{StaticResource BgPanelAltBrush}">
+                                <DockPanel LastChildFill="False">
+                                     <TextBlock DockPanel.Dock="Left"
+                                                Text="TEST SUITE"
+                                                FontSize="12"
+                                                FontWeight="Bold"
+                                                Foreground="{StaticResource TextMutedBrush}"
+                                                VerticalAlignment="Center"/>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="New Test"
+                                                Command="{Binding CreateTestPairCommand}"
+                                                Padding="8,3"
+                                                FontSize="12"
+                                                Margin="0,0,6,0"/>
+                                        <Button Content="Run All"
+                                                Command="{Binding RunAllTestsCommand}"
+                                                Style="{StaticResource AccentButton}"
+                                                Padding="8,3"
+                                                FontSize="12"
+                                                Margin="0,0,6,0"/>
+                                        <Button Content="Run Selected"
+                                                Command="{Binding RunSelectedTestsCommand}"
+                                                Padding="8,3"
+                                                FontSize="12"/>
                                     </StackPanel>
-                                </HierarchicalDataTemplate>
-                            </TreeView.Resources>
-                            <TreeView.ItemContainerStyle>
-                                <Style TargetType="TreeViewItem">
-                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                    <Setter Property="Tag"
-                                            Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
-                                    <Setter Property="ContextMenu">
-                                        <Setter.Value>
-                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-                                                <MenuItem Header="Add">
-                                                    <MenuItem Header="New Folder"
-                                                              Command="{Binding NewDirectoryCommand}"
-                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                    <MenuItem Header="New Fava File"
-                                                              Command="{Binding NewFavaFileCommand}"
-                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                    <MenuItem Header="New Text File"
-                                                              Command="{Binding NewTextFileCommand}"
-                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                </MenuItem>
-                                                <MenuItem Header="Delete"
-                                                          Command="{Binding DeleteNodeCommand}"
-                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                            </ContextMenu>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </TreeView.ItemContainerStyle>
-                        </TreeView>
-                    </DockPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,6"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="True">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="Open Input"
+                                                Command="{Binding OpenSelectedTestInputCommand}"
+                                                Padding="8,3"
+                                                FontSize="12"
+                                                Margin="0,0,6,0"/>
+                                        <Button Content="Open Output"
+                                                Command="{Binding OpenSelectedTestExpectedOutputCommand}"
+                                                Padding="8,3"
+                                                FontSize="12"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding TestSummary}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextMainBrush}"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="{StaticResource ControlDarkerBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestTotalCount, StringFormat=Total {0}}" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Grid.Column="2" Background="#172B1D" BorderBrush="#2C663A" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestPassedCount, StringFormat=Passed {0}}" Foreground="{StaticResource SuccessBrush}" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Grid.Column="4" Background="#351A1A" BorderBrush="#6A2A2A" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestFailedCount, StringFormat=Failed {0}}" Foreground="{StaticResource DangerBrush}" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Grid.Column="6" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestPassPercentText}" Foreground="{StaticResource AccentSoftBrush}" FontWeight="SemiBold"/>
+                                        </Border>
+                                    </Grid>
+                                    <ProgressBar Minimum="0"
+                                                 Maximum="100"
+                                                 Height="5"
+                                                 Value="{Binding TestPassPercent, Mode=OneWay}"
+                                                 Margin="0,8,0,0"
+                                                 Foreground="{StaticResource SuccessBrush}"
+                                                 Background="{StaticResource ControlDarkerBrush}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="3*"/>
+                                    <RowDefinition Height="2*"/>
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0">
+                                     <ListBox ItemsSource="{Binding TestResults}"
+                                              SelectedItem="{Binding SelectedTestResult}"
+                                              Margin="4,4,4,0"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Foreground="{StaticResource TextMainBrush}"
+                                              FontSize="13">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel Margin="0,2">
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                                Text="{Binding Status}"
+                                                                FontSize="12"
+                                                                FontWeight="Bold"
+                                                                Margin="8,0,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding HasRun}" Value="False">
+                                                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Passed}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#5AD18A"/>
+                                                                    </DataTrigger>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding HasRun}" Value="True"/>
+                                                                            <Condition Binding="{Binding Passed}" Value="False"/>
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter Property="Foreground" Value="#FF6D6D"/>
+                                                                    </MultiDataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding DurationText}"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               FontFamily="Consolas"
+                                                               FontSize="11"
+                                                               Margin="0,0,8,0"/>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   FontSize="14"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextMainBrush}"/>
+                                                        <TextBlock Text="{Binding Message}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   FontSize="11"
+                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="10"
+                                                                   TextTrimming="CharacterEllipsis">
+                                                            <Run Text="{Binding InputFileName, Mode=OneWay}"/>
+                                                            <Run Text=" -> "/>
+                                                            <Run Text="{Binding ExpectedOutputFileName, Mode=OneWay}"/>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <TextBlock Text="No tests found yet. Click 'New Test'."
+                                               Margin="12,10,12,0"
+                                               FontStyle="Italic"
+                                               FontSize="13"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TestResults.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+
+                                <Grid Grid.Row="1" Margin="8,6,8,8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   Text="{Binding SelectedTestDurationText}"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontFamily="Consolas"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding SelectedTestResult.Message}"
+                                                   Foreground="{StaticResource TextMainBrush}"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap"/>
+                                    </DockPanel>
+                                    <TabControl Grid.Row="1">
+                                        <TabItem Header="Diff">
+                                            <TextBox Text="{Binding SelectedTestDiffOutput, Mode=OneWay}"
+                                                     IsReadOnly="True"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="NoWrap"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     BorderThickness="0"
+                                                     Background="{StaticResource BgMainBrush}"
+                                                     Foreground="{StaticResource TextMainBrush}"
+                                                     FontFamily="Consolas"
+                                                     FontSize="12"
+                                                     Padding="8"/>
+                                        </TabItem>
+                                        <TabItem Header="Expected">
+                                            <TextBox Text="{Binding SelectedTestExpectedOutput, Mode=OneWay}"
+                                                     IsReadOnly="True"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="NoWrap"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     BorderThickness="0"
+                                                     Background="{StaticResource BgMainBrush}"
+                                                     Foreground="{StaticResource TextMainBrush}"
+                                                     FontFamily="Consolas"
+                                                     FontSize="12"
+                                                     Padding="8"/>
+                                        </TabItem>
+                                        <TabItem Header="Actual">
+                                            <TextBox Text="{Binding SelectedTestActualOutput, Mode=OneWay}"
+                                                     IsReadOnly="True"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="NoWrap"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     BorderThickness="0"
+                                                     Background="{StaticResource BgMainBrush}"
+                                                     Foreground="{StaticResource TextMainBrush}"
+                                                     FontFamily="Consolas"
+                                                     FontSize="12"
+                                                     Padding="8"/>
+                                        </TabItem>
+                                    </TabControl>
+                                </Grid>
+                            </Grid>
+                        </DockPanel>
+                    </Grid>
                 </Border>
 
                 <GridSplitter Grid.Column="1"
@@ -192,6 +542,7 @@
                 <Grid Grid.Column="2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="4*"/>
                         <RowDefinition Height="5"/>
                         <RowDefinition Height="*"/>
@@ -201,64 +552,139 @@
                             Background="{StaticResource BgPanelAltBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1"
-                            Padding="10,5">
+                            Padding="10,6">
                         <DockPanel LastChildFill="True">
                             <!-- Debug toolbar (visible when IsDebugging=true) -->
                             <StackPanel DockPanel.Dock="Right"
                                         Orientation="Horizontal"
-                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Margin="8,0,0,0">
-                                <Button Content="← Back"
+                                <Button Content="Back"
                                         Command="{Binding DebugStepBackCommand}"
                                         ToolTip="Step Back"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Padding="8,3"
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
-                                <Button Content="Step →"
+                                <Button Content="Step"
                                         Command="{Binding DebugStepCommand}"
                                         ToolTip="Step one instruction (F10)"
                                         Style="{StaticResource AccentButton}"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Padding="8,3"
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
-                                <Button Content="⏭ Call"
+                                <Button Content="Call"
                                         Command="{Binding DebugJumpToCallCommand}"
                                         ToolTip="Jump to next function call / return"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Padding="8,3"
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
-                                <Button Content="▶ Continue"
+                                <Button Content="Continue"
                                         Command="{Binding DebugContinueCommand}"
                                         ToolTip="Run to next breakpoint or end"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Padding="8,3"
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
-                                <Button Content="■ Stop"
+                                <Button Content="Stop"
                                         Command="{Binding DebugStopCommand}"
                                         ToolTip="Stop debug session (Shift+F5)"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Background="#4A1A1A"
                                         Foreground="IndianRed"
                                         BorderBrush="#6A2A2A"
                                         Padding="8,3"
                                         FontSize="12"/>
                             </StackPanel>
-                            <!-- Start Debug button (visible when NOT debugging) -->
-                            <Button DockPanel.Dock="Right"
-                                    Content="🔴 Debug (F5)"
-                                    Command="{Binding StartDebugCommand}"
-                                    Visibility="{Binding IsDebugging, Converter={StaticResource InverseBoolToVisibility}}"
-                                    Padding="8,3"
-                                    FontSize="12"
-                                    Margin="8,0,0,0"/>
-                            <TextBlock Text="{Binding CurrentFileName}"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       FontFamily="Consolas"
-                                       FontSize="12"
-                                       VerticalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CurrentFileName}"
+                                           Foreground="{StaticResource TextMainBrush}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"/>
+                                <Border Background="{StaticResource ControlDarkerBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="7,2"
+                                        Margin="10,0,0,0">
+                                    <TextBlock Text="{Binding LastRunStatus}"
+                                               Foreground="{Binding LastRunStatusBrush}"
+                                               FontFamily="Consolas"
+                                               FontSize="11"/>
+                                </Border>
+                            </StackPanel>
                         </DockPanel>
                     </Border>
 
-                    <Grid Grid.Row="1">
+                    <Border Grid.Row="1"
+                            Background="{StaticResource BgPanelAltBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1">
+                        <TabControl x:Name="EditorTabs"
+                                    ItemsSource="{Binding OpenEditorTabs}"
+                                    SelectedItem="{Binding SelectedEditorTab}"
+                                    Margin="0"
+                                    FontSize="13"
+                                    Background="{StaticResource TabStripBrush}"
+                                    BorderThickness="0"
+                                    AllowDrop="True"
+                                    PreviewMouseLeftButtonDown="EditorTabs_OnPreviewMouseLeftButtonDown"
+                                    PreviewMouseMove="EditorTabs_OnPreviewMouseMove"
+                                    Drop="EditorTabs_OnDrop"
+                                    DragOver="EditorTabs_OnDragOver">
+                            <TabControl.ItemContainerStyle>
+                                <Style TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
+                                    <Setter Property="MinWidth" Value="120"/>
+                                    <Setter Property="Padding" Value="10,7"/>
+                                </Style>
+                            </TabControl.ItemContainerStyle>
+                            <TabControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel LastChildFill="False" MinWidth="96" MaxWidth="230">
+                                        <Border DockPanel.Dock="Left"
+                                                Width="18"
+                                                Height="18"
+                                                CornerRadius="4"
+                                                Background="{Binding FileBadgeBrush}"
+                                                Margin="0,0,7,0">
+                                            <TextBlock Text="{Binding FileBadge}"
+                                                       Foreground="{Binding FileBadgeTextBrush}"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding FileName}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="*"
+                                                       Foreground="{StaticResource AccentSoftBrush}"
+                                                       FontWeight="Bold"
+                                                       Margin="4,0,0,0"
+                                                       Visibility="{Binding IsDirty, Converter={StaticResource BoolToVisibility}}"/>
+                                        </StackPanel>
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource TabCloseButton}"
+                                                VerticalAlignment="Center"
+                                                ToolTip="Close tab"
+                                                Command="{Binding DataContext.CloseEditorTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </TabControl.ItemTemplate>
+                            <TabControl.ContentTemplate>
+                                <DataTemplate>
+                                    <Border Height="0" Visibility="Collapsed"/>
+                                </DataTemplate>
+                            </TabControl.ContentTemplate>
+                        </TabControl>
+                    </Border>
+
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="4*"/>
                             <ColumnDefinition Width="5"/>
@@ -276,13 +702,121 @@
                             </ColumnDefinition>
                         </Grid.ColumnDefinitions>
 
-                        <avalonedit:TextEditor Grid.Column="0"
-                                               x:Name="Editor"
-                                               FontFamily="Consolas"
-                                               FontSize="14"
-                                               ShowLineNumbers="True"
-                                               Background="{StaticResource BgMainBrush}"
-                                               Foreground="{StaticResource TextMainBrush}"/>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <Border x:Name="EditorFindBar"
+                                    Grid.Row="0"
+                                    Visibility="Collapsed"
+                                    Background="{StaticResource BgPanelAltBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="8,6">
+                                <DockPanel LastChildFill="True">
+                                    <Button DockPanel.Dock="Right"
+                                            Style="{StaticResource TabCloseButton}"
+                                            ToolTip="Close"
+                                            Click="CloseEditorFindBar_OnClick"/>
+                                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                                        <TextBox x:Name="FindBox"
+                                                 Width="210"
+                                                 Padding="8,5"
+                                                 Margin="0,0,6,0"
+                                                 ToolTip="Find"
+                                                 TextChanged="FindBox_OnTextChanged"
+                                                 KeyDown="FindBox_OnKeyDown"/>
+                                        <TextBox x:Name="ReplaceBox"
+                                                 Width="190"
+                                                 Padding="8,5"
+                                                 Margin="0,0,6,0"
+                                                 ToolTip="Replace"
+                                                 KeyDown="ReplaceBox_OnKeyDown"/>
+                                        <Button Content="Next"
+                                                Padding="10,5"
+                                                Margin="0,0,4,0"
+                                                Click="FindNext_OnClick"/>
+                                        <Button Content="Prev"
+                                                Padding="10,5"
+                                                Margin="0,0,4,0"
+                                                Click="FindPrevious_OnClick"/>
+                                        <Button Content="Replace"
+                                                Padding="10,5"
+                                                Margin="0,0,4,0"
+                                                Click="ReplaceOne_OnClick"/>
+                                        <Button Content="All"
+                                                Padding="10,5"
+                                                Margin="0,0,10,0"
+                                                Click="ReplaceAll_OnClick"/>
+                                        <CheckBox x:Name="MatchCaseCheck"
+                                                  Content="Aa"
+                                                  Margin="0,0,10,0"
+                                                  ToolTip="Match case"
+                                                  Checked="SearchOption_OnChanged"
+                                                  Unchecked="SearchOption_OnChanged"/>
+                                        <CheckBox x:Name="WholeWordCheck"
+                                                  Content="Word"
+                                                  Margin="0,0,12,0"
+                                                  ToolTip="Whole word"
+                                                  Checked="SearchOption_OnChanged"
+                                                  Unchecked="SearchOption_OnChanged"/>
+                                        <TextBlock x:Name="SearchStatus"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBox x:Name="GoToLineBox"
+                                                 Width="84"
+                                                 Padding="8,5"
+                                                 Margin="12,0,4,0"
+                                                 ToolTip="Line"
+                                                 KeyDown="GoToLineBox_OnKeyDown"/>
+                                        <Button Content="Go"
+                                                Padding="10,5"
+                                                Margin="0"
+                                                Click="GoToLine_OnClick"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <avalonedit:TextEditor Grid.Row="1"
+                                                   x:Name="Editor"
+                                                   FontFamily="Consolas"
+                                                   FontSize="15"
+                                                   ShowLineNumbers="True"
+                                                   LineNumbersForeground="{StaticResource TextMutedBrush}"
+                                                   Background="{StaticResource BgMainBrush}"
+                                                   Foreground="{StaticResource TextMainBrush}">
+                                <avalonedit:TextEditor.ContextMenu>
+                                    <ContextMenu Opened="EditorContextMenu_OnOpened">
+                                        <MenuItem x:Name="EditorContextCut" Header="Cut" Click="EditorContextCut_OnClick"/>
+                                        <MenuItem x:Name="EditorContextCopy" Header="Copy" Click="EditorContextCopy_OnClick"/>
+                                        <MenuItem x:Name="EditorContextPaste" Header="Paste" Click="EditorContextPaste_OnClick"/>
+                                        <MenuItem x:Name="EditorContextDelete" Header="Delete" Click="EditorContextDelete_OnClick"/>
+                                        <Separator/>
+                                        <MenuItem Header="Select All" Click="EditorContextSelectAll_OnClick"/>
+                                        <MenuItem Header="Find" Click="EditorContextFind_OnClick"/>
+                                        <MenuItem Header="Replace" Click="EditorContextReplace_OnClick"/>
+                                        <MenuItem Header="Go To Line" Click="EditorContextGoToLine_OnClick"/>
+                                        <Separator/>
+                                        <MenuItem x:Name="EditorContextFormatSelection" Header="Format Selection Indent" Click="EditorContextFormatSelection_OnClick"/>
+                                        <MenuItem Header="Format Document Indent" Click="EditorContextFormatDocument_OnClick"/>
+                                        <MenuItem x:Name="EditorContextToggleComment" Header="Toggle Line Comment" Click="EditorContextToggleComment_OnClick"/>
+                                        <MenuItem Header="Duplicate Line" Click="EditorContextDuplicateLine_OnClick"/>
+                                        <MenuItem Header="Move Line Up" Click="EditorContextMoveLineUp_OnClick"/>
+                                        <MenuItem Header="Move Line Down" Click="EditorContextMoveLineDown_OnClick"/>
+                                        <Separator/>
+                                        <MenuItem Header="Toggle Breakpoint" Click="EditorContextToggleBreakpoint_OnClick"/>
+                                        <MenuItem Header="Save File" Click="EditorContextSaveFile_OnClick"/>
+                                        <MenuItem Header="Run Current File" Click="EditorContextRunCurrentFile_OnClick"/>
+                                    </ContextMenu>
+                                </avalonedit:TextEditor.ContextMenu>
+                            </avalonedit:TextEditor>
+                        </Grid>
 
                         <GridSplitter Grid.Column="1"
                                       Width="5"
@@ -492,187 +1026,397 @@
                         </Border>
                     </Grid>
 
-                    <GridSplitter Grid.Row="2"
+                    <GridSplitter Grid.Row="3"
                                   Height="5"
                                   HorizontalAlignment="Stretch"
                                   ResizeDirection="Rows"
                                   Background="{StaticResource BorderBrush}"/>
 
-                    <Border Grid.Row="3"
+                    <Border Grid.Row="4"
                             Background="{StaticResource BgPanelBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,1,0,0">
-                        <TabControl>
-                            <TabItem Header="VM Output">
-                                <TextBox x:Name="VmOutputBox"
-                                         Text="{Binding VmOutput, Mode=OneWay}"
-                                         IsReadOnly="True"
-                                         TextWrapping="Wrap"
-                                         FontFamily="Consolas"
-                                         FontSize="12"
-                                         Background="{StaticResource BgMainBrush}"
-                                         Foreground="{StaticResource TextMainBrush}"
-                                         BorderThickness="0"
-                                         Padding="10"
-                                         VerticalScrollBarVisibility="Auto"/>
-                            </TabItem>
-                            <TabItem Header="Constant Pool">
-                                <TextBox Text="{Binding ConstantPoolOutput, Mode=OneWay}"
-                                         IsReadOnly="True"
-                                         TextWrapping="Wrap"
-                                         FontFamily="Consolas"
-                                         FontSize="12"
-                                         Background="{StaticResource BgMainBrush}"
-                                         Foreground="{StaticResource TextMainBrush}"
-                                         BorderThickness="0"
-                                         Padding="10"
-                                         VerticalScrollBarVisibility="Auto"/>
-                            </TabItem>
-                            <TabItem Header="Instructions">
-                                <TextBox Text="{Binding InstructionsOutput, Mode=OneWay}"
-                                         IsReadOnly="True"
-                                         TextWrapping="Wrap"
-                                         FontFamily="Consolas"
-                                         FontSize="12"
-                                         Background="{StaticResource BgMainBrush}"
-                                         Foreground="{StaticResource TextMainBrush}"
-                                         BorderThickness="0"
-                                         Padding="10"
-                                         VerticalScrollBarVisibility="Auto"/>
-                            </TabItem>
-                        </TabControl>
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top"
+                                    Background="#202226"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="10,7">
+                                <DockPanel LastChildFill="True">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Background="{StaticResource ControlDarkerBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="7,2"
+                                                Margin="0,0,6,0">
+                                            <TextBlock Text="{Binding LastRunDurationText}"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="11"/>
+                                        </Border>
+                                        <Border Background="{StaticResource ControlDarkerBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="7,2"
+                                                Margin="0,0,8,0">
+                                            <TextBlock Text="{Binding ConsoleLineCountText}"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="11"/>
+                                        </Border>
+                                        <CheckBox Content="VM only"
+                                                  IsChecked="{Binding ShowOutputOnly}"
+                                                  ToolTip="Show only VM output in the main console"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,10,0"/>
+                                        <Button Command="{Binding CopyOutputCommand}"
+                                                Padding="8,3"
+                                                FontSize="12"
+                                                Margin="0,0,4,0"
+                                                ToolTip="Copy console output">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Viewbox Width="11" Height="11" Margin="0,0,6,0">
+                                                    <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 15 V 11 H 13 V 3 H 5 Z M 2 4 H 12 V 16 H 2 Z M 4 6 V 14 H 10 V 6 Z"/>
+                                                </Viewbox>
+                                                <TextBlock Text="Copy"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Command="{Binding ClearOutputCommand}"
+                                                Padding="8,3"
+                                                FontSize="12"
+                                                Margin="0"
+                                                ToolTip="Clear console output">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Viewbox Width="11" Height="11" Margin="0,0,6,0">
+                                                    <Path Fill="{StaticResource TextMainBrush}" Data="M 2 4 H 14 V 6 H 2 Z M 5 7 H 7 V 15 H 5 Z M 9 7 H 11 V 15 H 9 Z M 4 1 H 12 V 3 H 4 Z M 3 6 H 13 L 12 17 H 4 Z"/>
+                                                </Viewbox>
+                                                <TextBlock Text="Clear"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Viewbox Width="14" Height="14" Margin="0,0,8,0">
+                                            <Path Fill="{StaticResource AccentSoftBrush}" Data="M 1 3 H 17 V 15 H 1 Z M 3 5 V 13 H 15 V 5 Z M 4 6 L 8 9 L 4 12 V 10 L 6 9 L 4 8 Z M 9 11 H 13 V 12 H 9 Z"/>
+                                        </Viewbox>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding OutputHeaderTitle}"
+                                                       Foreground="{StaticResource TextMainBrush}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding LastRunStatus}"
+                                                       Foreground="{Binding LastRunStatusBrush}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="11"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <TabControl Background="{StaticResource BgMainBrush}">
+                                <TabItem Header="Console">
+                                    <TextBox x:Name="VmOutputBox"
+                                             Text="{Binding VmOutput, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             TextWrapping="NoWrap"
+                                             FontFamily="Consolas"
+                                             FontSize="13"
+                                             Background="#141519"
+                                             Foreground="{StaticResource TextMainBrush}"
+                                             BorderThickness="0"
+                                             Padding="14,12"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Auto"/>
+                                </TabItem>
+                                <TabItem Header="Constant Pool">
+                                    <TextBox Text="{Binding ConstantPoolOutput, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             TextWrapping="NoWrap"
+                                             FontFamily="Consolas"
+                                             FontSize="12"
+                                             Background="#141519"
+                                             Foreground="{StaticResource TextMainBrush}"
+                                             BorderThickness="0"
+                                             Padding="14,12"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Auto"/>
+                                </TabItem>
+                                <TabItem Header="Instructions">
+                                    <TextBox Text="{Binding InstructionsOutput, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             TextWrapping="NoWrap"
+                                             FontFamily="Consolas"
+                                             FontSize="12"
+                                             Background="#141519"
+                                             Foreground="{StaticResource TextMainBrush}"
+                                             BorderThickness="0"
+                                             Padding="14,12"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Auto"/>
+                                </TabItem>
+                            </TabControl>
+                        </DockPanel>
                     </Border>
                 </Grid>
             </Grid>
 
             <Grid Visibility="{Binding IsWelcomeViewVisible, Converter={StaticResource BoolToVisibility}}">
-                <Border Background="{StaticResource BgMainBrush}" Padding="28">
-                    <Grid>
+                <Border Background="{StaticResource BgMainBrush}" Padding="34,30">
+                    <Grid MaxWidth="1180" HorizontalAlignment="Center">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*"/>
-                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="1.1*"/>
+                            <ColumnDefinition Width="24"/>
                             <ColumnDefinition Width="3*"/>
                         </Grid.ColumnDefinitions>
+
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock Text="Fava Studio"
-                                       FontSize="44"
+                                       FontSize="42"
                                        FontWeight="Bold"
                                        Foreground="#FF9A3D"
+                                       Margin="0,0,0,6"/>
+                            <TextBlock Text="Compiler workspace"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextMainBrush}"
                                        Margin="0,0,0,8"/>
-                            <TextBlock Text="Welcome! Start quickly by creating a new project, opening an existing one, or continuing from your recent projects."
+                            <TextBlock Text="Open a recent project or start a clean workspace."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Margin="0,0,0,20"/>
-                            <WrapPanel>
-                                <Button Content="Create New Project" Command="{Binding CreateProjectCommand}" Style="{StaticResource AccentButton}" Padding="16,9" Margin="0,0,8,8"/>
-                                <Button Content="Open Project" Command="{Binding OpenProjectCommand}" Padding="16,9" Margin="0,0,8,8"/>
-                            </WrapPanel>
+                                       FontSize="14"
+                                       LineHeight="21"
+                                       Margin="0,0,0,22"/>
+                            <Button Content="Create New Project"
+                                    Command="{Binding CreateProjectCommand}"
+                                    Style="{StaticResource AccentButton}"
+                                    Padding="18,10"
+                                    Margin="0,0,0,10"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"/>
+                            <Button Content="Open Project"
+                                    Command="{Binding OpenProjectCommand}"
+                                    Padding="18,10"
+                                    Margin="0"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"/>
                         </StackPanel>
 
                         <Border Grid.Column="2"
                                 Background="{StaticResource BgPanelBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12">
-                            <StackPanel>
-                                <TextBlock Text="Recent Projects"
-                                           FontWeight="SemiBold"
-                                           FontSize="18"
-                                           Margin="0,0,0,8"/>
-                                <ListBox ItemsSource="{Binding RecentProjects}" BorderThickness="0" Background="Transparent">
+                                CornerRadius="6"
+                                Padding="0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Border Padding="16,12"
+                                        Background="{StaticResource BgPanelAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        CornerRadius="6,6,0,0">
+                                    <DockPanel>
+                                        <TextBlock Text="{Binding WelcomeRecentProjects.Count}"
+                                                   DockPanel.Dock="Right"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="Recent Projects"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="18"
+                                                   Foreground="{StaticResource TextMainBrush}"/>
+                                    </DockPanel>
+                                </Border>
+
+                                <ListBox Grid.Row="1"
+                                         ItemsSource="{Binding WelcomeRecentProjects}"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         Padding="8">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Button Content="{Binding}"
-                                                    Command="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"
+                                            <Button Command="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding Path}"
                                                     Margin="0,0,0,6"
-                                                    Padding="10,8"
-                                                    HorizontalContentAlignment="Left"/>
+                                                    Padding="0"
+                                                    HorizontalContentAlignment="Stretch">
+                                                <Grid Width="Auto" Margin="12,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="12"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="34"
+                                                            Height="34"
+                                                            CornerRadius="6"
+                                                            Background="{StaticResource FavaFileBadgeBrush}">
+                                                        <TextBlock Text="F"
+                                                                   Foreground="#1A1110"
+                                                                   FontSize="18"
+                                                                   FontWeight="Bold"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   Foreground="{StaticResource TextMainBrush}"
+                                                                   FontSize="15"
+                                                                   FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{Binding Location}"
+                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   FontSize="12"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Margin="0,2,0,0"/>
+                                                        <TextBlock Text="{Binding Details}"
+                                                                   Foreground="{StaticResource AccentSoftBrush}"
+                                                                   FontSize="11"
+                                                                   Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Button>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
-                            </StackPanel>
+                            </Grid>
                         </Border>
                     </Grid>
                 </Border>
             </Grid>
-
             <Grid Visibility="{Binding IsSettingsViewVisible, Converter={StaticResource BoolToVisibility}}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{StaticResource BgMainBrush}">
-                    <StackPanel MaxWidth="860">
-                        <DockPanel Margin="0,0,0,18">
-                            <TextBlock DockPanel.Dock="Left" Text="Settings" FontSize="24" FontWeight="Bold"/>
-                            <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" />
+                    <StackPanel MaxWidth="980">
+                        <DockPanel Margin="0,0,0,20">
+                            <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" Padding="14,7" Margin="0"/>
+                            <StackPanel>
+                                <TextBlock Text="Settings" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}"/>
+                                <TextBlock Text="Workspace, compiler, editor output, and test runner preferences." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
                         </DockPanel>
 
-                        <TextBlock Text="APPEARANCE"
-                                   FontSize="11"
-                                   FontWeight="Bold"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   Margin="0,0,0,8"/>
-                        <Border BorderBrush="{StaticResource BorderBrush}"
+                        <Border Background="{StaticResource BgPanelBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
-                                Padding="14,12"
-                                Margin="0,0,0,20"
-                                Background="{StaticResource BgPanelBrush}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="240"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Terminal Output Mode" VerticalAlignment="Center"/>
-                                <CheckBox Grid.Column="1"
-                                          Content="VM output only (exclude constant pool/instructions from main output)"
-                                          IsChecked="{Binding ShowOutputOnly}" />
-                            </Grid>
+                                Padding="16,14"
+                                Margin="0,0,0,14">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Background="#263821" BorderBrush="#3E6A34" BorderThickness="1" CornerRadius="4" Padding="10,4">
+                                    <TextBlock Text="{Binding CompilerStatusText}" Foreground="{Binding CompilerStatusBrush}" FontWeight="SemiBold"/>
+                                </Border>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding SettingsProjectName}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}"/>
+                                    <TextBlock Text="{Binding SettingsProjectPath}" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </DockPanel>
                         </Border>
 
-                        <TextBlock Text="COMPILER"
-                                   FontSize="11"
-                                   FontWeight="Bold"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   Margin="0,0,0,8"/>
                         <Border BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
-                                Padding="14,12"
-                                Margin="0,0,0,20"
+                                Padding="16,14"
+                                Margin="0,0,0,14"
                                 Background="{StaticResource BgPanelBrush}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="170"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="14"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="10"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="10"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Compiler" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}"/>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Java Executable" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Settings.JavaPath}"/>
-                                <Button Grid.Row="0" Grid.Column="2" Content="Browse…" Command="{Binding BrowseJavaPathCommand}" Margin="6,0,0,0"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Java executable" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding JavaPath, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                <Border Grid.Row="2" Grid.Column="2" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{Binding JavaStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
+                                    <TextBlock Text="{Binding JavaStatusText}" Foreground="{Binding JavaStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                </Border>
+                                <Button Grid.Row="2" Grid.Column="3" Content="Browse" Command="{Binding BrowseJavaPathCommand}" Margin="8,0,0,0" Padding="12,5"/>
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Compiler Root" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Settings.CompilerRoot}"/>
-                                <Button Grid.Row="2" Grid.Column="2" Content="Browse…" Command="{Binding BrowseCompilerRootCommand}" Margin="6,0,0,0"/>
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Compiler root" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding CompilerRoot, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                <Border Grid.Row="4" Grid.Column="2" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{Binding CompilerRootStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
+                                    <TextBlock Text="{Binding CompilerRootStatusText}" Foreground="{Binding CompilerRootStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                </Border>
+                                <Button Grid.Row="4" Grid.Column="3" Content="Browse" Command="{Binding BrowseCompilerRootCommand}" Margin="8,0,0,0" Padding="12,5"/>
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="ANTLR Jar" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Settings.AntlrJar}"/>
-                                <Button Grid.Row="4" Grid.Column="2" Content="Browse…" Command="{Binding BrowseAntlrJarCommand}" Margin="6,0,0,0"/>
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="ANTLR jar" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding AntlrJar, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                <Border Grid.Row="6" Grid.Column="2" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{Binding AntlrStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
+                                    <TextBlock Text="{Binding AntlrStatusText}" Foreground="{Binding AntlrStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                </Border>
+                                <Button Grid.Row="6" Grid.Column="3" Content="Browse" Command="{Binding BrowseAntlrJarCommand}" Margin="8,0,0,0" Padding="12,5"/>
                             </Grid>
+                        </Border>
+
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="14"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Background="{StaticResource BgPanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14">
+                                <StackPanel>
+                                    <TextBlock Text="Output" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" Margin="0,0,0,12"/>
+                                    <CheckBox Content="Show VM output only" IsChecked="{Binding ShowOutputOnly}" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Keeps the main run output focused by hiding constant pool and instruction sections." Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Background="{StaticResource BgPanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14">
+                                <StackPanel>
+                                    <DockPanel Margin="0,0,0,12">
+                                        <Border DockPanel.Dock="Right" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{Binding TestFoldersStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4">
+                                            <TextBlock Text="{Binding TestFoldersStatusText}" Foreground="{Binding TestFoldersStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <TextBlock Text="Test Folders" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}"/>
+                                    </DockPanel>
+                                    <TextBlock Text="Inputs" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Margin="0,4,0,10">
+                                        <Button DockPanel.Dock="Right" Content="Browse" Command="{Binding BrowseToolInputsFolderCommand}" Margin="8,0,0,0" Padding="12,5"/>
+                                        <TextBox Text="{Binding ToolInputsFolder, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+                                    <TextBlock Text="Expected outputs" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Margin="0,4,0,0">
+                                        <Button DockPanel.Dock="Right" Content="Browse" Command="{Binding BrowseToolOutputsFolderCommand}" Margin="8,0,0,0" Padding="12,5"/>
+                                        <TextBox Text="{Binding ToolOutputsFolder, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border Background="{StaticResource BgPanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14" Margin="0,0,0,16">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button Content="Clear Projects" Command="{Binding ClearRecentProjectsCommand}" Padding="12,5" Margin="0,0,8,0"/>
+                                    <Button Content="Clear Files" Command="{Binding ClearRecentFilesCommand}" Padding="12,5" Margin="0"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Recent History" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}"/>
+                                    <TextBlock Text="{Binding RecentSummary}" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </DockPanel>
                         </Border>
 
                         <Button Content="Save Settings"
                                 Command="{Binding SaveSettingsCommand}"
                                 Style="{StaticResource AccentButton}"
                                 HorizontalAlignment="Left"
-                                Padding="18,9"/>
+                                Padding="18,9"
+                                Margin="0"/>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
@@ -743,7 +1487,8 @@
 
                         <DataGrid ItemsSource="{Binding ToolTestPairs}"
                                   SelectedItem="{Binding SelectedToolTestPair}"
-                                  AutoGenerateColumns="False">
+                                  AutoGenerateColumns="False"
+                                  MaxHeight="260">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
                                 <DataGridTemplateColumn Header="Input (.fava)" Width="*">
@@ -756,7 +1501,11 @@
                                                         FontSize="13"
                                                         Command="{Binding DataContext.BrowseToolPairInputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
-                                                <TextBlock Text="{Binding InputFile}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding InputFileName}"
+                                                           ToolTip="{Binding InputFile}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,0,8,0"/>
                                             </DockPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
@@ -771,7 +1520,11 @@
                                                         FontSize="13"
                                                         Command="{Binding DataContext.BrowseToolPairExpectedOutputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
-                                                <TextBlock Text="{Binding ExpectedOutputFile}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding ExpectedOutputFileName}"
+                                                           ToolTip="{Binding ExpectedOutputFile}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,0,8,0"/>
                                             </DockPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
@@ -780,17 +1533,10 @@
                             </DataGrid.Columns>
                         </DataGrid>
 
-                        <Grid Margin="0,12,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <GroupBox Header="Expected Output" Grid.Column="0">
-                                <TextBox Text="{Binding SelectedToolExpectedOutput}"
+                        <TabControl Margin="0,12,0,0"
+                                    MinHeight="260">
+                            <TabItem Header="Diff">
+                                <TextBox Text="{Binding SelectedToolDiffOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"
@@ -798,10 +1544,10 @@
                                          VerticalScrollBarVisibility="Auto"
                                          FontFamily="Consolas"
                                          FontSize="13"
-                                         MinHeight="180"/>
-                            </GroupBox>
-                            <GroupBox Header="Actual Output" Grid.Column="2">
-                                <TextBox Text="{Binding SelectedToolActualOutput}"
+                                         MinHeight="220"/>
+                            </TabItem>
+                            <TabItem Header="Expected">
+                                <TextBox Text="{Binding SelectedToolExpectedOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"
@@ -809,10 +1555,10 @@
                                          VerticalScrollBarVisibility="Auto"
                                          FontFamily="Consolas"
                                          FontSize="13"
-                                         MinHeight="180"/>
-                            </GroupBox>
-                            <GroupBox Header="Diff" Grid.Column="4">
-                                <TextBox Text="{Binding SelectedToolDiffOutput}"
+                                         MinHeight="220"/>
+                            </TabItem>
+                            <TabItem Header="Actual">
+                                <TextBox Text="{Binding SelectedToolActualOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"
@@ -820,9 +1566,9 @@
                                          VerticalScrollBarVisibility="Auto"
                                          FontFamily="Consolas"
                                          FontSize="13"
-                                         MinHeight="180"/>
-                            </GroupBox>
-                        </Grid>
+                                         MinHeight="220"/>
+                            </TabItem>
+                        </TabControl>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
@@ -972,7 +1718,7 @@
                             </GroupBox>
 
                             <GroupBox Header="VM Output (simulated)" Grid.Column="2">
-                                <TextBox Text="{Binding VisualizerRunOutput}"
+                                <TextBox Text="{Binding VisualizerRunOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"
@@ -1066,3 +1812,4 @@
         </Border>
     </Grid>
 </Window>
+

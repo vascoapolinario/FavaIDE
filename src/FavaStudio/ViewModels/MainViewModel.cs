@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -28,6 +29,10 @@ public class MainViewModel : INotifyPropertyChanged
     private string _vmOutput = "";
     private string _constantPoolOutput = "";
     private string _instructionsOutput = "";
+    private string _lastFullOutput = "";
+    private string _lastRunStatus = "No run yet";
+    private string _lastRunDurationText = "--";
+    private Brush _lastRunStatusBrush = Brushes.Gray;
     private bool _showDiagnostics = true;
     private bool _isSettingsViewVisible;
     private bool _isToolsViewVisible;
@@ -39,12 +44,15 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _showOutputOnly = true;
     private bool _toolCompareFullOutput;
     private TestFilePair? _selectedToolTestPair;
+    private EditorTab? _selectedEditorTab;
+    private readonly HashSet<string> _currentTestTabPaths = new(StringComparer.OrdinalIgnoreCase);
     private string _toolRunSummary = "No tool runs yet.";
     private string _selectedToolExpectedOutput = "";
     private string _selectedToolActualOutput = "";
     private string _selectedToolDiffOutput = "";
     private TestResult? _selectedTestResult;
-    private string _testSummary = "";
+    private bool _suppressTestSelectionOpen;
+    private string _testSummary = "No tests run yet.";
     private readonly List<VisualizerInstruction> _allVisualizerInstructions = [];
     private readonly List<string> _allVisualizerConstants = [];
     private readonly List<VisualizerValue> _visualizerRuntimeStack = [];
@@ -76,6 +84,7 @@ public class MainViewModel : INotifyPropertyChanged
     private string _vmTraceOutput = "";
 
     public ObservableCollection<ProjectNode> ProjectTree { get; } = new();
+    public ObservableCollection<EditorTab> OpenEditorTabs { get; } = new();
     public ObservableCollection<FavaDiagnostic> Diagnostics { get; } = new();
     public ObservableCollection<TestResult> TestResults { get; } = new();
     public ObservableCollection<TestFilePair> ToolTestPairs { get; } = new();
@@ -86,6 +95,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<VisualizerGlobalEntry> VisualizerGlobals { get; } = new();
     public ObservableCollection<OpcodeReferenceItem> VisualizerOpcodeReference { get; } = new();
     public ObservableCollection<string> RecentProjects { get; } = new();
+    public ObservableCollection<RecentProjectItem> WelcomeRecentProjects { get; } = new();
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<string> QuickOpenResults { get; } = new();
     public ObservableCollection<DebugStackEntry> DebugStack { get; } = new();
@@ -97,17 +107,78 @@ public class MainViewModel : INotifyPropertyChanged
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(_currentFile)) return "No file open";
-            var suffix = _hasUnsavedChanges ? " *" : "";
-            return $"{Path.GetFileName(_currentFile)}{suffix}";
+            if (_selectedEditorTab is null || string.IsNullOrWhiteSpace(_selectedEditorTab.FilePath))
+                return "No file open";
+            return _selectedEditorTab.Header;
         }
     }
+    public EditorTab? SelectedEditorTab
+    {
+        get => _selectedEditorTab;
+        set => SelectEditorTab(value);
+    }
     public string CurrentProjectDirectory => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Project directory: (not set)" : Settings.ProjectRoot;
+    public string SettingsProjectName => string.IsNullOrWhiteSpace(Settings.ProjectRoot)
+        ? "No project loaded"
+        : Path.GetFileName(Settings.ProjectRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+    public string SettingsProjectPath => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Open a project to enable project-local workflows." : Settings.ProjectRoot;
+    public string JavaPath
+    {
+        get => Settings.JavaPath;
+        set
+        {
+            if (Settings.JavaPath == value) return;
+            Settings.JavaPath = value;
+            OnPropertyChanged();
+            RaiseSettingsValidationChanged();
+        }
+    }
+    public string CompilerRoot
+    {
+        get => Settings.CompilerRoot;
+        set
+        {
+            if (Settings.CompilerRoot == value) return;
+            Settings.CompilerRoot = value;
+            OnPropertyChanged();
+            RaiseSettingsValidationChanged();
+        }
+    }
+    public string AntlrJar
+    {
+        get => Settings.AntlrJar;
+        set
+        {
+            if (Settings.AntlrJar == value) return;
+            Settings.AntlrJar = value;
+            OnPropertyChanged();
+            RaiseSettingsValidationChanged();
+        }
+    }
+    public string CompilerStatusText => IsCompilerConfigured ? "Ready to run" : "Needs configuration";
+    public Brush CompilerStatusBrush => IsCompilerConfigured ? Brushes.LightGreen : Brushes.Orange;
+    public string JavaStatusText => string.IsNullOrWhiteSpace(Settings.JavaPath) ? "Required" : "Configured";
+    public Brush JavaStatusBrush => string.IsNullOrWhiteSpace(Settings.JavaPath) ? Brushes.Orange : Brushes.LightGreen;
+    public string CompilerRootStatusText => Directory.Exists(Settings.CompilerRoot) ? "Folder found" : "Missing folder";
+    public Brush CompilerRootStatusBrush => Directory.Exists(Settings.CompilerRoot) ? Brushes.LightGreen : Brushes.Orange;
+    public string AntlrStatusText => File.Exists(Settings.AntlrJar) ? "Jar found" : "Missing jar";
+    public Brush AntlrStatusBrush => File.Exists(Settings.AntlrJar) ? Brushes.LightGreen : Brushes.Orange;
+    public bool IsCompilerConfigured =>
+        !string.IsNullOrWhiteSpace(Settings.JavaPath) &&
+        Directory.Exists(Settings.CompilerRoot) &&
+        File.Exists(Settings.AntlrJar);
+    public string TestFoldersStatusText => Directory.Exists(Settings.InputsDir) && !string.IsNullOrWhiteSpace(Settings.OutputsDir)
+        ? "Test folders configured"
+        : "Test folders need setup";
+    public Brush TestFoldersStatusBrush => Directory.Exists(Settings.InputsDir) && !string.IsNullOrWhiteSpace(Settings.OutputsDir)
+        ? Brushes.LightGreen
+        : Brushes.Orange;
+    public string RecentSummary => $"{RecentProjects.Count} projects | {RecentFiles.Count} files";
     public string DiagnosticsHeader => Diagnostics.Count == 0 ? "Errors" : $"Errors ({Diagnostics.Count})";
 
     public Brush StatusColor { get => _statusColor; set { _statusColor = value; OnPropertyChanged(); } }
     public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
-    public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); } }
+    public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); OnPropertyChanged(nameof(ConsoleLineCountText)); } }
     public string ConstantPoolOutput { get => _constantPoolOutput; set { _constantPoolOutput = value; OnPropertyChanged(); } }
     public string InstructionsOutput { get => _instructionsOutput; set { _instructionsOutput = value; OnPropertyChanged(); } }
     public bool ShowDiagnostics
@@ -147,16 +218,58 @@ public class MainViewModel : INotifyPropertyChanged
             OpenSelectedQuickOpenFileCommand.RaiseCanExecuteChanged();
         }
     }
-    public bool ShowOutputOnly { get => _showOutputOnly; set { _showOutputOnly = value; OnPropertyChanged(); } }
+    public bool ShowOutputOnly
+    {
+        get => _showOutputOnly;
+        set
+        {
+            _showOutputOnly = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(OutputHeaderTitle));
+            if (!string.IsNullOrWhiteSpace(_lastFullOutput))
+                UpdateOutputs(_lastFullOutput);
+        }
+    }
     public bool ToolCompareFullOutput { get => _toolCompareFullOutput; set { _toolCompareFullOutput = value; OnPropertyChanged(); } }
-    public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); } }
-    public string ToolOutputsFolder { get => Settings.OutputsDir; set { Settings.OutputsDir = value; Settings.Save(); OnPropertyChanged(); } }
+    public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); RaiseSettingsValidationChanged(); } }
+    public string ToolOutputsFolder { get => Settings.OutputsDir; set { Settings.OutputsDir = value; Settings.Save(); OnPropertyChanged(); RaiseSettingsValidationChanged(); } }
     public string ToolRunSummary { get => _toolRunSummary; set { _toolRunSummary = value; OnPropertyChanged(); } }
     public string SelectedToolExpectedOutput { get => _selectedToolExpectedOutput; set { _selectedToolExpectedOutput = value; OnPropertyChanged(); } }
     public string SelectedToolActualOutput { get => _selectedToolActualOutput; set { _selectedToolActualOutput = value; OnPropertyChanged(); } }
     public string SelectedToolDiffOutput { get => _selectedToolDiffOutput; set { _selectedToolDiffOutput = value; OnPropertyChanged(); } }
     public string TestSummary { get => _testSummary; set { _testSummary = value; OnPropertyChanged(); } }
+    public int TestTotalCount => TestResults.Count;
+    public int TestRunCount => TestResults.Count(test => test.HasRun);
+    public int TestPassedCount => TestResults.Count(test => test.HasRun && test.Passed);
+    public int TestFailedCount => TestResults.Count(test => test.HasRun && !test.Passed);
+    public double TestPassPercent
+    {
+        get => TestRunCount == 0 ? 0 : (double)TestPassedCount / TestRunCount * 100;
+        set { }
+    }
+    public string TestPassPercentText => TestRunCount == 0 ? "No runs" : $"{TestPassPercent:0}% pass";
+    public string SelectedTestExpectedOutput
+    {
+        get => SelectedTestResult?.ExpectedOutput ?? "";
+        set { }
+    }
+    public string SelectedTestActualOutput
+    {
+        get => SelectedTestResult?.ActualOutput ?? "";
+        set { }
+    }
+    public string SelectedTestDiffOutput
+    {
+        get => SelectedTestResult?.DiffOutput ?? "";
+        set { }
+    }
+    public string SelectedTestDurationText => SelectedTestResult?.DurationText ?? "--";
     public bool ShowTestOutput { get => Settings.ShowTestOutput; set { Settings.ShowTestOutput = value; OnPropertyChanged(); } }
+    public string LastRunStatus { get => _lastRunStatus; set { _lastRunStatus = value; OnPropertyChanged(); } }
+    public string LastRunDurationText { get => _lastRunDurationText; set { _lastRunDurationText = value; OnPropertyChanged(); } }
+    public Brush LastRunStatusBrush { get => _lastRunStatusBrush; set { _lastRunStatusBrush = value; OnPropertyChanged(); } }
+    public string OutputHeaderTitle => ShowOutputOnly ? "Program Output" : "Full Compiler Output";
+    public string ConsoleLineCountText => $"{CountOutputLines(VmOutput)} lines";
     public string VisualizerRunOutput { get => _visualizerRunOutput; set { _visualizerRunOutput = value; OnPropertyChanged(); } }
     public string VisualizerInfo { get => _visualizerInfo; set { _visualizerInfo = value; OnPropertyChanged(); } }
     public bool VisualizerAutoSync { get => _visualizerAutoSync; set { _visualizerAutoSync = value; OnPropertyChanged(); } }
@@ -246,7 +359,20 @@ public class MainViewModel : INotifyPropertyChanged
     public TestResult? SelectedTestResult
     {
         get => _selectedTestResult;
-        set { _selectedTestResult = value; OnPropertyChanged(); }
+        set
+        {
+            _selectedTestResult = value;
+            OnPropertyChanged();
+            RunSelectedTestsCommand.RaiseCanExecuteChanged();
+            OpenSelectedTestInputCommand.RaiseCanExecuteChanged();
+            OpenSelectedTestExpectedOutputCommand.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(SelectedTestExpectedOutput));
+            OnPropertyChanged(nameof(SelectedTestActualOutput));
+            OnPropertyChanged(nameof(SelectedTestDiffOutput));
+            OnPropertyChanged(nameof(SelectedTestDurationText));
+            if (!_suppressTestSelectionOpen && _selectedTestResult is not null)
+                OpenSelectedTestFilesInTabs(_selectedTestResult);
+        }
     }
 
     public TestFilePair? SelectedToolTestPair
@@ -269,22 +395,11 @@ public class MainViewModel : INotifyPropertyChanged
             if (ReferenceEquals(_selectedProjectNode, value))
                 return;
 
-            if (value is not null && !value.IsDirectory && !TryResolveUnsavedChanges())
-                return;
-
             _selectedProjectNode = value;
             OnPropertyChanged();
             if (_selectedProjectNode is not null && !_selectedProjectNode.IsDirectory)
             {
-                _currentFile = _selectedProjectNode.FullPath;
-                _suppressDirtyTracking = true;
-                _editor.Text = FileService.ReadText(_currentFile);
-                _suppressDirtyTracking = false;
-                _hasUnsavedChanges = false;
-                AddRecentFile(_currentFile);
-                RefreshRecentCollections();
-                OnPropertyChanged(nameof(CurrentFileName));
-                StartDebugCommand.RaiseCanExecuteChanged();
+                OpenFileInEditorTab(_selectedProjectNode.FullPath, focus: true);
             }
         }
     }
@@ -297,6 +412,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand DeleteNodeCommand { get; }
     public RelayCommand SaveFileCommand { get; }
     public RelayCommand RunCurrentCommand { get; }
+    public RelayCommand CopyOutputCommand { get; }
+    public RelayCommand ClearOutputCommand { get; }
     public RelayCommand ToggleDiagnosticsCommand { get; }
     public RelayCommand OpenSettingsCommand { get; }
     public RelayCommand BackToEditorCommand { get; }
@@ -304,6 +421,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BrowseCompilerRootCommand { get; }
     public RelayCommand BrowseAntlrJarCommand { get; }
     public RelayCommand SaveSettingsCommand { get; }
+    public RelayCommand ClearRecentProjectsCommand { get; }
+    public RelayCommand ClearRecentFilesCommand { get; }
     public RelayCommand OpenToolsCommand { get; }
     public RelayCommand OpenVisualizerCommand { get; }
     public RelayCommand OpenRecentProjectCommand { get; }
@@ -322,6 +441,10 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand ClearToolPairsCommand { get; }
     public RelayCommand RunAllTestsCommand { get; }
     public RelayCommand RunSelectedTestsCommand { get; }
+    public RelayCommand CreateTestPairCommand { get; }
+    public RelayCommand OpenSelectedTestInputCommand { get; }
+    public RelayCommand OpenSelectedTestExpectedOutputCommand { get; }
+    public RelayCommand CloseEditorTabCommand { get; }
     public RelayCommand VisualizerLoadCurrentCommand { get; }
     public RelayCommand VisualizerStepCommand { get; }
     public RelayCommand VisualizerRunAllCommand { get; }
@@ -349,8 +472,11 @@ public class MainViewModel : INotifyPropertyChanged
         };
         _editor.TextChanged += (_, _) =>
         {
-            if (!_suppressDirtyTracking && !string.IsNullOrWhiteSpace(_currentFile))
+            if (!_suppressDirtyTracking && _selectedEditorTab is not null)
             {
+                _selectedEditorTab.Content = _editor.Text;
+                _selectedEditorTab.IsDirty = true;
+                _currentFile = _selectedEditorTab.FilePath;
                 _hasUnsavedChanges = true;
                 OnPropertyChanged(nameof(CurrentFileName));
             }
@@ -366,6 +492,8 @@ public class MainViewModel : INotifyPropertyChanged
         DeleteNodeCommand = new RelayCommand(n => DeleteNode(n as ProjectNode), n => n is ProjectNode);
         SaveFileCommand = new RelayCommand(_ => SaveFile());
         RunCurrentCommand = new RelayCommand(_ => RunCurrentFile(), _ => !string.IsNullOrWhiteSpace(_currentFile));
+        CopyOutputCommand = new RelayCommand(_ => CopyConsoleOutput(), _ => !string.IsNullOrWhiteSpace(VmOutput));
+        ClearOutputCommand = new RelayCommand(_ => ClearConsoleOutput(), _ => HasConsoleOutput());
         ToggleDiagnosticsCommand = new RelayCommand(_ => ShowDiagnostics = !ShowDiagnostics);
         OpenSettingsCommand = new RelayCommand(_ =>
         {
@@ -375,9 +503,27 @@ public class MainViewModel : INotifyPropertyChanged
         });
         BackToEditorCommand = new RelayCommand(_ => BackToEditor());
         BrowseJavaPathCommand = new RelayCommand(_ => BrowseJavaPath());
-        BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => Settings.CompilerRoot = v, "Compiler Root Folder"));
+        BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => CompilerRoot = v, "Compiler Root Folder"));
         BrowseAntlrJarCommand = new RelayCommand(_ => BrowseAntlrJar());
         SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
+        ClearRecentProjectsCommand = new RelayCommand(_ =>
+        {
+            Settings.RecentProjects.Clear();
+            Settings.Save();
+            RefreshRecentCollections();
+            RaiseSettingsValidationChanged();
+            StatusText = "Recent projects cleared.";
+            StatusColor = Brushes.LightGreen;
+        });
+        ClearRecentFilesCommand = new RelayCommand(_ =>
+        {
+            Settings.RecentFiles.Clear();
+            Settings.Save();
+            RefreshRecentCollections();
+            RaiseSettingsValidationChanged();
+            StatusText = "Recent files cleared.";
+            StatusColor = Brushes.LightGreen;
+        });
 
         OpenToolsCommand = new RelayCommand(_ =>
         {
@@ -416,6 +562,10 @@ public class MainViewModel : INotifyPropertyChanged
 
         RunAllTestsCommand = new RelayCommand(_ => RunAllTests());
         RunSelectedTestsCommand = new RelayCommand(_ => RunSelectedTest(), _ => SelectedTestResult != null);
+        CreateTestPairCommand = new RelayCommand(_ => CreateTestPairFromSuite(), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        OpenSelectedTestInputCommand = new RelayCommand(_ => OpenSelectedTestInputFile(), _ => SelectedTestResult is not null);
+        OpenSelectedTestExpectedOutputCommand = new RelayCommand(_ => OpenSelectedTestExpectedOutputFile(), _ => SelectedTestResult is not null);
+        CloseEditorTabCommand = new RelayCommand(tab => CloseEditorTab(tab as EditorTab), tab => tab is EditorTab);
         VisualizerLoadCurrentCommand = new RelayCommand(_ => LoadVisualizerFromCurrentFile());
         VisualizerStepCommand = new RelayCommand(_ => VisualizerStep(), _ => VisualizerCanStep);
         VisualizerRunAllCommand = new RelayCommand(_ => VisualizerRunAll(), _ => VisualizerCanStep);
@@ -433,6 +583,123 @@ public class MainViewModel : INotifyPropertyChanged
         RefreshRecentCollections();
         IsWelcomeViewVisible = true;
         ApplyVisualizerOpcodeFilter();
+    }
+
+    private void OpenFileInEditorTab(string filePath, bool focus)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            return;
+
+        var existing = OpenEditorTabs.FirstOrDefault(tab =>
+            string.Equals(tab.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is null)
+        {
+            existing = new EditorTab
+            {
+                FilePath = filePath,
+                Content = FileService.ReadText(filePath),
+                IsDirty = false
+            };
+            OpenEditorTabs.Add(existing);
+        }
+
+        AddRecentFile(filePath);
+        RefreshRecentCollections();
+
+        if (focus || SelectedEditorTab is null)
+            SelectedEditorTab = existing;
+    }
+
+    private void CloseEditorTab(EditorTab? tab)
+    {
+        if (tab is null)
+            return;
+        TryCloseEditorTab(tab);
+    }
+
+    private bool TryCloseEditorTab(EditorTab tab)
+    {
+        if (tab.IsDirty)
+        {
+            var answer = MessageBox.Show(
+                $"Save changes to '{tab.FileName}' before closing?",
+                "Unsaved Changes",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Warning);
+
+            if (answer == MessageBoxResult.Cancel)
+                return false;
+
+            if (answer == MessageBoxResult.Yes)
+            {
+                FileService.WriteText(tab.FilePath, tab.Content);
+                tab.IsDirty = false;
+            }
+            else
+            {
+                tab.Content = FileService.ReadText(tab.FilePath);
+                tab.IsDirty = false;
+            }
+        }
+
+        var removedIndex = OpenEditorTabs.IndexOf(tab);
+        var wasSelected = ReferenceEquals(_selectedEditorTab, tab);
+
+        OpenEditorTabs.Remove(tab);
+        _currentTestTabPaths.Remove(tab.FilePath);
+
+        if (!wasSelected)
+            return true;
+
+        _hasUnsavedChanges = false;
+        var newSelectedTab = OpenEditorTabs.Count == 0
+            ? null
+            : OpenEditorTabs[Math.Clamp(removedIndex, 0, OpenEditorTabs.Count - 1)];
+
+        SelectEditorTab(newSelectedTab);
+        return true;
+    }
+
+    private bool ClosePreviousTestTabs(IReadOnlyCollection<string> newTestPaths)
+    {
+        var newSet = new HashSet<string>(newTestPaths, StringComparer.OrdinalIgnoreCase);
+        var tabsToClose = OpenEditorTabs
+            .Where(tab => _currentTestTabPaths.Contains(tab.FilePath) && !newSet.Contains(tab.FilePath))
+            .ToList();
+
+        foreach (var tab in tabsToClose)
+        {
+            if (!TryCloseEditorTab(tab))
+                return false;
+        }
+
+        return true;
+    }
+
+    private void SelectEditorTab(EditorTab? tab)
+    {
+        if (ReferenceEquals(_selectedEditorTab, tab))
+            return;
+
+        if (_selectedEditorTab is not null)
+        {
+            _selectedEditorTab.Content = _editor.Text;
+            _selectedEditorTab.IsDirty = _hasUnsavedChanges;
+        }
+
+        _selectedEditorTab = tab;
+        _currentFile = tab?.FilePath;
+        _hasUnsavedChanges = tab?.IsDirty ?? false;
+
+        _suppressDirtyTracking = true;
+        _editor.Text = tab?.Content ?? "";
+        _suppressDirtyTracking = false;
+
+        OnPropertyChanged(nameof(SelectedEditorTab));
+        OnPropertyChanged(nameof(CurrentFileName));
+        RunCurrentCommand.RaiseCanExecuteChanged();
+        StartDebugCommand.RaiseCanExecuteChanged();
     }
 
     private void OpenProject()
@@ -484,6 +751,19 @@ public class MainViewModel : INotifyPropertyChanged
         if (!skipUnsavedCheck && !TryResolveUnsavedChanges())
             return;
 
+        OpenEditorTabs.Clear();
+        _currentTestTabPaths.Clear();
+        _selectedEditorTab = null;
+        _currentFile = null;
+        _hasUnsavedChanges = false;
+        _suppressDirtyTracking = true;
+        _editor.Text = "";
+        _suppressDirtyTracking = false;
+        OnPropertyChanged(nameof(SelectedEditorTab));
+        OnPropertyChanged(nameof(CurrentFileName));
+        RunCurrentCommand.RaiseCanExecuteChanged();
+        StartDebugCommand.RaiseCanExecuteChanged();
+
         var expandedPaths = CaptureExpandedPaths(ProjectTree.FirstOrDefault());
         var selectedPath = SelectedProjectNode?.FullPath;
         ProjectTree.Clear();
@@ -495,12 +775,16 @@ public class MainViewModel : INotifyPropertyChanged
             AddRecentProject(folder);
             Settings.Save();
             RefreshRecentCollections();
+            EnsureTestFoldersConfigured(createIfMissing: false);
+            RefreshTestSuiteCases();
             IsWelcomeViewVisible = false;
             BackToEditor();
             StatusText = $"Loaded project: {folder}";
             StatusColor = Brushes.LightBlue;
             OnPropertyChanged(nameof(CurrentProjectDirectory));
             OnPropertyChanged(nameof(IsWorkspaceVisible));
+            RaiseSettingsValidationChanged();
+            CreateTestPairCommand.RaiseCanExecuteChanged();
 
             RestoreExpandedPaths(root, expandedPaths);
             OpenInitialProjectFile(root, folder, selectedPath);
@@ -612,13 +896,19 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void SaveFile()
     {
-        if (string.IsNullOrWhiteSpace(_currentFile)) return;
-        FileService.WriteText(_currentFile, _editor.Text);
-        AddRecentFile(_currentFile);
+        var activeTab = _selectedEditorTab;
+        if (activeTab is null || string.IsNullOrWhiteSpace(activeTab.FilePath))
+            return;
+
+        activeTab.Content = _editor.Text;
+        FileService.WriteText(activeTab.FilePath, activeTab.Content);
+        activeTab.IsDirty = false;
+        _currentFile = activeTab.FilePath;
+        AddRecentFile(activeTab.FilePath);
         RefreshRecentCollections();
         _hasUnsavedChanges = false;
         OnPropertyChanged(nameof(CurrentFileName));
-        StatusText = $"Saved: {_currentFile}";
+        StatusText = $"Saved: {activeTab.FilePath}";
         StatusColor = Brushes.LightGreen;
     }
 
@@ -634,12 +924,11 @@ public class MainViewModel : INotifyPropertyChanged
             var runner = new JavaCompilerService(Settings);
             var result = await runner.RunFileAsync(_currentFile);
 
-            var diagnostics = DiagnosticsParser.Parse(result.Output);
+            var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text);
             Diagnostics.Clear();
             foreach (var d in diagnostics) Diagnostics.Add(d);
             OnPropertyChanged(nameof(DiagnosticsHeader));
 
-            UpdateOutputs(result.Output);
             if (diagnostics.Count > 0)
             {
                 StatusText = $"⚠️ {diagnostics.Count} error(s) found";
@@ -664,10 +953,15 @@ public class MainViewModel : INotifyPropertyChanged
         SaveFile();
         StatusText = "Running…";
         StatusColor = Brushes.LightGray;
+        LastRunStatus = $"Running {Path.GetFileName(_currentFile)}";
+        LastRunDurationText = "--";
+        LastRunStatusBrush = Brushes.LightGray;
 
         var runner = new JavaCompilerService(Settings);
+        var stopwatch = Stopwatch.StartNew();
         var result = await runner.RunFileAsync(_currentFile);
-        var diagnostics = DiagnosticsParser.Parse(result.Output);
+        stopwatch.Stop();
+        var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text);
         Diagnostics.Clear();
         foreach (var d in diagnostics) Diagnostics.Add(d);
         OnPropertyChanged(nameof(DiagnosticsHeader));
@@ -675,6 +969,9 @@ public class MainViewModel : INotifyPropertyChanged
         UpdateOutputs(result.Output);
         StatusText = result.Success ? "✅ Execution complete" : "❌ Execution failed";
         StatusColor = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
+        LastRunStatus = result.Success ? "Run completed" : "Run failed";
+        LastRunDurationText = FormatDuration(stopwatch.Elapsed);
+        LastRunStatusBrush = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
     }
 
     private static string SliceSection(string output, string[] starts, string[] stops)
@@ -703,6 +1000,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void UpdateOutputs(string fullOutput)
     {
+        _lastFullOutput = fullOutput;
         ConstantPoolOutput = SliceSection(fullOutput,
             ["constant pool"],
             ["instructions", "vm output", "vm trace"]);
@@ -726,6 +1024,57 @@ public class MainViewModel : INotifyPropertyChanged
 
         if (VisualizerAutoSync)
             LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+
+        CopyOutputCommand.RaiseCanExecuteChanged();
+        ClearOutputCommand.RaiseCanExecuteChanged();
+    }
+
+    private void CopyConsoleOutput()
+    {
+        if (string.IsNullOrWhiteSpace(VmOutput)) return;
+
+        try
+        {
+            Clipboard.SetText(VmOutput);
+            StatusText = "Console output copied.";
+            StatusColor = Brushes.LightGreen;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Copy failed: {ex.Message}";
+            StatusColor = Brushes.Orange;
+        }
+    }
+
+    private void ClearConsoleOutput()
+    {
+        _lastFullOutput = "";
+        VmOutput = "";
+        ConstantPoolOutput = "";
+        InstructionsOutput = "";
+        LastRunStatus = "Console cleared";
+        LastRunDurationText = "--";
+        LastRunStatusBrush = Brushes.Gray;
+        StatusText = "Console cleared.";
+        StatusColor = Brushes.LightGray;
+        CopyOutputCommand.RaiseCanExecuteChanged();
+        ClearOutputCommand.RaiseCanExecuteChanged();
+    }
+
+    private bool HasConsoleOutput() =>
+        !string.IsNullOrWhiteSpace(VmOutput) ||
+        !string.IsNullOrWhiteSpace(ConstantPoolOutput) ||
+        !string.IsNullOrWhiteSpace(InstructionsOutput);
+
+    private static string FormatDuration(TimeSpan duration) =>
+        duration.TotalSeconds >= 1
+            ? $"{duration.TotalSeconds:0.00}s"
+            : $"{duration.TotalMilliseconds:0}ms";
+
+    private static int CountOutputLines(string output)
+    {
+        if (string.IsNullOrEmpty(output)) return 0;
+        return output.Replace("\r\n", "\n").TrimEnd('\n').Split('\n').Length;
     }
 
     private async void LoadVisualizerFromCurrentFile()
@@ -1117,7 +1466,7 @@ public class MainViewModel : INotifyPropertyChanged
             Stack = _visualizerRuntimeStack.Select(v => new VisualizerValue { Type = v.Type, Value = v.Value }).ToList(),
             Globals = _visualizerGlobals.Select(g => g is null ? null : new VisualizerValue { Type = g.Type, Value = g.Value }).ToList<VisualizerValue?>(),
             Frames = _visualizerFrames.Select(f => new VisualizerFrameState { FramePointer = f.FramePointer, LocalCount = f.LocalCount }).ToList(),
-            FramePointer = _visualizerFramePointer,
+              FramePointer = _visualizerFramePointer,
             StepIndex = _visualizerStepIndex,
             Halted = _visualizerHalted,
             RunOutput = _visualizerRunOutput
@@ -1407,18 +1756,33 @@ public class MainViewModel : INotifyPropertyChanged
 
     private async void RunAllTests()
     {
-        TestResults.Clear();
+        var selectedName = SelectedTestResult?.Name;
+        RefreshTestSuiteCases(selectedName);
+        if (TestResults.Count == 0)
+        {
+            TestSummary = "No tests found. Use 'New Test' to create one.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
+        SelectedTestResult = null;
         TestSummary = "Running tests…";
         StatusColor = Brushes.LightGray;
 
         var runner = new TestRunnerService(Settings);
         var results = await runner.RunAllTestsAsync();
-        foreach (var r in results) TestResults.Add(r);
+        TestResults.Clear();
+        foreach (var r in results.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+            TestResults.Add(r);
+        if (!string.IsNullOrWhiteSpace(selectedName))
+            SelectedTestResult = TestResults.FirstOrDefault(t => t.Name == selectedName);
+        SelectedTestResult ??= TestResults.FirstOrDefault();
 
         var passed = results.Count(r => r.Passed);
         var total = results.Count;
         TestSummary = passed == total ? $"✅ ALL TESTS PASSED ({passed}/{total})" : $"❌ {passed}/{total} tests passed";
         StatusColor = passed == total ? Brushes.LightGreen : Brushes.IndianRed;
+        RaiseTestStatsChanged();
     }
 
     private async void RunSelectedTest()
@@ -1435,6 +1799,207 @@ public class MainViewModel : INotifyPropertyChanged
         SelectedTestResult = result;
         TestSummary = result.Passed ? $"✅ '{name}' passed" : $"❌ '{name}' failed";
         StatusColor = result.Passed ? Brushes.LightGreen : Brushes.IndianRed;
+        RaiseTestStatsChanged();
+    }
+
+    private void EnsureTestFoldersConfigured(bool createIfMissing)
+    {
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            return;
+
+        var changed = false;
+        if (string.IsNullOrWhiteSpace(Settings.InputsDir))
+        {
+            Settings.InputsDir = Path.Combine(Settings.ProjectRoot, "tests", "inputs");
+            changed = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(Settings.OutputsDir))
+        {
+            Settings.OutputsDir = Path.Combine(Settings.ProjectRoot, "tests", "outputs");
+            changed = true;
+        }
+
+        if (createIfMissing)
+        {
+            Directory.CreateDirectory(Settings.InputsDir);
+            Directory.CreateDirectory(Settings.OutputsDir);
+        }
+
+        if (changed)
+            Settings.Save();
+    }
+
+    private void RefreshTestSuiteCases(string? selectedName = null)
+    {
+        EnsureTestFoldersConfigured(createIfMissing: false);
+        TestResults.Clear();
+
+        if (string.IsNullOrWhiteSpace(Settings.InputsDir) || !Directory.Exists(Settings.InputsDir))
+        {
+            TestSummary = "No tests configured yet. Use 'New Test' to create one.";
+            SelectedTestResult = null;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Settings.OutputsDir))
+        {
+            TestSummary = "Configure outputs folder in Settings or use 'New Test'.";
+            SelectedTestResult = null;
+            return;
+        }
+
+        var testNames = Directory.GetFiles(Settings.InputsDir, "*.fava")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .OfType<string>()
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var name in testNames)
+        {
+            var input = Path.Combine(Settings.InputsDir, $"{name}.fava");
+            var expected = Path.Combine(Settings.OutputsDir, $"{name}.txt");
+            TestResults.Add(new TestResult
+            {
+                Name = name,
+                InputFile = input,
+                ExpectedOutputFile = expected,
+                HasRun = false,
+                Passed = false,
+                Message = $"Input: {input}\nExpected output: {expected}"
+            });
+        }
+        RaiseTestStatsChanged();
+
+        TestSummary = testNames.Count == 0
+            ? "No tests found. Use 'New Test' to create one."
+            : $"Discovered {testNames.Count} test(s).";
+
+        _suppressTestSelectionOpen = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(selectedName))
+                SelectedTestResult = TestResults.FirstOrDefault();
+            else
+                SelectedTestResult = TestResults.FirstOrDefault(t => t.Name == selectedName) ?? TestResults.FirstOrDefault();
+        }
+        finally
+        {
+            _suppressTestSelectionOpen = false;
+        }
+    }
+
+    private void CreateTestPairFromSuite()
+    {
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            return;
+
+        EnsureTestFoldersConfigured(createIfMissing: true);
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Create Input Test File",
+            InitialDirectory = Settings.InputsDir,
+            Filter = "Fava file (*.fava)|*.fava",
+            DefaultExt = ".fava",
+            AddExtension = true,
+            FileName = "test"
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        var inputPath = dialog.FileName;
+        var testName = Path.GetFileNameWithoutExtension(inputPath);
+        if (string.IsNullOrWhiteSpace(testName))
+            return;
+
+        var outputPath = Path.Combine(Settings.OutputsDir, $"{testName}.txt");
+        var inputDirectory = Path.GetDirectoryName(inputPath);
+        if (string.IsNullOrWhiteSpace(inputDirectory))
+        {
+            StatusText = "Failed to create test: invalid input file path.";
+            StatusColor = Brushes.IndianRed;
+            return;
+        }
+
+        Directory.CreateDirectory(inputDirectory);
+        Directory.CreateDirectory(Settings.OutputsDir);
+        if (!File.Exists(inputPath))
+            FileService.WriteText(inputPath, "");
+        if (!File.Exists(outputPath))
+            FileService.WriteText(outputPath, "");
+
+        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
+        RefreshTestSuiteCases(testName);
+        StatusText = $"Created test pair: {testName}.fava + {testName}.txt";
+        StatusColor = Brushes.LightGreen;
+    }
+
+    private void OpenSelectedTestInputFile()
+    {
+        var inputPath = SelectedTestResult?.InputFile;
+        if (string.IsNullOrWhiteSpace(inputPath))
+            return;
+        if (!File.Exists(inputPath))
+            return;
+        OpenFileInEditorTab(inputPath, focus: true);
+    }
+
+    private void OpenSelectedTestExpectedOutputFile()
+    {
+        var expectedPath = SelectedTestResult?.ExpectedOutputFile;
+        if (string.IsNullOrWhiteSpace(expectedPath))
+            return;
+
+        var directory = Path.GetDirectoryName(expectedPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+        if (!File.Exists(expectedPath))
+            FileService.WriteText(expectedPath, "");
+
+        OpenFileInEditorTab(expectedPath, focus: true);
+    }
+
+    private void OpenSelectedTestFilesInTabs(TestResult selectedTest)
+    {
+        if (string.IsNullOrWhiteSpace(selectedTest.InputFile))
+            return;
+        if (!File.Exists(selectedTest.InputFile))
+            return;
+
+        var testPaths = new List<string> { selectedTest.InputFile };
+
+        if (string.IsNullOrWhiteSpace(selectedTest.ExpectedOutputFile))
+        {
+            if (!ClosePreviousTestTabs(testPaths))
+                return;
+
+            _currentTestTabPaths.Clear();
+            _currentTestTabPaths.Add(selectedTest.InputFile);
+            OpenFileInEditorTab(selectedTest.InputFile, focus: true);
+            return;
+        }
+
+        var outputPath = selectedTest.ExpectedOutputFile;
+        var outputDirectory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(outputDirectory))
+            Directory.CreateDirectory(outputDirectory);
+        if (!File.Exists(outputPath))
+            FileService.WriteText(outputPath, "");
+
+        testPaths.Add(outputPath);
+        if (!ClosePreviousTestTabs(testPaths))
+            return;
+
+        _currentTestTabPaths.Clear();
+        foreach (var path in testPaths)
+            _currentTestTabPaths.Add(path);
+
+        OpenFileInEditorTab(selectedTest.InputFile, focus: true);
+        OpenFileInEditorTab(outputPath, focus: false);
     }
 
     private void BrowseJavaPath()
@@ -1446,8 +2011,7 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() == true)
         {
-            Settings.JavaPath = dialog.FileName;
-            OnPropertyChanged(nameof(Settings));
+            JavaPath = dialog.FileName;
         }
     }
 
@@ -1460,8 +2024,7 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() == true)
         {
-            Settings.AntlrJar = dialog.FileName;
-            OnPropertyChanged(nameof(Settings));
+            AntlrJar = dialog.FileName;
         }
     }
 
@@ -1472,6 +2035,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             setter(dialog.FolderName);
             OnPropertyChanged(nameof(Settings));
+            RaiseSettingsValidationChanged();
         }
     }
 
@@ -1480,6 +2044,7 @@ public class MainViewModel : INotifyPropertyChanged
         Settings.Save();
         StatusText = "Settings saved.";
         StatusColor = Brushes.LightGreen;
+        RaiseSettingsValidationChanged();
     }
 
     public void SetSelectedProjectNode(ProjectNode? node) => SelectedProjectNode = node;
@@ -1721,9 +2286,15 @@ public class MainViewModel : INotifyPropertyChanged
         foreach (var project in Settings.RecentProjects.Where(Directory.Exists))
             RecentProjects.Add(project);
 
+        WelcomeRecentProjects.Clear();
+        foreach (var project in RecentProjects)
+            WelcomeRecentProjects.Add(new RecentProjectItem(project));
+
         RecentFiles.Clear();
         foreach (var file in Settings.RecentFiles.Where(File.Exists))
             RecentFiles.Add(file);
+
+        OnPropertyChanged(nameof(RecentSummary));
     }
 
     private void OpenQuickOpen()
@@ -1777,11 +2348,14 @@ public class MainViewModel : INotifyPropertyChanged
 
     private bool TryResolveUnsavedChanges()
     {
-        if (!_hasUnsavedChanges || string.IsNullOrWhiteSpace(_currentFile))
+        var dirtyTabs = OpenEditorTabs.Where(tab => tab.IsDirty).ToList();
+        if (dirtyTabs.Count == 0)
             return true;
 
         var answer = MessageBox.Show(
-            $"You have unsaved changes in '{Path.GetFileName(_currentFile)}'. Save before continuing?",
+            dirtyTabs.Count == 1
+                ? $"You have unsaved changes in '{dirtyTabs[0].FileName}'. Save before continuing?"
+                : $"You have unsaved changes in {dirtyTabs.Count} open files. Save before continuing?",
             "Unsaved Changes",
             MessageBoxButton.YesNoCancel,
             MessageBoxImage.Warning);
@@ -1789,13 +2363,30 @@ public class MainViewModel : INotifyPropertyChanged
         if (answer == MessageBoxResult.Cancel)
             return false;
         if (answer == MessageBoxResult.Yes)
-            SaveFile();
+        {
+            foreach (var tab in dirtyTabs)
+            {
+                FileService.WriteText(tab.FilePath, tab.Content);
+                tab.IsDirty = false;
+            }
+        }
         if (answer == MessageBoxResult.No)
         {
-            _hasUnsavedChanges = false;
-            OnPropertyChanged(nameof(CurrentFileName));
+            foreach (var tab in dirtyTabs)
+            {
+                tab.Content = FileService.ReadText(tab.FilePath);
+                tab.IsDirty = false;
+            }
         }
 
+        if (_selectedEditorTab is not null)
+        {
+            _hasUnsavedChanges = _selectedEditorTab.IsDirty;
+            _suppressDirtyTracking = true;
+            _editor.Text = _selectedEditorTab.Content;
+            _suppressDirtyTracking = false;
+        }
+        OnPropertyChanged(nameof(CurrentFileName));
         return true;
     }
 
@@ -1869,12 +2460,17 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        OpenEditorTabs.Clear();
+        _currentTestTabPaths.Clear();
+        _selectedEditorTab = null;
         _currentFile = null;
         _suppressDirtyTracking = true;
         _editor.Text = "";
         _suppressDirtyTracking = false;
         _hasUnsavedChanges = false;
+        OnPropertyChanged(nameof(SelectedEditorTab));
         OnPropertyChanged(nameof(CurrentFileName));
+        RunCurrentCommand.RaiseCanExecuteChanged();
         StartDebugCommand.RaiseCanExecuteChanged();
     }
 
@@ -1921,4 +2517,37 @@ public class MainViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private void RaiseSettingsValidationChanged()
+    {
+        OnPropertyChanged(nameof(Settings));
+        OnPropertyChanged(nameof(SettingsProjectName));
+        OnPropertyChanged(nameof(SettingsProjectPath));
+        OnPropertyChanged(nameof(CompilerStatusText));
+        OnPropertyChanged(nameof(CompilerStatusBrush));
+        OnPropertyChanged(nameof(JavaStatusText));
+        OnPropertyChanged(nameof(JavaStatusBrush));
+        OnPropertyChanged(nameof(CompilerRootStatusText));
+        OnPropertyChanged(nameof(CompilerRootStatusBrush));
+        OnPropertyChanged(nameof(AntlrStatusText));
+        OnPropertyChanged(nameof(AntlrStatusBrush));
+        OnPropertyChanged(nameof(TestFoldersStatusText));
+        OnPropertyChanged(nameof(TestFoldersStatusBrush));
+        OnPropertyChanged(nameof(IsCompilerConfigured));
+        OnPropertyChanged(nameof(RecentSummary));
+    }
+
+    private void RaiseTestStatsChanged()
+    {
+        OnPropertyChanged(nameof(TestTotalCount));
+        OnPropertyChanged(nameof(TestRunCount));
+        OnPropertyChanged(nameof(TestPassedCount));
+        OnPropertyChanged(nameof(TestFailedCount));
+        OnPropertyChanged(nameof(TestPassPercent));
+        OnPropertyChanged(nameof(TestPassPercentText));
+        OnPropertyChanged(nameof(SelectedTestExpectedOutput));
+        OnPropertyChanged(nameof(SelectedTestActualOutput));
+        OnPropertyChanged(nameof(SelectedTestDiffOutput));
+        OnPropertyChanged(nameof(SelectedTestDurationText));
+    }
 }

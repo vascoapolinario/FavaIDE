@@ -1,0 +1,726 @@
+package TypeChecker;
+
+import Fava.FavaBaseVisitor;
+import Fava.FavaLexer;
+import Fava.FavaParser;
+import SymbolTable.FavaType;
+import SymbolTable.Symbol;
+import SymbolTable.SymbolTable;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.ParseTree;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+
+public class TypeChecker extends FavaBaseVisitor<FavaType> {
+
+    private record SemanticError(int line, int column, int order, String message) {}
+
+    private final Map<FavaParser.ExprContext, FavaType> inferredTypes = new IdentityHashMap<>();
+    private final Map<ParseTree, Symbol> resolvedSymbols = new IdentityHashMap<>();
+    private final List<SemanticError> semanticErrors = new ArrayList<>();
+    private final SymbolTable symbolTable = new SymbolTable();
+
+    private int errorOrder = 0;
+    private Symbol currentFunction;
+    private int nextLocalAddress = 2;
+
+    public Map<FavaParser.ExprContext, FavaType> getInferredTypes() {
+        return inferredTypes;
+    }
+
+    public SymbolTable getSymbolTable() {
+        return symbolTable;
+    }
+
+    public Symbol getResolvedSymbol(ParseTree node) {
+        return resolvedSymbols.get(node);
+    }
+
+    public Map<ParseTree, Symbol> getResolvedSymbols() {
+        return resolvedSymbols;
+    }
+
+    public List<String> getSemanticErrors() {
+        return semanticErrors.stream()
+                .sorted(Comparator.comparingInt(SemanticError::line)
+                        .thenComparingInt(SemanticError::column)
+                        .thenComparingInt(SemanticError::order))
+                .map(SemanticError::message)
+                .toList();
+    }
+
+    public boolean foundErrors() {
+        return !semanticErrors.isEmpty();
+    }
+
+    private String readableType(FavaType type) {
+        return type == null ? "void" : type.readableName();
+    }
+
+    private void saveType(FavaParser.ExprContext ctx, FavaType type) {
+        inferredTypes.put(ctx, type);
+    }
+
+    private void remember(ParseTree node, Symbol symbol) {
+        if (symbol != null) {
+            resolvedSymbols.put(node, symbol);
+        }
+    }
+
+    private void addError(int line, String message) {
+        addError(line, 1, message);
+    }
+
+    private void addError(ParserRuleContext ctx, String message) {
+        addError(ctx.start.getLine(), ctx.start.getCharPositionInLine() + 1, message);
+    }
+
+    private void addError(int line, int column, String message) {
+        semanticErrors.add(new SemanticError(
+                line,
+                column,
+                errorOrder++,
+                "semantic error at line " + line + ":" + column + " - " + message
+        ));
+    }
+
+    private void addBinaryError(ParserRuleContext ctx, String operator, FavaType leftType, FavaType rightType) {
+        addError(ctx, "operator " + operator + " is invalid between " + readableType(leftType) + " and " + readableType(rightType));
+    }
+
+    private void addUnaryError(ParserRuleContext ctx, String operator, FavaType operandType) {
+        addError(ctx, "operator " + operator + " is invalid for " + readableType(operandType));
+    }
+
+    private int scalarBaseType(FavaParser.TypeContext ctx) {
+        if (ctx.TYPEINTEGER() != null) return FavaLexer.INT;
+        if (ctx.TYPEREAL() != null) return FavaLexer.REAL;
+        if (ctx.TYPESTRING() != null) return FavaLexer.STRING;
+        if (ctx.TYPEBOOL() != null) return FavaLexer.BOOL;
+        throw new IllegalArgumentException("unknown declared type: " + ctx.getText());
+    }
+
+    private int scalarBaseType(FavaParser.ExprContext ctx) {
+        if (ctx.TYPEINTEGER() != null) return FavaLexer.INT;
+        if (ctx.TYPEREAL() != null) return FavaLexer.REAL;
+        if (ctx.TYPESTRING() != null) return FavaLexer.STRING;
+        if (ctx.TYPEBOOL() != null) return FavaLexer.BOOL;
+        throw new IllegalArgumentException("unknown array element type: " + ctx.getText());
+    }
+
+    private FavaType declaredTypeToExprType(FavaParser.TypeContext ctx) {
+        FavaType scalar = FavaType.scalar(scalarBaseType(ctx));
+        return ctx.LBRACK() == null ? scalar : FavaType.array(scalar.baseType());
+    }
+
+    private boolean assignmentCompatible(FavaType targetType, FavaType sourceType) {
+        if (targetType.equals(sourceType)) return true;
+        return targetType.isReal() && sourceType.isInteger();
+    }
+
+    private void collectGlobalDeclarations(List<FavaParser.DeclContext> declarations) {
+        for (FavaParser.DeclContext decl : declarations) {
+            FavaType declaredType = declaredTypeToExprType(decl.type());
+            for (FavaParser.VarDeclContext varDecl : decl.varDecl()) {
+                String name = varDecl.ID().getText();
+                if (symbolTable.hasGlobalName(name)) {
+                    addError(varDecl, name + " already declared");
+                    continue;
+                }
+                Symbol symbol = symbolTable.declareGlobalVariable(name, declaredType, varDecl.start.getLine());
+                remember(varDecl, symbol);
+            }
+        }
+    }
+
+    private Symbol buildTemporaryFunction(FavaParser.FuncDeclContext ctx) {
+        List<FavaType> parameterTypes = new ArrayList<>();
+        int paramTypeCount = ctx.ARROW() == null ? ctx.type().size() : ctx.type().size() - 1;
+        for (int i = 0; i < paramTypeCount; i++) {
+            parameterTypes.add(declaredTypeToExprType(ctx.type(i)));
+        }
+        FavaType returnType = ctx.ARROW() == null ? null : declaredTypeToExprType(ctx.type(ctx.type().size() - 1));
+        return new Symbol(ctx.ID(0).getText(), Symbol.Kind.FUNCTION, returnType, -1, ctx.start.getLine(), parameterTypes);
+    }
+
+    private void collectFunctionDeclarations(List<FavaParser.FuncDeclContext> functions) {
+        for (FavaParser.FuncDeclContext function : functions) {
+            String name = function.ID(0).getText();
+            Symbol symbol;
+            if (symbolTable.hasGlobalName(name)) {
+                addError(function, name + " already declared");
+                symbol = buildTemporaryFunction(function);
+            } else {
+                List<FavaType> parameterTypes = new ArrayList<>();
+                int paramTypeCount = function.ARROW() == null ? function.type().size() : function.type().size() - 1;
+                for (int i = 0; i < paramTypeCount; i++) {
+                    parameterTypes.add(declaredTypeToExprType(function.type(i)));
+                }
+                FavaType returnType = function.ARROW() == null ? null : declaredTypeToExprType(function.type(function.type().size() - 1));
+                symbol = symbolTable.declareFunction(name, returnType, parameterTypes, function.start.getLine());
+            }
+            remember(function, symbol);
+        }
+    }
+
+    private void checkGlobalInitializers(List<FavaParser.DeclContext> declarations) {
+        for (FavaParser.DeclContext decl : declarations) {
+            FavaType declaredType = declaredTypeToExprType(decl.type());
+            for (FavaParser.VarDeclContext varDecl : decl.varDecl()) {
+                if (varDecl.expr() == null) {
+                    continue;
+                }
+                FavaType exprType = visit(varDecl.expr());
+                if (exprType != null && !assignmentCompatible(declaredType, exprType)) {
+                    addError(varDecl, "operator := is invalid between " + readableType(declaredType) + " and " + readableType(exprType));
+                }
+            }
+        }
+    }
+
+    private void declareParameters(Symbol functionSymbol, FavaParser.FuncDeclContext ctx) {
+        int parameterCount = functionSymbol.getParameterCount();
+        if (parameterCount == 0) {
+            return;
+        }
+
+        for (int i = 0; i < parameterCount; i++) {
+            String name = ctx.ID(i + 1).getText();
+            FavaType declaredType = declaredTypeToExprType(ctx.type(i));
+            int address = i - parameterCount;
+            int line = ctx.ID(i + 1).getSymbol().getLine();
+
+            if (symbolTable.containsInCurrentScope(name)) {
+                addError(line, name + " already declared");
+                continue;
+            }
+
+            Symbol symbol = symbolTable.declareScopedVariable(name, declaredType, Symbol.Kind.ARGUMENT, address, line);
+            remember(ctx.ID(i + 1), symbol);
+        }
+    }
+
+    private void analyzeBlock(FavaParser.BlockContext ctx, boolean createScope) {
+        if (createScope) {
+            symbolTable.enterScope();
+        }
+
+        int blockLocals = 0;
+
+        for (FavaParser.DeclContext decl : ctx.decl()) {
+            FavaType declaredType = declaredTypeToExprType(decl.type());
+            for (FavaParser.VarDeclContext varDecl : decl.varDecl()) {
+                String name = varDecl.ID().getText();
+                if (symbolTable.containsInCurrentScope(name)) {
+                    addError(varDecl, name + " already declared");
+                } else {
+                    Symbol symbol = symbolTable.declareScopedVariable(name, declaredType, Symbol.Kind.LOCAL_VARIABLE, nextLocalAddress++, varDecl.start.getLine());
+                    remember(varDecl, symbol);
+                    blockLocals++;
+                }
+
+                if (varDecl.expr() != null) {
+                    FavaType exprType = visit(varDecl.expr());
+                    if (exprType != null && !assignmentCompatible(declaredType, exprType)) {
+                        addError(varDecl, "operator := is invalid between " + readableType(declaredType) + " and " + readableType(exprType));
+                    }
+                }
+            }
+        }
+
+        for (FavaParser.StmtContext stmt : ctx.stmt()) {
+            visit(stmt);
+        }
+
+        nextLocalAddress -= blockLocals;
+        if (createScope) {
+            symbolTable.exitScope();
+        }
+    }
+
+    private boolean alwaysReturns(FavaParser.BlockContext block) {
+        for (FavaParser.StmtContext stmt : block.stmt()) {
+            if (alwaysReturns(stmt)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean alwaysReturns(FavaParser.StmtContext stmt) {
+        if (stmt instanceof FavaParser.ReturnStmtContext) {
+            return true;
+        }
+        if (stmt instanceof FavaParser.BlockStmtContext blockStmt) {
+            return alwaysReturns(blockStmt.block());
+        }
+        if (stmt instanceof FavaParser.IfElseStmtContext ifElseStmt) {
+            return alwaysReturns(ifElseStmt.stmt(0)) && alwaysReturns(ifElseStmt.stmt(1));
+        }
+        return false;
+    }
+
+    private Symbol resolveVariable(String name) {
+        return symbolTable.lookupVisibleVariable(name);
+    }
+
+    private Symbol resolveFunction(String name) {
+        return symbolTable.lookupFunction(name);
+    }
+
+    private FavaType validateLvalue(FavaParser.LvalueContext ctx) {
+        String name = ctx.ID().getText();
+        Symbol variable = resolveVariable(name);
+
+        if (variable == null) {
+            if (resolveFunction(name) != null) {
+                addError(ctx, name + " is not a variable");
+            } else {
+                addError(ctx, name + " not declared");
+            }
+            if (ctx.expr() != null) {
+                visit(ctx.expr());
+            }
+            return null;
+        }
+
+        remember(ctx.ID(), variable);
+
+        if (ctx.expr() == null) {
+            return variable.getType();
+        }
+
+        FavaType indexType = visit(ctx.expr());
+        if (indexType != null && !indexType.isInteger()) {
+            addError(ctx, "array index must be of type integer");
+        }
+
+        if (!variable.getType().isArray()) {
+            addError(ctx, name + " is not an array");
+            return null;
+        }
+
+        return variable.getType().elementType();
+    }
+
+    private FavaType validateCall(FavaParser.CallContext ctx, boolean usedAsStatement) {
+        String name = ctx.ID().getText();
+        Symbol variable = resolveVariable(name);
+        if (variable != null) {
+            addError(ctx, name + " is not a function");
+            if (ctx.argList() != null) {
+                for (FavaParser.ExprContext expr : ctx.argList().expr()) {
+                    visit(expr);
+                }
+            }
+            return null;
+        }
+
+        Symbol function = resolveFunction(name);
+        if (function == null) {
+            addError(ctx, name + " not declared");
+            if (ctx.argList() != null) {
+                for (FavaParser.ExprContext expr : ctx.argList().expr()) {
+                    visit(expr);
+                }
+            }
+            return null;
+        }
+
+        remember(ctx, function);
+
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        if (arguments.size() != function.getParameterCount()) {
+            addError(ctx, "function " + name + " expects " + function.getParameterCount() + " arguments");
+            for (FavaParser.ExprContext expr : arguments) {
+                visit(expr);
+            }
+            return null;
+        }
+
+        boolean valid = true;
+        for (int i = 0; i < arguments.size(); i++) {
+            FavaType argumentType = visit(arguments.get(i));
+            FavaType parameterType = function.getParameterTypes().get(i);
+            if (argumentType != null && !assignmentCompatible(parameterType, argumentType)) {
+                addError(ctx, "expecting an expression of type " + readableType(parameterType) + " for argument of function " + name);
+                valid = false;
+            }
+        }
+
+        if (usedAsStatement) {
+            if (function.returnsValue()) {
+                addError(ctx, "value of function " + name + " must be assigned to a variable");
+                valid = false;
+            }
+            return null;
+        }
+
+        if (!function.returnsValue()) {
+            addError(ctx, "function " + name + " does not return a value");
+            return null;
+        }
+
+        if (!valid) {
+            return null;
+        }
+
+        saveType((FavaParser.ExprContext) ctx.getParent(), function.getType());
+        return function.getType();
+    }
+
+    @Override
+    public FavaType visitProg(FavaParser.ProgContext ctx) {
+        collectGlobalDeclarations(ctx.decl());
+        collectFunctionDeclarations(ctx.funcDecl());
+
+        if (resolveFunction("main") == null) {
+            addError(ctx, "missing main()");
+        }
+
+        currentFunction = null;
+        checkGlobalInitializers(ctx.decl());
+
+        for (FavaParser.FuncDeclContext function : ctx.funcDecl()) {
+            visit(function);
+        }
+
+        return null;
+    }
+
+    @Override
+    public FavaType visitFuncDecl(FavaParser.FuncDeclContext ctx) {
+        Symbol previousFunction = currentFunction;
+        int previousNextLocalAddress = nextLocalAddress;
+
+        currentFunction = getResolvedSymbol(ctx);
+        nextLocalAddress = 2;
+
+        symbolTable.enterScope();
+        declareParameters(currentFunction, ctx);
+        analyzeBlock(ctx.block(), false);
+
+        if (currentFunction.returnsValue() && !alwaysReturns(ctx.block())) {
+            addError(ctx.block(), "missing return in function " + currentFunction.getName());
+        }
+
+        symbolTable.exitScope();
+        currentFunction = previousFunction;
+        nextLocalAddress = previousNextLocalAddress;
+        return null;
+    }
+
+    @Override
+    public FavaType visitPrintStmt(FavaParser.PrintStmtContext ctx) {
+        FavaType type = visit(ctx.expr());
+        if (type != null && type.isArray()) {
+            addError(ctx, "cannot print expression of type " + readableType(type));
+        }
+        return null;
+    }
+
+    @Override
+    public FavaType visitAssignStmt(FavaParser.AssignStmtContext ctx) {
+        FavaType targetType = validateLvalue(ctx.lvalue());
+        FavaType exprType = visit(ctx.expr());
+        if (targetType != null && exprType != null && !assignmentCompatible(targetType, exprType)) {
+            addError(ctx, "operator := is invalid between " + readableType(targetType) + " and " + readableType(exprType));
+        }
+        return null;
+    }
+
+    @Override
+    public FavaType visitCallStmt(FavaParser.CallStmtContext ctx) {
+        validateCall(ctx.call(), true);
+        return null;
+    }
+
+    @Override
+    public FavaType visitReturnStmt(FavaParser.ReturnStmtContext ctx) {
+        if (currentFunction == null) {
+            return null;
+        }
+
+        FavaType returnType = currentFunction.getType();
+        if (returnType == null) {
+            if (ctx.expr() != null) {
+                visit(ctx.expr());
+                addError(ctx, "function " + currentFunction.getName() + " does not return a value");
+            }
+            return null;
+        }
+
+        if (ctx.expr() == null) {
+            addError(ctx, "function " + currentFunction.getName() + " must return a value of type " + readableType(returnType));
+            return null;
+        }
+
+        FavaType exprType = visit(ctx.expr());
+        if (exprType != null && !assignmentCompatible(returnType, exprType)) {
+            addError(ctx, "function " + currentFunction.getName() + " must return a value of type " + readableType(returnType));
+        }
+        return null;
+    }
+
+    @Override
+    public FavaType visitBlockStmt(FavaParser.BlockStmtContext ctx) {
+        analyzeBlock(ctx.block(), true);
+        return null;
+    }
+
+    @Override
+    public FavaType visitWhileStmt(FavaParser.WhileStmtContext ctx) {
+        FavaType conditionType = visit(ctx.expr());
+        if (conditionType != null && !conditionType.isBool()) {
+            addError(ctx, "while expression must be of type bool");
+        }
+        visit(ctx.stmt());
+        return null;
+    }
+
+    @Override
+    public FavaType visitIfStmt(FavaParser.IfStmtContext ctx) {
+        FavaType conditionType = visit(ctx.expr());
+        if (conditionType != null && !conditionType.isBool()) {
+            addError(ctx, "if expression must be of type bool");
+        }
+        visit(ctx.stmt());
+        return null;
+    }
+
+    @Override
+    public FavaType visitIfElseStmt(FavaParser.IfElseStmtContext ctx) {
+        FavaType conditionType = visit(ctx.expr());
+        if (conditionType != null && !conditionType.isBool()) {
+            addError(ctx, "if expression must be of type bool");
+        }
+        visit(ctx.stmt(0));
+        visit(ctx.stmt(1));
+        return null;
+    }
+
+    @Override
+    public FavaType visitEmptyStmt(FavaParser.EmptyStmtContext ctx) {
+        return null;
+    }
+
+    @Override
+    public FavaType visitExpr(FavaParser.ExprContext ctx) {
+        if (ctx.call() != null) {
+            FavaType type = validateCall(ctx.call(), false);
+            if (type != null) {
+                saveType(ctx, type);
+            }
+            return type;
+        }
+
+        if (ctx.NEW() != null) {
+            FavaType sizeType = visit(ctx.expr(0));
+            if (sizeType != null && !sizeType.isInteger()) {
+                addError(ctx, "array size must be of type integer");
+            }
+            FavaType type = FavaType.array(scalarBaseType(ctx));
+            saveType(ctx, type);
+            return type;
+        }
+
+        if (ctx.ID() != null && ctx.LBRACK() != null) {
+            String name = ctx.ID().getText();
+            Symbol variable = resolveVariable(name);
+            if (variable == null) {
+                if (resolveFunction(name) != null) {
+                    addError(ctx, name + " is not a variable");
+                } else {
+                    addError(ctx, name + " not declared");
+                }
+                visit(ctx.expr(0));
+                return null;
+            }
+
+            remember(ctx.ID(), variable);
+            FavaType indexType = visit(ctx.expr(0));
+            if (indexType != null && !indexType.isInteger()) {
+                addError(ctx, "array index must be of type integer");
+            }
+            if (!variable.getType().isArray()) {
+                addError(ctx, name + " is not an array");
+                return null;
+            }
+
+            FavaType type = variable.getType().elementType();
+            saveType(ctx, type);
+            return type;
+        }
+
+        if (ctx.INT() != null) {
+            FavaType type = FavaType.scalar(FavaLexer.INT);
+            saveType(ctx, type);
+            return type;
+        }
+
+        if (ctx.REAL() != null) {
+            FavaType type = FavaType.scalar(FavaLexer.REAL);
+            saveType(ctx, type);
+            return type;
+        }
+
+        if (ctx.STRING() != null) {
+            FavaType type = FavaType.scalar(FavaLexer.STRING);
+            saveType(ctx, type);
+            return type;
+        }
+
+        if (ctx.BOOL() != null) {
+            FavaType type = FavaType.scalar(FavaLexer.BOOL);
+            saveType(ctx, type);
+            return type;
+        }
+
+        if (ctx.ID() != null) {
+            String name = ctx.ID().getText();
+            Symbol variable = resolveVariable(name);
+            if (variable != null) {
+                remember(ctx.ID(), variable);
+                saveType(ctx, variable.getType());
+                return variable.getType();
+            }
+            if (resolveFunction(name) != null) {
+                addError(ctx, name + " is not a variable");
+            } else {
+                addError(ctx, name + " not declared");
+            }
+            return null;
+        }
+
+        if (ctx.LPAREN() != null) {
+            FavaType innerType = visit(ctx.expr(0));
+            if (innerType != null) {
+                saveType(ctx, innerType);
+            }
+            return innerType;
+        }
+
+        if (ctx.expr().size() == 1) {
+            FavaType operandType = visit(ctx.expr(0));
+            if (operandType == null) {
+                return null;
+            }
+
+            if (ctx.NOT() != null) {
+                if (operandType.isBool()) {
+                    FavaType type = FavaType.scalar(FavaLexer.BOOL);
+                    saveType(ctx, type);
+                    return type;
+                }
+                addUnaryError(ctx, "not", operandType);
+                return null;
+            }
+
+            if (ctx.MINUS() != null) {
+                if (operandType.isInteger() || operandType.isReal()) {
+                    saveType(ctx, operandType);
+                    return operandType;
+                }
+                addUnaryError(ctx, "-", operandType);
+                return null;
+            }
+        }
+
+        if (ctx.expr().size() == 2) {
+            FavaType leftType = visit(ctx.expr(0));
+            FavaType rightType = visit(ctx.expr(1));
+            if (leftType == null || rightType == null) {
+                return null;
+            }
+
+            String operatorText = ctx.getChild(1).getText().toLowerCase();
+
+            if (ctx.AND() != null || ctx.OR() != null) {
+                if (leftType.isBool() && rightType.isBool()) {
+                    FavaType type = FavaType.scalar(FavaLexer.BOOL);
+                    saveType(ctx, type);
+                    return type;
+                }
+                addBinaryError(ctx, operatorText, leftType, rightType);
+                return null;
+            }
+
+            if (ctx.EQUAL() != null || ctx.NEQUAL() != null) {
+                boolean allowed =
+                        (leftType.isBool() && rightType.isBool()) ||
+                                (leftType.isInteger() && rightType.isInteger()) ||
+                                (leftType.isInteger() && rightType.isReal()) ||
+                                (leftType.isReal() && rightType.isInteger()) ||
+                                (leftType.isReal() && rightType.isReal()) ||
+                                (leftType.isString() && rightType.isString());
+                if (allowed) {
+                    FavaType type = FavaType.scalar(FavaLexer.BOOL);
+                    saveType(ctx, type);
+                    return type;
+                }
+                addBinaryError(ctx, operatorText, leftType, rightType);
+                return null;
+            }
+
+            if (ctx.SMALLER() != null || ctx.LARGER() != null || ctx.SMALLEROREQUAL() != null || ctx.LARGEROREQUAL() != null) {
+                if (leftType.isNumeric() && rightType.isNumeric()) {
+                    FavaType type = FavaType.scalar(FavaLexer.BOOL);
+                    saveType(ctx, type);
+                    return type;
+                }
+                addBinaryError(ctx, operatorText, leftType, rightType);
+                return null;
+            }
+
+            if (ctx.CONCAT() != null) {
+                boolean allowed =
+                        (leftType.isBool() && rightType.isString()) ||
+                                (leftType.isString() && rightType.isBool()) ||
+                                (leftType.isInteger() && rightType.isString()) ||
+                                (leftType.isString() && rightType.isInteger()) ||
+                                (leftType.isReal() && rightType.isString()) ||
+                                (leftType.isString() && rightType.isReal()) ||
+                                (leftType.isString() && rightType.isString());
+                if (allowed) {
+                    FavaType type = FavaType.scalar(FavaLexer.STRING);
+                    saveType(ctx, type);
+                    return type;
+                }
+                addBinaryError(ctx, "||", leftType, rightType);
+                return null;
+            }
+
+            if (ctx.MOD() != null) {
+                if (leftType.isInteger() && rightType.isInteger()) {
+                    FavaType type = FavaType.scalar(FavaLexer.INT);
+                    saveType(ctx, type);
+                    return type;
+                }
+                addBinaryError(ctx, "mod", leftType, rightType);
+                return null;
+            }
+
+            if (ctx.PLUS() != null || ctx.MINUS() != null || ctx.TIMES() != null || ctx.DIV() != null) {
+                if (leftType.isInteger() && rightType.isInteger()) {
+                    FavaType type = FavaType.scalar(FavaLexer.INT);
+                    saveType(ctx, type);
+                    return type;
+                }
+                if (leftType.isNumeric() && rightType.isNumeric()) {
+                    FavaType type = FavaType.scalar(FavaLexer.REAL);
+                    saveType(ctx, type);
+                    return type;
+                }
+                addBinaryError(ctx, operatorText, leftType, rightType);
+                return null;
+            }
+        }
+
+        return null;
+    }
+}
+

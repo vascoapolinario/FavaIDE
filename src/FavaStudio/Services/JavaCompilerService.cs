@@ -17,8 +17,8 @@ public class JavaCompilerService
         var result = await EnsureCompiledAsync();
         if (!result.Success) return result;
 
-        var classesDir = Path.Combine(_settings.CompilerRoot, "build", "classes");
-        var classpath = $"{classesDir};{_settings.AntlrJar}";
+        var layout = ResolveCompilerLayout();
+        var classpath = string.Join(Path.PathSeparator, layout.ClassesDir, _settings.AntlrJar);
 
         var psi = new ProcessStartInfo
         {
@@ -26,7 +26,7 @@ public class JavaCompilerService
             Arguments = includeTrace
                 ? $"-cp \"{classpath}\" FavaCompileAndRun \"{filePath}\" -trace"
                 : $"-cp \"{classpath}\" FavaCompileAndRun \"{filePath}\"",
-            WorkingDirectory = Path.Combine(_settings.CompilerRoot, "src"),
+            WorkingDirectory = layout.SourceDir,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -47,20 +47,20 @@ public class JavaCompilerService
 
     private async Task<(bool Success, string Output)> EnsureCompiledAsync()
     {
-        var classesDir = Path.Combine(_settings.CompilerRoot, "build", "classes");
-        if (Directory.Exists(classesDir) && Directory.GetFiles(classesDir, "*.class", SearchOption.AllDirectories).Any())
+        var layout = ResolveCompilerLayout();
+        var javaFiles = Directory.GetFiles(layout.SourceDir, "*.java", SearchOption.AllDirectories);
+        var classesDir = layout.ClassesDir;
+        if (!NeedsCompile(classesDir, javaFiles))
             return (true, "Already compiled");
 
         Directory.CreateDirectory(classesDir);
-
-        var javaFiles = Directory.GetFiles(Path.Combine(_settings.CompilerRoot, "src"), "*.java", SearchOption.AllDirectories);
         var filesArg = string.Join(" ", javaFiles.Select(f => $"\"{f}\""));
 
         var psi = new ProcessStartInfo
         {
             FileName = "javac",
             Arguments = $"-cp \"{_settings.AntlrJar}\" -d \"{classesDir}\" {filesArg}",
-            WorkingDirectory = Path.Combine(_settings.CompilerRoot, "src"),
+            WorkingDirectory = layout.SourceDir,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -77,5 +77,28 @@ public class JavaCompilerService
 
         var output = stdout + (string.IsNullOrWhiteSpace(stderr) ? "" : "\n" + stderr);
         return (proc.ExitCode == 0, output);
+    }
+
+    private (string SourceDir, string ClassesDir) ResolveCompilerLayout()
+    {
+        var sourceDir = Path.Combine(_settings.CompilerRoot, "src");
+        if (!File.Exists(Path.Combine(sourceDir, "FavaCompileAndRun.java")))
+            sourceDir = _settings.CompilerRoot;
+
+        return (sourceDir, Path.Combine(_settings.CompilerRoot, "build", "classes"));
+    }
+
+    private static bool NeedsCompile(string classesDir, IReadOnlyCollection<string> javaFiles)
+    {
+        if (!Directory.Exists(classesDir))
+            return true;
+
+        var classFiles = Directory.GetFiles(classesDir, "*.class", SearchOption.AllDirectories);
+        if (classFiles.Length == 0)
+            return true;
+
+        var newestJava = javaFiles.Select(File.GetLastWriteTimeUtc).DefaultIfEmpty(DateTime.MinValue).Max();
+        var newestClass = classFiles.Select(File.GetLastWriteTimeUtc).DefaultIfEmpty(DateTime.MinValue).Max();
+        return newestJava > newestClass;
     }
 }
