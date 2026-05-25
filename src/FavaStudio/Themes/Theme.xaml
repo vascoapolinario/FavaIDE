@@ -38,6 +38,8 @@
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#4A4F58"/>
     <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#5E6672"/>
     <SolidColorBrush x:Key="ScrollThumbPressedBrush" Color="#6CA6FF"/>
+    <SolidColorBrush x:Key="SelectionBrush" Color="#343B46"/>
+    <SolidColorBrush x:Key="SelectionBorderBrush" Color="#6CA6FF"/>
 
     <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#1E1F22"/>
     <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#2B2D30"/>
@@ -408,7 +410,8 @@
                             <Setter Property="Background" Value="{StaticResource HoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource SelectionBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -538,6 +541,35 @@
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
         <Setter Property="Padding" Value="8,6"/>
+    </Style>
+
+    <Style TargetType="DataGridRow">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource HoverBrush}"/>
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource SelectionBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource SelectionBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="DataGridCell">
+        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="CheckBox">

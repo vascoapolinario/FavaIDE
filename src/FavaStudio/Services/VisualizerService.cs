@@ -188,6 +188,37 @@ public static class VisualizerService
                     if (!TryPopBool(stack, out var boolVal, out note)) return false;
                     stack.Add(new VisualizerValue { Type = "boolean", Value = !boolVal });
                     return true;
+                case "aalloc":
+                    if (!TryPopInt(stack, out var arraySize, out note)) return false;
+                    if (arraySize < 0) return Fail("aalloc size cannot be negative.", out note);
+                    stack.Add(new VisualizerValue
+                    {
+                        Type = "array",
+                        Value = Enumerable.Repeat<VisualizerValue?>(null, arraySize).ToList()
+                    });
+                    note = $"Allocated array with {arraySize} element slot(s).";
+                    return true;
+                case "aload":
+                    if (!TryPopInt(stack, out var loadIndex, out note)) return false;
+                    if (!TryPopArray(stack, out var loadArray, out note)) return false;
+                    if (!TryGetArrayElement(loadArray, loadIndex, out var loadedElement, out note)) return false;
+                    stack.Add(CloneValue(loadedElement));
+                    note = $"Loaded array[{loadIndex}] = {FormatValue(loadedElement)}.";
+                    return true;
+                case "astore":
+                    if (stack.Count == 0) return Fail("Stack underflow on astore value.", out note);
+                    var arrayStoreValue = CloneValue(stack[^1]);
+                    stack.RemoveAt(stack.Count - 1);
+                    if (!TryPopInt(stack, out var storeIndex, out note)) return false;
+                    if (!TryPopArray(stack, out var storeArray, out note)) return false;
+                    if (!TrySetArrayElement(storeArray, storeIndex, arrayStoreValue, out note)) return false;
+                    note = $"Stored {FormatValue(arrayStoreValue)} into array[{storeIndex}].";
+                    return true;
+                case "alength":
+                    if (!TryPopArray(stack, out var lengthArray, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "int", Value = lengthArray.Count });
+                    note = $"Pushed array length {lengthArray.Count}.";
+                    return true;
                 case "ieq":
                     return ApplyIntCompare(stack, (a, b) => a == b, out note);
                 case "ineq":
@@ -542,6 +573,67 @@ public static class VisualizerService
             Value = value.Value
         };
 
+    private static bool TryPopArray(List<VisualizerValue> stack, out List<VisualizerValue?> array, out string note)
+    {
+        array = [];
+        if (stack.Count == 0)
+        {
+            note = "Stack underflow.";
+            return false;
+        }
+
+        var value = stack[^1];
+        stack.RemoveAt(stack.Count - 1);
+        if (!string.Equals(value.Type, "array", StringComparison.OrdinalIgnoreCase) ||
+            value.Value is not List<VisualizerValue?> arrayValue)
+        {
+            note = $"Type mismatch: expected array, got {value.Type}.";
+            return false;
+        }
+
+        array = arrayValue;
+        note = "";
+        return true;
+    }
+
+    private static bool TryGetArrayElement(
+        IReadOnlyList<VisualizerValue?> array,
+        int index,
+        out VisualizerValue value,
+        out string note)
+    {
+        value = new VisualizerValue();
+        if (index < 0 || index >= array.Count)
+        {
+            note = $"Array index {index} out of range (0..{array.Count - 1}).";
+            return false;
+        }
+
+        var element = array[index];
+        if (element is null || string.Equals(element.Type, "null", StringComparison.OrdinalIgnoreCase))
+        {
+            note = $"aload: array[{index}] is NULL (uninitialized).";
+            return false;
+        }
+
+        value = element;
+        note = "";
+        return true;
+    }
+
+    private static bool TrySetArrayElement(List<VisualizerValue?> array, int index, VisualizerValue value, out string note)
+    {
+        if (index < 0 || index >= array.Count)
+        {
+            note = $"Array index {index} out of range (0..{array.Count - 1}).";
+            return false;
+        }
+
+        array[index] = value;
+        note = "";
+        return true;
+    }
+
     private static string FormatOffset(int offset) => offset >= 0 ? $"+{offset}" : offset.ToString(CultureInfo.InvariantCulture);
 
     private static bool TryGetConst(int? index, IReadOnlyList<string> constantPool, out string value)
@@ -691,6 +783,14 @@ public static class VisualizerService
 
     private static string FormatValue(VisualizerValue value)
     {
+        if (value.Type == "array" && value.Value is IReadOnlyList<VisualizerValue?> array)
+        {
+            var preview = string.Join(", ", array.Take(6).Select(element => element is null ? "NULL" : FormatValue(element)));
+            if (array.Count > 6)
+                preview += ", ...";
+            return $"[{preview}] ({array.Count})";
+        }
+
         return value.Type switch
         {
             "double" => Convert.ToDouble(value.Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture),
@@ -753,6 +853,10 @@ public static class VisualizerService
         { 49, ("pop", "Pops n values from the top of the runtime stack.") },
         { 50, ("call", "Creates a new call frame, saves FP/return address, and jumps to addr.") },
         { 51, ("retval", "Returns from non-void function: keeps return value, restores frame, pops n args.") },
-        { 52, ("ret", "Returns from void function: restores frame and pops n args.") }
+        { 52, ("ret", "Returns from void function: restores frame and pops n args.") },
+        { 53, ("aalloc", "Pops an int size and pushes a NULL-initialized array reference.") },
+        { 54, ("aload", "Pops array reference and index, then pushes the initialized element.") },
+        { 55, ("astore", "Pops value, index, and array reference, then stores the element.") },
+        { 56, ("alength", "Pops an array reference and pushes its integer length.") }
     };
 }

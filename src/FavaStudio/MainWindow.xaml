@@ -37,7 +37,7 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="8,4">
-            <DockPanel LastChildFill="True">
+            <DockPanel LastChildFill="False">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <Button Command="{Binding BackToEditorCommand}"
                             Background="Transparent"
@@ -90,16 +90,88 @@
                         <MenuItem Header="Run Current File" Command="{Binding RunCurrentCommand}"/>
                         <MenuItem Header="Save Current File" Command="{Binding SaveFileCommand}"/>
                         <MenuItem Header="Toggle Errors Panel" Command="{Binding ToggleDiagnosticsCommand}"/>
+                        <MenuItem Header="Start Debug (F5)" Command="{Binding StartDebugCommand}"/>
+                        <MenuItem Header="Step (F10)" Command="{Binding DebugStepCommand}"/>
+                        <MenuItem Header="Jump to Next Call" Command="{Binding DebugJumpToCallCommand}"/>
+                        <MenuItem Header="Continue" Command="{Binding DebugContinueCommand}"/>
+                        <MenuItem Header="Step Back" Command="{Binding DebugStepBackCommand}"/>
                         <Separator/>
-                        <MenuItem Header="● Toggle Breakpoint (F9)" Command="{Binding ToggleBreakpointAtCaretCommand}"/>
-                        <MenuItem Header="▶  Start Debug (F5)" Command="{Binding StartDebugCommand}"/>
-                        <MenuItem Header="→  Step (F10)" Command="{Binding DebugStepCommand}"/>
-                        <MenuItem Header="⏭  Jump to Next Call" Command="{Binding DebugJumpToCallCommand}"/>
-                        <MenuItem Header="▶▶ Continue (to breakpoint/end)" Command="{Binding DebugContinueCommand}"/>
-                        <MenuItem Header="←  Step Back" Command="{Binding DebugStepBackCommand}"/>
-                        <MenuItem Header="■  Stop Debug (Shift+F5)" Command="{Binding DebugStopCommand}"/>
+                        <MenuItem Header="Toggle Breakpoint (F9)" Command="{Binding ToggleBreakpointAtCaretCommand}"/>
+                        <MenuItem Header="Stop Debug (Shift+F5)" Command="{Binding DebugStopCommand}"/>
                     </MenuItem>
                 </Menu>
+
+                <StackPanel DockPanel.Dock="Right"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button Command="{Binding RunCurrentCommand}"
+                            Style="{StaticResource AccentButton}"
+                            ToolTip="Run current file"
+                            Padding="16,5"
+                            Margin="8,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="12" Height="12" Margin="0,0,7,0">
+                                <Path Fill="White" Data="M 3 1 L 15 8 L 3 15 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Run" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding StartDebugCommand}"
+                            ToolTip="Start debug session"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 11 V 4 H 14 V 8 H 16 V 11 H 14 V 15 H 11 V 17 H 5 V 15 H 2 V 11 H 0 V 8 H 2 V 4 H 5 Z M 5 6 H 11 V 4 H 5 Z M 5 12 V 15 H 11 V 12 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Debug"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding SaveFileCommand}"
+                            ToolTip="Save current file"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 2 1 H 14 L 17 4 V 17 H 2 Z M 5 2 V 7 H 13 V 2 Z M 5 12 V 16 H 14 V 12 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Save"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ToggleDiagnosticsCommand}"
+                            ToolTip="Show or hide errors panel"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 8 1 L 16 15 H 0 Z M 7 6 H 9 V 10 H 7 Z M 7 12 H 9 V 14 H 7 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Errors"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding OpenToolsCommand}"
+                            ToolTip="Open test tools"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 13 V 3 H 10 V 15 H 13 V 17 H 5 V 15 H 8 V 3 H 5 Z M 1 4 H 5 V 6 H 3 V 12 H 5 V 14 H 1 Z M 13 4 H 17 V 14 H 13 V 12 H 15 V 6 H 13 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Tests"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding OpenVisualizerCommand}"
+                            ToolTip="Open visualizer"
+                            Padding="12,5"
+                            Margin="0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource TextMainBrush}" Data="M 2 2 H 16 V 13 H 10 V 15 H 13 V 17 H 5 V 15 H 8 V 13 H 2 Z M 4 4 V 11 H 14 V 4 Z M 5 5 H 7 V 7 H 5 Z M 8 5 H 10 V 7 H 8 Z M 11 5 H 13 V 7 H 11 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="VM"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </DockPanel>
         </Border>
 
@@ -361,6 +433,14 @@
                                                                    TextTrimming="CharacterEllipsis"
                                                                    FontSize="11"
                                                                    Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="10"
+                                                                   TextTrimming="CharacterEllipsis">
+                                                            <Run Text="{Binding InputFileName, Mode=OneWay}"/>
+                                                            <Run Text=" -> "/>
+                                                            <Run Text="{Binding ExpectedOutputFileName, Mode=OneWay}"/>
+                                                        </TextBlock>
                                                     </StackPanel>
                                                 </DockPanel>
                                             </DataTemplate>
@@ -402,13 +482,22 @@
                                                    FontWeight="SemiBold"
                                                    TextWrapping="Wrap"/>
                                     </DockPanel>
-                                    <Grid Grid.Row="1">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="8"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <GroupBox Header="Expected">
+                                    <TabControl Grid.Row="1">
+                                        <TabItem Header="Diff">
+                                            <TextBox Text="{Binding SelectedTestDiffOutput, Mode=OneWay}"
+                                                     IsReadOnly="True"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="NoWrap"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     BorderThickness="0"
+                                                     Background="{StaticResource BgMainBrush}"
+                                                     Foreground="{StaticResource TextMainBrush}"
+                                                     FontFamily="Consolas"
+                                                     FontSize="12"
+                                                     Padding="8"/>
+                                        </TabItem>
+                                        <TabItem Header="Expected">
                                             <TextBox Text="{Binding SelectedTestExpectedOutput, Mode=OneWay}"
                                                      IsReadOnly="True"
                                                      AcceptsReturn="True"
@@ -421,40 +510,22 @@
                                                      FontFamily="Consolas"
                                                      FontSize="12"
                                                      Padding="8"/>
-                                        </GroupBox>
-                                        <GroupBox Grid.Column="2" Header="Actual / Diff">
-                                            <TabControl>
-                                                <TabItem Header="Actual">
-                                                    <TextBox Text="{Binding SelectedTestActualOutput, Mode=OneWay}"
-                                                             IsReadOnly="True"
-                                                             AcceptsReturn="True"
-                                                             TextWrapping="NoWrap"
-                                                             HorizontalScrollBarVisibility="Auto"
-                                                             VerticalScrollBarVisibility="Auto"
-                                                             BorderThickness="0"
-                                                             Background="{StaticResource BgMainBrush}"
-                                                             Foreground="{StaticResource TextMainBrush}"
-                                                             FontFamily="Consolas"
-                                                             FontSize="12"
-                                                             Padding="8"/>
-                                                </TabItem>
-                                                <TabItem Header="Diff">
-                                                    <TextBox Text="{Binding SelectedTestDiffOutput, Mode=OneWay}"
-                                                             IsReadOnly="True"
-                                                             AcceptsReturn="True"
-                                                             TextWrapping="NoWrap"
-                                                             HorizontalScrollBarVisibility="Auto"
-                                                             VerticalScrollBarVisibility="Auto"
-                                                             BorderThickness="0"
-                                                             Background="{StaticResource BgMainBrush}"
-                                                             Foreground="{StaticResource TextMainBrush}"
-                                                             FontFamily="Consolas"
-                                                             FontSize="12"
-                                                             Padding="8"/>
-                                                </TabItem>
-                                            </TabControl>
-                                        </GroupBox>
-                                    </Grid>
+                                        </TabItem>
+                                        <TabItem Header="Actual">
+                                            <TextBox Text="{Binding SelectedTestActualOutput, Mode=OneWay}"
+                                                     IsReadOnly="True"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="NoWrap"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     BorderThickness="0"
+                                                     Background="{StaticResource BgMainBrush}"
+                                                     Foreground="{StaticResource TextMainBrush}"
+                                                     FontFamily="Consolas"
+                                                     FontSize="12"
+                                                     Padding="8"/>
+                                        </TabItem>
+                                    </TabControl>
                                 </Grid>
                             </Grid>
                         </DockPanel>
@@ -481,55 +552,70 @@
                             Background="{StaticResource BgPanelAltBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1"
-                            Padding="10,5">
-                        <DockPanel LastChildFill="False">
+                            Padding="10,6">
+                        <DockPanel LastChildFill="True">
                             <!-- Debug toolbar (visible when IsDebugging=true) -->
                             <StackPanel DockPanel.Dock="Right"
                                         Orientation="Horizontal"
-                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Margin="8,0,0,0">
-                                <Button Content="← Back"
+                                <Button Content="Back"
                                         Command="{Binding DebugStepBackCommand}"
                                         ToolTip="Step Back"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Padding="8,3"
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
-                                <Button Content="Step →"
+                                <Button Content="Step"
                                         Command="{Binding DebugStepCommand}"
                                         ToolTip="Step one instruction (F10)"
                                         Style="{StaticResource AccentButton}"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Padding="8,3"
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
-                                <Button Content="⏭ Call"
+                                <Button Content="Call"
                                         Command="{Binding DebugJumpToCallCommand}"
                                         ToolTip="Jump to next function call / return"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Padding="8,3"
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
-                                <Button Content="▶ Continue"
+                                <Button Content="Continue"
                                         Command="{Binding DebugContinueCommand}"
                                         ToolTip="Run to next breakpoint or end"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Padding="8,3"
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
-                                <Button Content="■ Stop"
+                                <Button Content="Stop"
                                         Command="{Binding DebugStopCommand}"
                                         ToolTip="Stop debug session (Shift+F5)"
+                                        Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Background="#4A1A1A"
                                         Foreground="IndianRed"
                                         BorderBrush="#6A2A2A"
                                         Padding="8,3"
                                         FontSize="12"/>
                             </StackPanel>
-                            <!-- Start Debug button (visible when NOT debugging) -->
-                             <Button DockPanel.Dock="Right"
-                                     Content="🔴 Debug (F5)"
-                                     Command="{Binding StartDebugCommand}"
-                                     Visibility="{Binding IsDebugging, Converter={StaticResource InverseBoolToVisibility}}"
-                                     Padding="8,3"
-                                     FontSize="12"
-                                     Margin="8,0,0,0"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CurrentFileName}"
+                                           Foreground="{StaticResource TextMainBrush}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"/>
+                                <Border Background="{StaticResource ControlDarkerBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="7,2"
+                                        Margin="10,0,0,0">
+                                    <TextBlock Text="{Binding LastRunStatus}"
+                                               Foreground="{Binding LastRunStatusBrush}"
+                                               FontFamily="Consolas"
+                                               FontSize="11"/>
+                                </Border>
+                            </StackPanel>
                         </DockPanel>
                     </Border>
 
@@ -950,45 +1036,126 @@
                             Background="{StaticResource BgPanelBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,1,0,0">
-                        <TabControl>
-                            <TabItem Header="VM Output">
-                                <TextBox x:Name="VmOutputBox"
-                                         Text="{Binding VmOutput, Mode=OneWay}"
-                                         IsReadOnly="True"
-                                         TextWrapping="Wrap"
-                                         FontFamily="Consolas"
-                                         FontSize="12"
-                                         Background="{StaticResource BgMainBrush}"
-                                         Foreground="{StaticResource TextMainBrush}"
-                                         BorderThickness="0"
-                                         Padding="10"
-                                         VerticalScrollBarVisibility="Auto"/>
-                            </TabItem>
-                            <TabItem Header="Constant Pool">
-                                <TextBox Text="{Binding ConstantPoolOutput, Mode=OneWay}"
-                                         IsReadOnly="True"
-                                         TextWrapping="Wrap"
-                                         FontFamily="Consolas"
-                                         FontSize="12"
-                                         Background="{StaticResource BgMainBrush}"
-                                         Foreground="{StaticResource TextMainBrush}"
-                                         BorderThickness="0"
-                                         Padding="10"
-                                         VerticalScrollBarVisibility="Auto"/>
-                            </TabItem>
-                            <TabItem Header="Instructions">
-                                <TextBox Text="{Binding InstructionsOutput, Mode=OneWay}"
-                                         IsReadOnly="True"
-                                         TextWrapping="Wrap"
-                                         FontFamily="Consolas"
-                                         FontSize="12"
-                                         Background="{StaticResource BgMainBrush}"
-                                         Foreground="{StaticResource TextMainBrush}"
-                                         BorderThickness="0"
-                                         Padding="10"
-                                         VerticalScrollBarVisibility="Auto"/>
-                            </TabItem>
-                        </TabControl>
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top"
+                                    Background="#202226"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="10,7">
+                                <DockPanel LastChildFill="True">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Background="{StaticResource ControlDarkerBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="7,2"
+                                                Margin="0,0,6,0">
+                                            <TextBlock Text="{Binding LastRunDurationText}"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="11"/>
+                                        </Border>
+                                        <Border Background="{StaticResource ControlDarkerBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="7,2"
+                                                Margin="0,0,8,0">
+                                            <TextBlock Text="{Binding ConsoleLineCountText}"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="11"/>
+                                        </Border>
+                                        <CheckBox Content="VM only"
+                                                  IsChecked="{Binding ShowOutputOnly}"
+                                                  ToolTip="Show only VM output in the main console"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,10,0"/>
+                                        <Button Command="{Binding CopyOutputCommand}"
+                                                Padding="8,3"
+                                                FontSize="12"
+                                                Margin="0,0,4,0"
+                                                ToolTip="Copy console output">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Viewbox Width="11" Height="11" Margin="0,0,6,0">
+                                                    <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 15 V 11 H 13 V 3 H 5 Z M 2 4 H 12 V 16 H 2 Z M 4 6 V 14 H 10 V 6 Z"/>
+                                                </Viewbox>
+                                                <TextBlock Text="Copy"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Command="{Binding ClearOutputCommand}"
+                                                Padding="8,3"
+                                                FontSize="12"
+                                                Margin="0"
+                                                ToolTip="Clear console output">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Viewbox Width="11" Height="11" Margin="0,0,6,0">
+                                                    <Path Fill="{StaticResource TextMainBrush}" Data="M 2 4 H 14 V 6 H 2 Z M 5 7 H 7 V 15 H 5 Z M 9 7 H 11 V 15 H 9 Z M 4 1 H 12 V 3 H 4 Z M 3 6 H 13 L 12 17 H 4 Z"/>
+                                                </Viewbox>
+                                                <TextBlock Text="Clear"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Viewbox Width="14" Height="14" Margin="0,0,8,0">
+                                            <Path Fill="{StaticResource AccentSoftBrush}" Data="M 1 3 H 17 V 15 H 1 Z M 3 5 V 13 H 15 V 5 Z M 4 6 L 8 9 L 4 12 V 10 L 6 9 L 4 8 Z M 9 11 H 13 V 12 H 9 Z"/>
+                                        </Viewbox>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding OutputHeaderTitle}"
+                                                       Foreground="{StaticResource TextMainBrush}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding LastRunStatus}"
+                                                       Foreground="{Binding LastRunStatusBrush}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="11"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <TabControl Background="{StaticResource BgMainBrush}">
+                                <TabItem Header="Console">
+                                    <TextBox x:Name="VmOutputBox"
+                                             Text="{Binding VmOutput, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             TextWrapping="NoWrap"
+                                             FontFamily="Consolas"
+                                             FontSize="13"
+                                             Background="#141519"
+                                             Foreground="{StaticResource TextMainBrush}"
+                                             BorderThickness="0"
+                                             Padding="14,12"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Auto"/>
+                                </TabItem>
+                                <TabItem Header="Constant Pool">
+                                    <TextBox Text="{Binding ConstantPoolOutput, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             TextWrapping="NoWrap"
+                                             FontFamily="Consolas"
+                                             FontSize="12"
+                                             Background="#141519"
+                                             Foreground="{StaticResource TextMainBrush}"
+                                             BorderThickness="0"
+                                             Padding="14,12"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Auto"/>
+                                </TabItem>
+                                <TabItem Header="Instructions">
+                                    <TextBox Text="{Binding InstructionsOutput, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             TextWrapping="NoWrap"
+                                             FontFamily="Consolas"
+                                             FontSize="12"
+                                             Background="#141519"
+                                             Foreground="{StaticResource TextMainBrush}"
+                                             BorderThickness="0"
+                                             Padding="14,12"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Auto"/>
+                                </TabItem>
+                            </TabControl>
+                        </DockPanel>
                     </Border>
                 </Grid>
             </Grid>
@@ -1320,7 +1487,8 @@
 
                         <DataGrid ItemsSource="{Binding ToolTestPairs}"
                                   SelectedItem="{Binding SelectedToolTestPair}"
-                                  AutoGenerateColumns="False">
+                                  AutoGenerateColumns="False"
+                                  MaxHeight="260">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
                                 <DataGridTemplateColumn Header="Input (.fava)" Width="*">
@@ -1333,7 +1501,11 @@
                                                         FontSize="13"
                                                         Command="{Binding DataContext.BrowseToolPairInputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
-                                                <TextBlock Text="{Binding InputFile}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding InputFileName}"
+                                                           ToolTip="{Binding InputFile}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,0,8,0"/>
                                             </DockPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
@@ -1348,7 +1520,11 @@
                                                         FontSize="13"
                                                         Command="{Binding DataContext.BrowseToolPairExpectedOutputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
-                                                <TextBlock Text="{Binding ExpectedOutputFile}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding ExpectedOutputFileName}"
+                                                           ToolTip="{Binding ExpectedOutputFile}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,0,8,0"/>
                                             </DockPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
@@ -1357,38 +1533,9 @@
                             </DataGrid.Columns>
                         </DataGrid>
 
-                        <Grid Margin="0,12,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <GroupBox Header="Expected Output" Grid.Column="0">
-                                <TextBox Text="{Binding SelectedToolExpectedOutput, Mode=OneWay}"
-                                         AcceptsReturn="True"
-                                         IsReadOnly="True"
-                                         TextWrapping="NoWrap"
-                                         HorizontalScrollBarVisibility="Auto"
-                                         VerticalScrollBarVisibility="Auto"
-                                         FontFamily="Consolas"
-                                         FontSize="13"
-                                         MinHeight="180"/>
-                            </GroupBox>
-                            <GroupBox Header="Actual Output" Grid.Column="2">
-                                <TextBox Text="{Binding SelectedToolActualOutput, Mode=OneWay}"
-                                         AcceptsReturn="True"
-                                         IsReadOnly="True"
-                                         TextWrapping="NoWrap"
-                                         HorizontalScrollBarVisibility="Auto"
-                                         VerticalScrollBarVisibility="Auto"
-                                         FontFamily="Consolas"
-                                         FontSize="13"
-                                         MinHeight="180"/>
-                            </GroupBox>
-                            <GroupBox Header="Diff" Grid.Column="4">
+                        <TabControl Margin="0,12,0,0"
+                                    MinHeight="260">
+                            <TabItem Header="Diff">
                                 <TextBox Text="{Binding SelectedToolDiffOutput, Mode=OneWay}"
                                          AcceptsReturn="True"
                                          IsReadOnly="True"
@@ -1397,9 +1544,31 @@
                                          VerticalScrollBarVisibility="Auto"
                                          FontFamily="Consolas"
                                          FontSize="13"
-                                         MinHeight="180"/>
-                            </GroupBox>
-                        </Grid>
+                                         MinHeight="220"/>
+                            </TabItem>
+                            <TabItem Header="Expected">
+                                <TextBox Text="{Binding SelectedToolExpectedOutput, Mode=OneWay}"
+                                         AcceptsReturn="True"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         FontSize="13"
+                                         MinHeight="220"/>
+                            </TabItem>
+                            <TabItem Header="Actual">
+                                <TextBox Text="{Binding SelectedToolActualOutput, Mode=OneWay}"
+                                         AcceptsReturn="True"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         FontSize="13"
+                                         MinHeight="220"/>
+                            </TabItem>
+                        </TabControl>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

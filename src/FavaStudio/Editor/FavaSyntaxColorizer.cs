@@ -11,13 +11,13 @@ public sealed class FavaSyntaxColorizer : DocumentColorizingTransformer
     private static readonly Regex StringRegex = new("\"(?:\\\\.|[^\"\\\\])*\"?", RegexOptions.Compiled);
     private static readonly Regex CommentRegex = new("//.*$", RegexOptions.Compiled);
     private static readonly Regex TypeRegex = new(@"\b(integer|real|bool|string)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex KeywordRegex = new(@"\b(function|return|if|else|while|print|true|false)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KeywordRegex = new(@"\b(function|return|if|else|while|print|true|false|new|length)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex FunctionDeclarationRegex = new(@"\bfunction\s+([A-Za-z_][A-Za-z0-9_]*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex FunctionCallRegex = new(@"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", RegexOptions.Compiled);
 
     private static readonly HashSet<string> NonCallIdentifiers = new(StringComparer.OrdinalIgnoreCase)
     {
-        "if", "while", "print", "function", "return", "integer", "real", "bool", "string", "true", "false", "else"
+        "if", "while", "print", "function", "return", "integer", "real", "bool", "string", "true", "false", "else", "new", "length"
     };
 
     protected override void ColorizeLine(DocumentLine line)

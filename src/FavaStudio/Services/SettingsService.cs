@@ -21,16 +21,21 @@ public class SettingsService
 
     public static SettingsService Load()
     {
+        SettingsService settings;
         try
         {
             if (File.Exists(SettingsPath))
             {
                 var json = File.ReadAllText(SettingsPath);
-                return JsonSerializer.Deserialize<SettingsService>(json) ?? new SettingsService();
+                settings = JsonSerializer.Deserialize<SettingsService>(json) ?? new SettingsService();
+                ApplyBundledCompilerDefaults(settings);
+                return settings;
             }
         }
         catch { }
-        return new SettingsService();
+        settings = new SettingsService();
+        ApplyBundledCompilerDefaults(settings);
+        return settings;
     }
 
     public void Save()
@@ -58,5 +63,37 @@ public class SettingsService
         }
 
         return normalized;
+    }
+
+    private static void ApplyBundledCompilerDefaults(SettingsService settings)
+    {
+        var compilerRoot = FindBundledCompilerRoot();
+        if (string.IsNullOrWhiteSpace(compilerRoot))
+            return;
+
+        if (string.IsNullOrWhiteSpace(settings.CompilerRoot))
+            settings.CompilerRoot = compilerRoot;
+
+        var antlrJar = Directory.GetFiles(compilerRoot, "antlr-*-complete.jar").FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(settings.AntlrJar) && !string.IsNullOrWhiteSpace(antlrJar))
+            settings.AntlrJar = antlrJar;
+    }
+
+    private static string FindBundledCompilerRoot()
+    {
+        var candidates = new List<string>();
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            candidates.Add(Path.Combine(current.FullName, "Compiler"));
+            candidates.Add(current.FullName);
+            current = current.Parent;
+        }
+
+        candidates.Add(Path.Combine(Directory.GetCurrentDirectory(), "Compiler"));
+
+        return candidates
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(path => File.Exists(Path.Combine(path, "FavaCompileAndRun.java"))) ?? "";
     }
 }

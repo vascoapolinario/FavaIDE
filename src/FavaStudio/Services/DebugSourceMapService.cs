@@ -355,7 +355,7 @@ public static class DebugSourceMapService
         instruction.Opcode.EndsWith("print", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsStore(VisualizerInstruction instruction) =>
-        instruction.Opcode is "gstore" or "lstore";
+        instruction.Opcode is "gstore" or "lstore" or "astore";
 
     private static bool IsPop(VisualizerInstruction instruction) =>
         instruction.Opcode == "pop";

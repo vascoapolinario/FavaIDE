@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -28,6 +29,10 @@ public class MainViewModel : INotifyPropertyChanged
     private string _vmOutput = "";
     private string _constantPoolOutput = "";
     private string _instructionsOutput = "";
+    private string _lastFullOutput = "";
+    private string _lastRunStatus = "No run yet";
+    private string _lastRunDurationText = "--";
+    private Brush _lastRunStatusBrush = Brushes.Gray;
     private bool _showDiagnostics = true;
     private bool _isSettingsViewVisible;
     private bool _isToolsViewVisible;
@@ -173,7 +178,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     public Brush StatusColor { get => _statusColor; set { _statusColor = value; OnPropertyChanged(); } }
     public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
-    public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); } }
+    public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); OnPropertyChanged(nameof(ConsoleLineCountText)); } }
     public string ConstantPoolOutput { get => _constantPoolOutput; set { _constantPoolOutput = value; OnPropertyChanged(); } }
     public string InstructionsOutput { get => _instructionsOutput; set { _instructionsOutput = value; OnPropertyChanged(); } }
     public bool ShowDiagnostics
@@ -213,7 +218,18 @@ public class MainViewModel : INotifyPropertyChanged
             OpenSelectedQuickOpenFileCommand.RaiseCanExecuteChanged();
         }
     }
-    public bool ShowOutputOnly { get => _showOutputOnly; set { _showOutputOnly = value; OnPropertyChanged(); } }
+    public bool ShowOutputOnly
+    {
+        get => _showOutputOnly;
+        set
+        {
+            _showOutputOnly = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(OutputHeaderTitle));
+            if (!string.IsNullOrWhiteSpace(_lastFullOutput))
+                UpdateOutputs(_lastFullOutput);
+        }
+    }
     public bool ToolCompareFullOutput { get => _toolCompareFullOutput; set { _toolCompareFullOutput = value; OnPropertyChanged(); } }
     public string ToolInputsFolder { get => Settings.InputsDir; set { Settings.InputsDir = value; Settings.Save(); OnPropertyChanged(); RaiseSettingsValidationChanged(); } }
     public string ToolOutputsFolder { get => Settings.OutputsDir; set { Settings.OutputsDir = value; Settings.Save(); OnPropertyChanged(); RaiseSettingsValidationChanged(); } }
@@ -249,6 +265,11 @@ public class MainViewModel : INotifyPropertyChanged
     }
     public string SelectedTestDurationText => SelectedTestResult?.DurationText ?? "--";
     public bool ShowTestOutput { get => Settings.ShowTestOutput; set { Settings.ShowTestOutput = value; OnPropertyChanged(); } }
+    public string LastRunStatus { get => _lastRunStatus; set { _lastRunStatus = value; OnPropertyChanged(); } }
+    public string LastRunDurationText { get => _lastRunDurationText; set { _lastRunDurationText = value; OnPropertyChanged(); } }
+    public Brush LastRunStatusBrush { get => _lastRunStatusBrush; set { _lastRunStatusBrush = value; OnPropertyChanged(); } }
+    public string OutputHeaderTitle => ShowOutputOnly ? "Program Output" : "Full Compiler Output";
+    public string ConsoleLineCountText => $"{CountOutputLines(VmOutput)} lines";
     public string VisualizerRunOutput { get => _visualizerRunOutput; set { _visualizerRunOutput = value; OnPropertyChanged(); } }
     public string VisualizerInfo { get => _visualizerInfo; set { _visualizerInfo = value; OnPropertyChanged(); } }
     public bool VisualizerAutoSync { get => _visualizerAutoSync; set { _visualizerAutoSync = value; OnPropertyChanged(); } }
@@ -391,6 +412,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand DeleteNodeCommand { get; }
     public RelayCommand SaveFileCommand { get; }
     public RelayCommand RunCurrentCommand { get; }
+    public RelayCommand CopyOutputCommand { get; }
+    public RelayCommand ClearOutputCommand { get; }
     public RelayCommand ToggleDiagnosticsCommand { get; }
     public RelayCommand OpenSettingsCommand { get; }
     public RelayCommand BackToEditorCommand { get; }
@@ -469,6 +492,8 @@ public class MainViewModel : INotifyPropertyChanged
         DeleteNodeCommand = new RelayCommand(n => DeleteNode(n as ProjectNode), n => n is ProjectNode);
         SaveFileCommand = new RelayCommand(_ => SaveFile());
         RunCurrentCommand = new RelayCommand(_ => RunCurrentFile(), _ => !string.IsNullOrWhiteSpace(_currentFile));
+        CopyOutputCommand = new RelayCommand(_ => CopyConsoleOutput(), _ => !string.IsNullOrWhiteSpace(VmOutput));
+        ClearOutputCommand = new RelayCommand(_ => ClearConsoleOutput(), _ => HasConsoleOutput());
         ToggleDiagnosticsCommand = new RelayCommand(_ => ShowDiagnostics = !ShowDiagnostics);
         OpenSettingsCommand = new RelayCommand(_ =>
         {
@@ -899,12 +924,11 @@ public class MainViewModel : INotifyPropertyChanged
             var runner = new JavaCompilerService(Settings);
             var result = await runner.RunFileAsync(_currentFile);
 
-            var diagnostics = DiagnosticsParser.Parse(result.Output);
+            var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text);
             Diagnostics.Clear();
             foreach (var d in diagnostics) Diagnostics.Add(d);
             OnPropertyChanged(nameof(DiagnosticsHeader));
 
-            UpdateOutputs(result.Output);
             if (diagnostics.Count > 0)
             {
                 StatusText = $"⚠️ {diagnostics.Count} error(s) found";
@@ -929,10 +953,15 @@ public class MainViewModel : INotifyPropertyChanged
         SaveFile();
         StatusText = "Running…";
         StatusColor = Brushes.LightGray;
+        LastRunStatus = $"Running {Path.GetFileName(_currentFile)}";
+        LastRunDurationText = "--";
+        LastRunStatusBrush = Brushes.LightGray;
 
         var runner = new JavaCompilerService(Settings);
+        var stopwatch = Stopwatch.StartNew();
         var result = await runner.RunFileAsync(_currentFile);
-        var diagnostics = DiagnosticsParser.Parse(result.Output);
+        stopwatch.Stop();
+        var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text);
         Diagnostics.Clear();
         foreach (var d in diagnostics) Diagnostics.Add(d);
         OnPropertyChanged(nameof(DiagnosticsHeader));
@@ -940,6 +969,9 @@ public class MainViewModel : INotifyPropertyChanged
         UpdateOutputs(result.Output);
         StatusText = result.Success ? "✅ Execution complete" : "❌ Execution failed";
         StatusColor = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
+        LastRunStatus = result.Success ? "Run completed" : "Run failed";
+        LastRunDurationText = FormatDuration(stopwatch.Elapsed);
+        LastRunStatusBrush = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
     }
 
     private static string SliceSection(string output, string[] starts, string[] stops)
@@ -968,6 +1000,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void UpdateOutputs(string fullOutput)
     {
+        _lastFullOutput = fullOutput;
         ConstantPoolOutput = SliceSection(fullOutput,
             ["constant pool"],
             ["instructions", "vm output", "vm trace"]);
@@ -991,6 +1024,57 @@ public class MainViewModel : INotifyPropertyChanged
 
         if (VisualizerAutoSync)
             LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
+
+        CopyOutputCommand.RaiseCanExecuteChanged();
+        ClearOutputCommand.RaiseCanExecuteChanged();
+    }
+
+    private void CopyConsoleOutput()
+    {
+        if (string.IsNullOrWhiteSpace(VmOutput)) return;
+
+        try
+        {
+            Clipboard.SetText(VmOutput);
+            StatusText = "Console output copied.";
+            StatusColor = Brushes.LightGreen;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Copy failed: {ex.Message}";
+            StatusColor = Brushes.Orange;
+        }
+    }
+
+    private void ClearConsoleOutput()
+    {
+        _lastFullOutput = "";
+        VmOutput = "";
+        ConstantPoolOutput = "";
+        InstructionsOutput = "";
+        LastRunStatus = "Console cleared";
+        LastRunDurationText = "--";
+        LastRunStatusBrush = Brushes.Gray;
+        StatusText = "Console cleared.";
+        StatusColor = Brushes.LightGray;
+        CopyOutputCommand.RaiseCanExecuteChanged();
+        ClearOutputCommand.RaiseCanExecuteChanged();
+    }
+
+    private bool HasConsoleOutput() =>
+        !string.IsNullOrWhiteSpace(VmOutput) ||
+        !string.IsNullOrWhiteSpace(ConstantPoolOutput) ||
+        !string.IsNullOrWhiteSpace(InstructionsOutput);
+
+    private static string FormatDuration(TimeSpan duration) =>
+        duration.TotalSeconds >= 1
+            ? $"{duration.TotalSeconds:0.00}s"
+            : $"{duration.TotalMilliseconds:0}ms";
+
+    private static int CountOutputLines(string output)
+    {
+        if (string.IsNullOrEmpty(output)) return 0;
+        return output.Replace("\r\n", "\n").TrimEnd('\n').Split('\n').Length;
     }
 
     private async void LoadVisualizerFromCurrentFile()

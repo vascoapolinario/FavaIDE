@@ -24,10 +24,15 @@ public partial class MainWindow : Window
     private int _activeSearchIndex = -1;
     private Point? _tabDragStartPoint;
     private EditorTab? _draggedTab;
+    private readonly ToolTip _diagnosticToolTip = new();
+    private FavaDiagnostic? _activeTooltipDiagnostic;
 
     public MainWindow()
     {
         InitializeComponent();
+        _diagnosticToolTip.Background = new SolidColorBrush(Color.FromRgb(0x2B, 0x2D, 0x30));
+        _diagnosticToolTip.BorderBrush = new SolidColorBrush(Color.FromRgb(0x6A, 0x2A, 0x2A));
+        _diagnosticToolTip.Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0xEA, 0xF0));
 
         _diagnosticUnderlineRenderer = new DiagnosticUnderlineRenderer(Editor);
         Editor.TextArea.TextView.BackgroundRenderers.Add(_diagnosticUnderlineRenderer);
@@ -58,6 +63,10 @@ public partial class MainWindow : Window
             _bracketHighlightRenderer.Refresh();
         };
         Editor.TextArea.TextEntered += Editor_OnTextEntered;
+        _diagnosticToolTip.PlacementTarget = Editor;
+        _diagnosticToolTip.StaysOpen = true;
+        Editor.MouseMove += Editor_OnMouseMove;
+        Editor.MouseLeave += (_, _) => HideDiagnosticToolTip();
         Editor.PreviewKeyDown += Editor_OnPreviewKeyDown;
         PreviewKeyDown += MainWindow_OnPreviewKeyDown;
 
@@ -88,6 +97,53 @@ public partial class MainWindow : Window
             RefreshBreakpointRenderers(vm);
         };
         vm.BreakpointsChanged += () => RefreshBreakpointRenderers(vm);
+    }
+
+    private void Editor_OnMouseMove(object sender, MouseEventArgs e)
+    {
+        if (Editor.Document is null)
+        {
+            HideDiagnosticToolTip();
+            return;
+        }
+
+        var position = Editor.GetPositionFromPoint(e.GetPosition(Editor));
+        if (!position.HasValue)
+        {
+            HideDiagnosticToolTip();
+            return;
+        }
+
+        var line = Editor.Document.GetLineByNumber(position.Value.Line);
+        var column = Math.Clamp(position.Value.Column, 1, line.Length + 1);
+        var offset = Editor.Document.GetOffset(position.Value.Line, column);
+        var diagnostic = _diagnosticUnderlineRenderer.GetDiagnosticAtOffset(offset);
+        if (diagnostic is null)
+        {
+            HideDiagnosticToolTip();
+            return;
+        }
+
+        if (ReferenceEquals(_activeTooltipDiagnostic, diagnostic) && _diagnosticToolTip.IsOpen)
+            return;
+
+        _activeTooltipDiagnostic = diagnostic;
+        _diagnosticToolTip.Content = new TextBlock
+        {
+            Text = diagnostic.Tooltip,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 520,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0xEA, 0xF0)),
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 13
+        };
+        _diagnosticToolTip.IsOpen = true;
+    }
+
+    private void HideDiagnosticToolTip()
+    {
+        _activeTooltipDiagnostic = null;
+        _diagnosticToolTip.IsOpen = false;
     }
 
     private void RefreshBreakpointRenderers(MainViewModel vm)
