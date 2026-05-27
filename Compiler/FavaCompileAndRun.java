@@ -75,6 +75,8 @@ public class FavaCompileAndRun {
             if (showAssembly) {
                 codeGen.dumpConstantPool();
                 codeGen.dumpInstructions();
+                codeGen.dumpTypeInfo();
+                codeGen.dumpSourceMap();
             }
 
             codeGen.saveBytecodes("bytecodes.bc");

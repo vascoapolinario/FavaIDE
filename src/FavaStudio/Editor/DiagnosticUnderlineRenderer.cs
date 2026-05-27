@@ -50,11 +50,6 @@ public sealed class DiagnosticUnderlineRenderer(TextEditor editor) : IBackground
         if (!textView.VisualLinesValid || _editor.Document is null || _diagnostics.Count == 0)
             return;
 
-        var pen = new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0x6D, 0x6D)), 2.0);
-        var fill = new SolidColorBrush(Color.FromArgb(38, 0xFF, 0x5D, 0x5D));
-        pen.Freeze();
-        fill.Freeze();
-
         foreach (var diagnostic in _diagnostics)
         {
             if (diagnostic.Line <= 0 || diagnostic.Line > _editor.Document.LineCount)
@@ -70,6 +65,17 @@ public sealed class DiagnosticUnderlineRenderer(TextEditor editor) : IBackground
             var x2 = end.X <= x1 ? x1 + 8 : end.X;
             var y = start.Y + 1;
             var textTop = textView.GetVisualPosition(new TextViewPosition(diagnostic.Line, startColumn), VisualYPosition.TextTop);
+            var isWarning = string.Equals(diagnostic.Severity, "Warning", StringComparison.OrdinalIgnoreCase);
+            var penBrush = isWarning
+                ? new SolidColorBrush(Color.FromRgb(0xD7, 0xAA, 0x45))
+                : new SolidColorBrush(Color.FromRgb(0xFF, 0x6D, 0x6D));
+            var fill = isWarning
+                ? new SolidColorBrush(Color.FromArgb(34, 0xD7, 0xAA, 0x45))
+                : new SolidColorBrush(Color.FromArgb(38, 0xFF, 0x5D, 0x5D));
+            var pen = new Pen(penBrush, 2.0);
+            pen.Freeze();
+            fill.Freeze();
+
             drawingContext.DrawRoundedRectangle(
                 fill,
                 null,
