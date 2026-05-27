@@ -29,6 +29,8 @@ public class MainViewModel : INotifyPropertyChanged
     private string _vmOutput = "";
     private string _constantPoolOutput = "";
     private string _instructionsOutput = "";
+    private string _typeInfoOutput = "";
+    private string _sourceMapOutput = "";
     private string _lastFullOutput = "";
     private string _lastRunStatus = "No run yet";
     private string _lastRunDurationText = "--";
@@ -54,6 +56,7 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _suppressTestSelectionOpen;
     private string _testSummary = "No tests run yet.";
     private readonly List<VisualizerInstruction> _allVisualizerInstructions = [];
+    private IReadOnlyList<FavaHoverInfo> _hoverInfos = [];
     private readonly List<string> _allVisualizerConstants = [];
     private readonly List<VisualizerValue> _visualizerRuntimeStack = [];
     private readonly List<VisualizerValue?> _visualizerGlobals = [];
@@ -94,6 +97,9 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<VisualizerStackEntry> VisualizerStack { get; } = new();
     public ObservableCollection<VisualizerGlobalEntry> VisualizerGlobals { get; } = new();
     public ObservableCollection<OpcodeReferenceItem> VisualizerOpcodeReference { get; } = new();
+    public ObservableCollection<FavaOutlineItem> OutlineItems { get; } = new();
+    public ObservableCollection<FavaReferenceItem> ReferenceResults { get; } = new();
+    public ObservableCollection<InlineValueHint> DebugInlineValueHints { get; } = new();
     public ObservableCollection<string> RecentProjects { get; } = new();
     public ObservableCollection<RecentProjectItem> WelcomeRecentProjects { get; } = new();
     public ObservableCollection<string> RecentFiles { get; } = new();
@@ -174,13 +180,16 @@ public class MainViewModel : INotifyPropertyChanged
         ? Brushes.LightGreen
         : Brushes.Orange;
     public string RecentSummary => $"{RecentProjects.Count} projects | {RecentFiles.Count} files";
-    public string DiagnosticsHeader => Diagnostics.Count == 0 ? "Errors" : $"Errors ({Diagnostics.Count})";
+    public string DiagnosticsHeader => Diagnostics.Count == 0 ? "Diagnostics" : $"Diagnostics ({Diagnostics.Count})";
+    public string ReferenceResultsHeader => ReferenceResults.Count == 0 ? "References" : $"References ({ReferenceResults.Count})";
+    public bool HasReferenceResults => ReferenceResults.Count > 0;
 
     public Brush StatusColor { get => _statusColor; set { _statusColor = value; OnPropertyChanged(); } }
     public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
     public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); OnPropertyChanged(nameof(ConsoleLineCountText)); } }
     public string ConstantPoolOutput { get => _constantPoolOutput; set { _constantPoolOutput = value; OnPropertyChanged(); } }
     public string InstructionsOutput { get => _instructionsOutput; set { _instructionsOutput = value; OnPropertyChanged(); } }
+    public IReadOnlyList<FavaHoverInfo> HoverInfos => _hoverInfos;
     public bool ShowDiagnostics
     {
         get => _showDiagnostics;
@@ -463,6 +472,11 @@ public class MainViewModel : INotifyPropertyChanged
     public MainViewModel(TextEditor editor)
     {
         _editor = editor;
+        ReferenceResults.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(ReferenceResultsHeader));
+            OnPropertyChanged(nameof(HasReferenceResults));
+        };
 
         _liveCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
         _liveCheckTimer.Tick += async (_, _) =>
@@ -584,6 +598,15 @@ public class MainViewModel : INotifyPropertyChanged
         IsWelcomeViewVisible = true;
         ApplyVisualizerOpcodeFilter();
     }
+
+    public void SetReferenceResults(IEnumerable<FavaReferenceItem> references)
+    {
+        ReferenceResults.Clear();
+        foreach (var reference in references)
+            ReferenceResults.Add(reference);
+    }
+
+    public void ClearReferenceResults() => ReferenceResults.Clear();
 
     private void OpenFileInEditorTab(string filePath, bool focus)
     {
@@ -924,7 +947,10 @@ public class MainViewModel : INotifyPropertyChanged
             var runner = new JavaCompilerService(Settings);
             var result = await runner.RunFileAsync(_currentFile);
 
-            var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text);
+            UpdateCompilerMetadata(result.Output);
+            var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text)
+                .Concat(DeadCodeAnalyzer.Analyze(_editor.Text, _hoverInfos))
+                .ToList();
             Diagnostics.Clear();
             foreach (var d in diagnostics) Diagnostics.Add(d);
             OnPropertyChanged(nameof(DiagnosticsHeader));
@@ -961,7 +987,10 @@ public class MainViewModel : INotifyPropertyChanged
         var stopwatch = Stopwatch.StartNew();
         var result = await runner.RunFileAsync(_currentFile);
         stopwatch.Stop();
-        var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text);
+        UpdateCompilerMetadata(result.Output);
+        var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text)
+            .Concat(DeadCodeAnalyzer.Analyze(_editor.Text, _hoverInfos))
+            .ToList();
         Diagnostics.Clear();
         foreach (var d in diagnostics) Diagnostics.Add(d);
         OnPropertyChanged(nameof(DiagnosticsHeader));
@@ -1003,11 +1032,13 @@ public class MainViewModel : INotifyPropertyChanged
         _lastFullOutput = fullOutput;
         ConstantPoolOutput = SliceSection(fullOutput,
             ["constant pool"],
-            ["instructions", "vm output", "vm trace"]);
+            ["instructions", "type info", "source map", "vm output", "vm trace"]);
 
         InstructionsOutput = SliceSection(fullOutput,
             ["instructions"],
-            ["vm output", "vm trace"]);
+            ["type info", "source map", "vm output", "vm trace"]);
+
+        UpdateCompilerMetadata(fullOutput);
 
         _vmTraceOutput = SliceSection(fullOutput,
             ["vm trace"],
@@ -1052,6 +1083,11 @@ public class MainViewModel : INotifyPropertyChanged
         VmOutput = "";
         ConstantPoolOutput = "";
         InstructionsOutput = "";
+        _typeInfoOutput = "";
+        _sourceMapOutput = "";
+        _hoverInfos = [];
+        OutlineItems.Clear();
+        OnPropertyChanged(nameof(HoverInfos));
         LastRunStatus = "Console cleared";
         LastRunDurationText = "--";
         LastRunStatusBrush = Brushes.Gray;
@@ -1065,6 +1101,40 @@ public class MainViewModel : INotifyPropertyChanged
         !string.IsNullOrWhiteSpace(VmOutput) ||
         !string.IsNullOrWhiteSpace(ConstantPoolOutput) ||
         !string.IsNullOrWhiteSpace(InstructionsOutput);
+
+    private void UpdateCompilerMetadata(string fullOutput)
+    {
+        _typeInfoOutput = SliceSection(fullOutput,
+            ["type info"],
+            ["source map", "vm output", "vm trace"]);
+        _sourceMapOutput = SliceSection(fullOutput,
+            ["source map"],
+            ["vm output", "vm trace"]);
+        _hoverInfos = CompilerMetadataParser.ParseTypeInfo(_typeInfoOutput);
+        RefreshOutlineItems();
+        OnPropertyChanged(nameof(HoverInfos));
+    }
+
+    private void RefreshOutlineItems()
+    {
+        OutlineItems.Clear();
+        foreach (var item in _hoverInfos
+                     .Where(info => info.Kind.Contains("definition", StringComparison.OrdinalIgnoreCase))
+                     .GroupBy(info => (info.Line, info.StartColumn, info.Name, info.Kind))
+                     .Select(group => group.First())
+                     .OrderBy(info => info.Line)
+                     .ThenBy(info => info.StartColumn))
+        {
+            OutlineItems.Add(new FavaOutlineItem
+            {
+                Kind = item.Kind,
+                Name = item.Name,
+                Type = item.Type,
+                Line = item.Line,
+                Column = item.StartColumn
+            });
+        }
+    }
 
     private static string FormatDuration(TimeSpan duration) =>
         duration.TotalSeconds >= 1
@@ -1312,7 +1382,11 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         _sourceLineToInstructionPositions.Clear();
-        foreach (var kvp in DebugSourceMapService.BuildLineToInstructionPositions(_editor.Text, _allVisualizerInstructions))
+        var compilerMap = CompilerMetadataParser.ParseSourceMap(_sourceMapOutput, _allVisualizerInstructions);
+        var sourceMap = compilerMap.Count > 0
+            ? compilerMap
+            : DebugSourceMapService.BuildLineToInstructionPositions(_editor.Text, _allVisualizerInstructions);
+        foreach (var kvp in sourceMap)
             _sourceLineToInstructionPositions[kvp.Key] = kvp.Value;
         RebuildInstructionToSourceLineMap();
         PopulateDebugTraceInstructionPositions();
@@ -1505,6 +1579,7 @@ public class MainViewModel : INotifyPropertyChanged
             DebugStepStatus = "";
             DebugCurrentSourceLine = null;
             DebugStack.Clear();
+            DebugInlineValueHints.Clear();
             return;
         }
 
@@ -1517,6 +1592,7 @@ public class MainViewModel : INotifyPropertyChanged
             DebugCurrentNote = "Execution has stopped (halt instruction or error).";
             DebugStepStatus = $"Halted at step {current} / {total}";
             DebugCurrentSourceLine = null;
+            DebugInlineValueHints.Clear();
         }
         else if (_visualizerStepIndex >= total)
         {
@@ -1524,6 +1600,7 @@ public class MainViewModel : INotifyPropertyChanged
             DebugCurrentNote = "All instructions executed.";
             DebugStepStatus = $"Finished  ({total} / {total})";
             DebugCurrentSourceLine = null;
+            DebugInlineValueHints.Clear();
         }
         else
         {
@@ -1532,6 +1609,7 @@ public class MainViewModel : INotifyPropertyChanged
             DebugCurrentNote = instr.Description;
             DebugStepStatus = $"Step {_visualizerStepIndex + 1} / {total}";
             DebugCurrentSourceLine = ResolveCurrentDebugSourceLine(_visualizerStepIndex);
+            RefreshDebugInlineValueHints(DebugCurrentSourceLine);
         }
 
         DebugStack.Clear();
@@ -1544,6 +1622,89 @@ public class MainViewModel : INotifyPropertyChanged
                 Value = entries[i].Value,
                 IsTop = i == 0
             });
+    }
+
+    private void RefreshDebugInlineValueHints(int? sourceLine)
+    {
+        DebugInlineValueHints.Clear();
+        if (sourceLine is not int line || line <= 0)
+            return;
+
+        var values = _hoverInfos
+            .Where(info => info.Line == line &&
+                           !info.IsDefinition &&
+                           !string.IsNullOrWhiteSpace(info.Name) &&
+                           (info.Kind.Contains("variable", StringComparison.OrdinalIgnoreCase) ||
+                            info.Kind.Contains("argument", StringComparison.OrdinalIgnoreCase) ||
+                            info.Kind.Contains("global", StringComparison.OrdinalIgnoreCase)))
+            .GroupBy(info => info.Name)
+            .Select(group => group.First())
+            .Select(ReadInlineValue)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct()
+            .Take(4)
+            .ToList();
+
+        if (values.Count > 0)
+            DebugInlineValueHints.Add(new InlineValueHint { Line = line, Text = string.Join("   ", values) });
+    }
+
+    private string? ReadInlineValue(FavaHoverInfo reference)
+    {
+        var symbol = FindBestSymbolDefinition(reference);
+        if (symbol is null || symbol.Address < 0)
+            return null;
+
+        VisualizerValue? value = null;
+        if (symbol.Kind.Contains("global", StringComparison.OrdinalIgnoreCase))
+        {
+            if (symbol.Address < _visualizerGlobals.Count)
+                value = _visualizerGlobals[symbol.Address];
+        }
+        else if (_visualizerFramePointer >= 0)
+        {
+            var index = _visualizerFramePointer + symbol.Address;
+            if (index >= 0 && index < _visualizerRuntimeStack.Count)
+                value = _visualizerRuntimeStack[index];
+        }
+
+        if (value is null || string.Equals(value.Type, "null", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return $"{reference.Name} = {FormatInlineValue(value)}";
+    }
+
+    private FavaHoverInfo? FindBestSymbolDefinition(FavaHoverInfo reference) =>
+        _hoverInfos
+            .Where(info => info.IsDefinition &&
+                           string.Equals(info.Name, reference.Name, StringComparison.Ordinal) &&
+                           IsCompatibleSymbolKind(info, reference))
+            .OrderBy(info => Math.Abs(info.Line - reference.Line))
+            .FirstOrDefault();
+
+    private static bool IsCompatibleSymbolKind(FavaHoverInfo definition, FavaHoverInfo reference)
+    {
+        if (definition.Kind.Contains("global", StringComparison.OrdinalIgnoreCase))
+            return reference.Kind.Contains("global", StringComparison.OrdinalIgnoreCase);
+        if (definition.Kind.Contains("argument", StringComparison.OrdinalIgnoreCase))
+            return reference.Kind.Contains("argument", StringComparison.OrdinalIgnoreCase);
+        if (definition.Kind.Contains("local", StringComparison.OrdinalIgnoreCase))
+            return reference.Kind.Contains("local", StringComparison.OrdinalIgnoreCase) ||
+                   reference.Kind.Contains("variable", StringComparison.OrdinalIgnoreCase);
+        return false;
+    }
+
+    private static string FormatInlineValue(VisualizerValue value)
+    {
+        if (value.Value is List<VisualizerValue?> array)
+        {
+            var preview = string.Join(", ", array.Take(4).Select(item => item is null ? "NULL" : FormatInlineValue(item)));
+            if (array.Count > 4)
+                preview += ", ...";
+            return $"[{preview}]";
+        }
+
+        return value.Value?.ToString() ?? "NULL";
     }
 
     private void RaiseDebugStateChanged()
@@ -2073,6 +2234,8 @@ public class MainViewModel : INotifyPropertyChanged
         var vmLines = new List<string>();
         var skippingConstant = false;
         var skippingInstructions = false;
+        var skippingTypeInfo = false;
+        var skippingSourceMap = false;
 
         foreach (var line in lines)
         {
@@ -2082,6 +2245,8 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 skippingConstant = true;
                 skippingInstructions = false;
+                skippingTypeInfo = false;
+                skippingSourceMap = false;
                 continue;
             }
 
@@ -2089,6 +2254,26 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 skippingInstructions = true;
                 skippingConstant = false;
+                skippingTypeInfo = false;
+                skippingSourceMap = false;
+                continue;
+            }
+
+            if (normalized == "type info")
+            {
+                skippingTypeInfo = true;
+                skippingConstant = false;
+                skippingInstructions = false;
+                skippingSourceMap = false;
+                continue;
+            }
+
+            if (normalized == "source map")
+            {
+                skippingSourceMap = true;
+                skippingConstant = false;
+                skippingInstructions = false;
+                skippingTypeInfo = false;
                 continue;
             }
 
@@ -2096,10 +2281,12 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 skippingConstant = false;
                 skippingInstructions = false;
+                skippingTypeInfo = false;
+                skippingSourceMap = false;
                 continue;
             }
 
-            if (!skippingConstant && !skippingInstructions)
+            if (!skippingConstant && !skippingInstructions && !skippingTypeInfo && !skippingSourceMap)
                 vmLines.Add(line);
         }
 

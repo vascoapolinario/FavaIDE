@@ -189,7 +189,9 @@
                         BorderThickness="0,0,1,0">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="3*"/>
+                            <RowDefinition Height="2.2*"/>
+                            <RowDefinition Height="5"/>
+                            <RowDefinition Height="1.5*"/>
                             <RowDefinition Height="5"/>
                             <RowDefinition Height="2*"/>
                         </Grid.RowDefinitions>
@@ -285,6 +287,64 @@
                                       Background="{StaticResource BorderBrush}"/>
 
                         <DockPanel Grid.Row="2">
+                            <Border DockPanel.Dock="Top"
+                                    Padding="10,7"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,1,0,1"
+                                    Background="{StaticResource BgPanelAltBrush}">
+                                <TextBlock Text="OUTLINE"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                            </Border>
+                            <ListBox x:Name="OutlineList"
+                                     ItemsSource="{Binding OutlineItems}"
+                                     MouseDoubleClick="OutlineList_OnMouseDoubleClick"
+                                     Margin="4"
+                                     Background="Transparent"
+                                     BorderThickness="0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,2">
+                                            <Border DockPanel.Dock="Left"
+                                                    Width="30"
+                                                    Height="20"
+                                                    CornerRadius="4"
+                                                    Background="{StaticResource ControlDarkerBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1"
+                                                    Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding Badge}"
+                                                           Foreground="{StaticResource AccentSoftBrush}"
+                                                           FontSize="10"
+                                                           FontWeight="Bold"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextMainBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Detail}"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+
+                        <GridSplitter Grid.Row="3"
+                                      Height="5"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
+                                      ResizeDirection="Rows"
+                                      Background="{StaticResource BorderBrush}"/>
+
+                        <DockPanel Grid.Row="4">
                             <Border DockPanel.Dock="Top"
                                     Padding="10,7"
                                     BorderBrush="{StaticResource BorderBrush}"
@@ -810,6 +870,10 @@
                                         <MenuItem Header="Move Line Up" Click="EditorContextMoveLineUp_OnClick"/>
                                         <MenuItem Header="Move Line Down" Click="EditorContextMoveLineDown_OnClick"/>
                                         <Separator/>
+                                        <MenuItem x:Name="EditorContextFindDeclaration" Header="Find Declaration" Click="EditorContextFindDeclaration_OnClick"/>
+                                        <MenuItem x:Name="EditorContextFindReferences" Header="Find References" Click="EditorContextFindReferences_OnClick"/>
+                                        <MenuItem x:Name="EditorContextQuickFix" Header="Quick Fix" Click="EditorContextQuickFix_OnClick"/>
+                                        <Separator/>
                                         <MenuItem Header="Toggle Breakpoint" Click="EditorContextToggleBreakpoint_OnClick"/>
                                         <MenuItem Header="Save File" Click="EditorContextSaveFile_OnClick"/>
                                         <MenuItem Header="Run Current File" Click="EditorContextRunCurrentFile_OnClick"/>
@@ -841,6 +905,71 @@
                                                FontWeight="Bold"
                                                Foreground="{StaticResource TextMutedBrush}"/>
                                 </Border>
+                                <DockPanel DockPanel.Dock="Bottom"
+                                           Height="230"
+                                           Visibility="{Binding HasReferenceResults, Converter={StaticResource BoolToVisibility}}">
+                                    <Border DockPanel.Dock="Top"
+                                            Background="{StaticResource BgPanelAltBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="0,1,0,1"
+                                            Padding="10,6">
+                                        <TextBlock Text="{Binding ReferenceResultsHeader}"
+                                                   FontSize="12"
+                                                   FontWeight="Bold"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                    </Border>
+                                    <ListBox x:Name="ReferencesList"
+                                             ItemsSource="{Binding ReferenceResults}"
+                                             MouseDoubleClick="ReferencesList_OnMouseDoubleClick"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             FontSize="12"
+                                             Margin="4,2">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Padding="6,5"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="0,0,0,1">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="42"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0"
+                                                                Background="{StaticResource ControlDarkerBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="3"
+                                                                Padding="3,1"
+                                                                HorizontalAlignment="Left"
+                                                                VerticalAlignment="Top">
+                                                            <TextBlock Text="{Binding Badge}"
+                                                                       FontSize="10"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="{StaticResource AccentBrush}"/>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" Margin="4,0,8,0">
+                                                            <TextBlock Text="{Binding Preview}"
+                                                                       FontFamily="Consolas"
+                                                                       Foreground="{StaticResource TextMainBrush}"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <TextBlock Text="{Binding Detail}"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       FontSize="11"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding Location}"
+                                                                   FontFamily="Consolas"
+                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   VerticalAlignment="Top"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
                                 <ListBox ItemsSource="{Binding Diagnostics}"
                                          Background="Transparent"
                                          BorderThickness="0"

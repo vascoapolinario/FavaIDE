@@ -528,6 +528,17 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
             return type;
         }
 
+        if (ctx.LENGTH() != null) {
+            FavaType arrayType = visit(ctx.expr(0));
+            if (arrayType != null && !arrayType.isArray()) {
+                addError(ctx, "length expects an array expression");
+                return null;
+            }
+            FavaType type = FavaType.scalar(FavaLexer.INT);
+            saveType(ctx, type);
+            return type;
+        }
+
         if (ctx.ID() != null && ctx.LBRACK() != null) {
             String name = ctx.ID().getText();
             Symbol variable = resolveVariable(name);

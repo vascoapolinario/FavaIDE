@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private readonly BreakpointMargin _breakpointMargin;
     private readonly BreakpointLineHighlighter _breakpointHighlighter;
     private readonly DebugCurrentLineHighlighter _debugCurrentLineHighlighter;
+    private readonly InlineValueHintRenderer _inlineValueHintRenderer;
     private readonly CurrentLineHighlighter _currentLineHighlighter;
     private readonly BracketHighlightRenderer _bracketHighlightRenderer;
     private readonly SearchResultRenderer _searchResultRenderer;
@@ -25,7 +26,7 @@ public partial class MainWindow : Window
     private Point? _tabDragStartPoint;
     private EditorTab? _draggedTab;
     private readonly ToolTip _diagnosticToolTip = new();
-    private FavaDiagnostic? _activeTooltipDiagnostic;
+    private string _activeTooltipText = "";
 
     public MainWindow()
     {
@@ -48,6 +49,8 @@ public partial class MainWindow : Window
 
         _debugCurrentLineHighlighter = new DebugCurrentLineHighlighter(Editor);
         Editor.TextArea.TextView.BackgroundRenderers.Insert(2, _debugCurrentLineHighlighter);
+        _inlineValueHintRenderer = new InlineValueHintRenderer(Editor);
+        Editor.TextArea.TextView.BackgroundRenderers.Add(_inlineValueHintRenderer);
 
         _bracketHighlightRenderer = new BracketHighlightRenderer(Editor);
         Editor.TextArea.TextView.BackgroundRenderers.Add(_bracketHighlightRenderer);
@@ -67,6 +70,8 @@ public partial class MainWindow : Window
         _diagnosticToolTip.StaysOpen = true;
         Editor.MouseMove += Editor_OnMouseMove;
         Editor.MouseLeave += (_, _) => HideDiagnosticToolTip();
+        Editor.PreviewMouseLeftButtonDown += Editor_OnPreviewMouseLeftButtonDown;
+        Editor.PreviewMouseRightButtonDown += Editor_OnPreviewMouseRightButtonDown;
         Editor.PreviewKeyDown += Editor_OnPreviewKeyDown;
         PreviewKeyDown += MainWindow_OnPreviewKeyDown;
 
@@ -88,6 +93,8 @@ public partial class MainWindow : Window
 
         vm.Diagnostics.CollectionChanged += (_, _) => _diagnosticUnderlineRenderer.SetDiagnostics(vm.Diagnostics.ToList());
         _diagnosticUnderlineRenderer.SetDiagnostics(vm.Diagnostics.ToList());
+        vm.DebugInlineValueHints.CollectionChanged += (_, _) => _inlineValueHintRenderer.SetHints(vm.DebugInlineValueHints.ToList());
+        _inlineValueHintRenderer.SetHints(vm.DebugInlineValueHints.ToList());
         UpdateSearchMatches(resetActive: true);
 
         // Breakpoint wiring
@@ -118,32 +125,113 @@ public partial class MainWindow : Window
         var column = Math.Clamp(position.Value.Column, 1, line.Length + 1);
         var offset = Editor.Document.GetOffset(position.Value.Line, column);
         var diagnostic = _diagnosticUnderlineRenderer.GetDiagnosticAtOffset(offset);
-        if (diagnostic is null)
+        var tooltipText = diagnostic?.Tooltip;
+        if (tooltipText is null && DataContext is MainViewModel vm)
+            tooltipText = FindHoverInfo(vm.HoverInfos, position.Value.Line, column)?.Tooltip;
+
+        if (string.IsNullOrWhiteSpace(tooltipText))
         {
             HideDiagnosticToolTip();
             return;
         }
 
-        if (ReferenceEquals(_activeTooltipDiagnostic, diagnostic) && _diagnosticToolTip.IsOpen)
+        if (_activeTooltipText == tooltipText && _diagnosticToolTip.IsOpen)
             return;
 
-        _activeTooltipDiagnostic = diagnostic;
-        _diagnosticToolTip.Content = new TextBlock
-        {
-            Text = diagnostic.Tooltip,
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 520,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0xEA, 0xF0)),
-            FontFamily = new FontFamily("Segoe UI"),
-            FontSize = 13
-        };
+        _activeTooltipText = tooltipText;
+        _diagnosticToolTip.Content = diagnostic is not null
+            ? BuildHoverCard("Diagnostic", diagnostic.Severity, diagnostic.Message, diagnostic.Explanation, diagnostic.SourceLine)
+            : BuildTypeCard(tooltipText);
         _diagnosticToolTip.IsOpen = true;
     }
 
     private void HideDiagnosticToolTip()
     {
-        _activeTooltipDiagnostic = null;
+        _activeTooltipText = "";
         _diagnosticToolTip.IsOpen = false;
+    }
+
+    private static FavaHoverInfo? FindHoverInfo(IReadOnlyList<FavaHoverInfo> hoverInfos, int line, int column) =>
+        hoverInfos
+            .Where(info => info.Line == line && column >= info.StartColumn && column <= info.EndColumn)
+            .OrderBy(info => info.EndColumn - info.StartColumn)
+            .FirstOrDefault();
+
+    private static Border BuildTypeCard(string tooltipText)
+    {
+        var lines = tooltipText.Split('\n');
+        var title = lines.FirstOrDefault() ?? "Type";
+        var detail = lines.Skip(1).FirstOrDefault() ?? "";
+        return BuildHoverCard("Type Info", title, detail.Replace("Type: ", "", StringComparison.OrdinalIgnoreCase), "", "");
+    }
+
+    private static Border BuildHoverCard(string eyebrow, string title, string message, string detail, string sourceLine)
+    {
+        var panel = new StackPanel { MaxWidth = 540 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = eyebrow.ToUpperInvariant(),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA4, 0xB2)),
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = title,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x9A, 0x3D)),
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = message,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0xEA, 0xF0)),
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 5, 0, 0)
+        });
+        if (!string.IsNullOrWhiteSpace(detail))
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = detail,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xC8, 0xD0, 0xDC)),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 7, 0, 0)
+            });
+        }
+        if (!string.IsNullOrWhiteSpace(sourceLine))
+        {
+            panel.Children.Add(new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x20, 0x22, 0x26)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3C, 0x3F, 0x41)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 5, 8, 5),
+                Margin = new Thickness(0, 8, 0, 0),
+                Child = new TextBlock
+                {
+                    Text = sourceLine.TrimEnd(),
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0xEA, 0xF0)),
+                    FontFamily = new FontFamily("Consolas"),
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.NoWrap
+                }
+            });
+        }
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x2B, 0x2D, 0x30)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x4A, 0x4F, 0x58)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(12, 10, 12, 10),
+            Child = panel
+        };
     }
 
     private void RefreshBreakpointRenderers(MainViewModel vm)
@@ -157,6 +245,46 @@ public partial class MainWindow : Window
     {
         if (DataContext is MainViewModel vm && e.NewValue is ProjectNode node)
             vm.SetSelectedProjectNode(node);
+    }
+
+    private void OutlineList_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (OutlineList.SelectedItem is FavaOutlineItem item)
+            JumpToLineColumn(item.Line, item.Column);
+    }
+
+    private void ReferencesList_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ReferencesList.SelectedItem is FavaReferenceItem item)
+            JumpToLineColumn(item.Line, item.Column);
+    }
+
+    private void Editor_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+            return;
+
+        if (TryGoToDefinitionAtPoint(e.GetPosition(Editor)))
+            e.Handled = true;
+    }
+
+    private void Editor_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Editor.Document is null)
+            return;
+
+        var position = Editor.GetPositionFromPoint(e.GetPosition(Editor));
+        if (!position.HasValue)
+            return;
+
+        var line = Editor.Document.GetLineByNumber(position.Value.Line);
+        var column = Math.Clamp(position.Value.Column, 1, line.Length + 1);
+        var offset = Editor.Document.GetOffset(position.Value.Line, column);
+        var insideSelection = Editor.SelectionLength > 0 &&
+                              offset >= Editor.SelectionStart &&
+                              offset <= Editor.SelectionStart + Editor.SelectionLength;
+        if (!insideSelection)
+            Editor.CaretOffset = offset;
     }
 
     private void MainWindow_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -496,11 +624,17 @@ public partial class MainWindow : Window
     private void EditorContextMenu_OnOpened(object sender, RoutedEventArgs e)
     {
         var hasSelection = !string.IsNullOrEmpty(Editor.SelectedText);
+        var symbol = FindSymbolAtCaret();
+        var quickFix = FindQuickFixAtCaret();
         EditorContextCut.IsEnabled = hasSelection;
         EditorContextCopy.IsEnabled = hasSelection;
         EditorContextDelete.IsEnabled = hasSelection;
         EditorContextFormatSelection.IsEnabled = hasSelection;
         EditorContextToggleComment.IsEnabled = Editor.Document is not null && Editor.Document.LineCount > 0;
+        EditorContextFindDeclaration.IsEnabled = symbol is not null && FindDefinitionAtCaret() is not null;
+        EditorContextFindReferences.IsEnabled = symbol is not null;
+        EditorContextQuickFix.IsEnabled = quickFix is not null;
+        EditorContextQuickFix.Header = quickFix is null ? "Quick Fix" : $"Quick Fix: {quickFix.Title}";
     }
 
     private void EditorContextCut_OnClick(object sender, RoutedEventArgs e)
@@ -602,6 +736,26 @@ public partial class MainWindow : Window
         Editor.Focus();
     }
 
+    private void EditorContextFindDeclaration_OnClick(object sender, RoutedEventArgs e)
+    {
+        var definition = FindDefinitionAtCaret();
+        if (definition is not null)
+            JumpToLineColumn(definition.Line, definition.StartColumn);
+        Editor.Focus();
+    }
+
+    private void EditorContextFindReferences_OnClick(object sender, RoutedEventArgs e)
+    {
+        ShowReferencesAtCaret();
+        Editor.Focus();
+    }
+
+    private void EditorContextQuickFix_OnClick(object sender, RoutedEventArgs e)
+    {
+        ApplyQuickFixAtCaret();
+        Editor.Focus();
+    }
+
     private void EditorContextToggleBreakpoint_OnClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
@@ -624,6 +778,254 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm && vm.RunCurrentCommand.CanExecute(null))
             vm.RunCurrentCommand.Execute(null);
         Editor.Focus();
+    }
+
+    private bool TryGoToDefinitionAtPoint(Point point)
+    {
+        if (Editor.Document is null)
+            return false;
+
+        var position = Editor.GetPositionFromPoint(point);
+        if (!position.HasValue)
+            return false;
+
+        var definition = FindDefinition(position.Value.Line, position.Value.Column);
+        if (definition is null)
+            return false;
+
+        JumpToLineColumn(definition.Line, definition.StartColumn);
+        return true;
+    }
+
+    private FavaHoverInfo? FindDefinitionAtCaret()
+    {
+        if (Editor.Document is null)
+            return null;
+
+        var location = Editor.Document.GetLocation(Editor.CaretOffset);
+        return FindDefinition(location.Line, location.Column);
+    }
+
+    private FavaHoverInfo? FindSymbolAtCaret()
+    {
+        if (Editor.Document is null || DataContext is not MainViewModel vm)
+            return null;
+
+        var selectedSymbol = GetSelectedSymbolName();
+        if (!string.IsNullOrWhiteSpace(selectedSymbol))
+        {
+            var selectionLocation = Editor.Document.GetLocation(Editor.SelectionStart);
+            return vm.HoverInfos
+                .Where(info => string.Equals(info.Name, selectedSymbol, StringComparison.Ordinal))
+                .OrderBy(info => Math.Abs(info.Line - selectionLocation.Line))
+                .ThenBy(info => Math.Abs(info.StartColumn - selectionLocation.Column))
+                .FirstOrDefault();
+        }
+
+        var location = Editor.Document.GetLocation(Editor.CaretOffset);
+        return FindHoverInfo(vm.HoverInfos, location.Line, location.Column);
+    }
+
+    private string? GetSelectedSymbolName()
+    {
+        var selected = Editor.SelectedText?.Trim();
+        if (string.IsNullOrWhiteSpace(selected) || selected.Contains('\n') || selected.Contains('\r'))
+            return null;
+
+        return Regex.IsMatch(selected, @"^[A-Za-z_]\w*$") ? selected : null;
+    }
+
+    private FavaHoverInfo? FindDefinition(int line, int column)
+    {
+        if (DataContext is not MainViewModel vm)
+            return null;
+
+        var symbol = FindHoverInfo(vm.HoverInfos, line, column);
+        if (symbol is null || string.IsNullOrWhiteSpace(symbol.Name))
+            return null;
+
+        return vm.HoverInfos
+            .Where(info => info.IsDefinition && string.Equals(info.Name, symbol.Name, StringComparison.Ordinal))
+            .OrderBy(info => Math.Abs(info.Line - line))
+            .ThenBy(info => info.StartColumn)
+            .FirstOrDefault();
+    }
+
+    private void ShowReferencesAtCaret()
+    {
+        if (Editor.Document is null || DataContext is not MainViewModel vm)
+            return;
+
+        var symbol = FindSymbolAtCaret();
+        if (symbol is null || string.IsNullOrWhiteSpace(symbol.Name))
+            return;
+
+        var references = vm.HoverInfos
+            .Where(info => string.Equals(info.Name, symbol.Name, StringComparison.Ordinal))
+            .GroupBy(info => new { info.Line, info.StartColumn, info.EndColumn, info.Kind, info.Type })
+            .Select(group => group.First())
+            .OrderBy(info => info.Line)
+            .ThenBy(info => info.StartColumn)
+            .Select(info => new FavaReferenceItem
+            {
+                Name = info.Name,
+                Kind = info.Kind,
+                Type = info.Type,
+                Line = info.Line,
+                Column = info.StartColumn,
+                IsDefinition = info.IsDefinition,
+                Preview = GetLinePreview(info.Line)
+            })
+            .ToList();
+
+        vm.SetReferenceResults(references);
+        if (references.Count > 0)
+            vm.ShowDiagnostics = true;
+    }
+
+    private string GetLinePreview(int line)
+    {
+        if (Editor.Document is null || line <= 0 || line > Editor.Document.LineCount)
+            return "";
+
+        return Editor.Document.GetText(Editor.Document.GetLineByNumber(line)).Trim();
+    }
+
+    private QuickFix? FindQuickFixAtCaret()
+    {
+        var diagnostic = GetDiagnosticAtCaret();
+        if (diagnostic is null || Editor.Document is null)
+            return null;
+
+        var message = diagnostic.Message;
+        var undeclared = Regex.Match(message, @"(?:variable\s+)?'?(?<name>[A-Za-z_]\w*)'?\s+(?:is\s+)?not declared", RegexOptions.IgnoreCase);
+        if (undeclared.Success)
+        {
+            var name = undeclared.Groups["name"].Value;
+            return new QuickFix($"declare integer {name}", () => InsertVariableDeclaration(name, "integer"));
+        }
+
+        if (message.Contains("cannot print", StringComparison.OrdinalIgnoreCase) &&
+            message.Contains("[]", StringComparison.OrdinalIgnoreCase))
+        {
+            var lineText = GetLinePreview(diagnostic.Line);
+            if (Regex.IsMatch(lineText, @"^\s*print\s+.+;\s*$", RegexOptions.IgnoreCase))
+                return new QuickFix("print array length", () => WrapPrintedExpressionWithLength(diagnostic.Line));
+        }
+
+        if (message.Contains("return", StringComparison.OrdinalIgnoreCase))
+        {
+            var returnType = InferNearestFunctionReturnType(diagnostic.Line);
+            if (!string.Equals(returnType, "void", StringComparison.OrdinalIgnoreCase))
+                return new QuickFix($"add {returnType} return stub", () => InsertReturnStub(diagnostic.Line, returnType));
+        }
+
+        return null;
+    }
+
+    private void ApplyQuickFixAtCaret()
+    {
+        var quickFix = FindQuickFixAtCaret();
+        quickFix?.Apply();
+    }
+
+    private FavaDiagnostic? GetDiagnosticAtCaret()
+    {
+        if (Editor.Document is null)
+            return null;
+
+        var offset = Math.Clamp(Editor.CaretOffset, 0, Editor.Document.TextLength);
+        return _diagnosticUnderlineRenderer.GetDiagnosticAtOffset(offset);
+    }
+
+    private void InsertVariableDeclaration(string name, string type)
+    {
+        if (Editor.Document is null)
+            return;
+
+        var caretLine = Editor.Document.GetLineByOffset(Editor.CaretOffset).LineNumber;
+        for (var lineNumber = caretLine; lineNumber >= 1; lineNumber--)
+        {
+            var line = Editor.Document.GetLineByNumber(lineNumber);
+            var text = Editor.Document.GetText(line);
+            if (!text.Contains('{'))
+                continue;
+
+            var indent = GetIndentation(text) + new string(' ', Editor.Options.IndentationSize);
+            var insertOffset = line.Offset + line.TotalLength;
+            Editor.Document.Insert(insertOffset, $"{indent}{type} {name};{Environment.NewLine}");
+            return;
+        }
+
+        Editor.Document.Insert(0, $"{type} {name};{Environment.NewLine}");
+    }
+
+    private void WrapPrintedExpressionWithLength(int lineNumber)
+    {
+        if (Editor.Document is null || lineNumber <= 0 || lineNumber > Editor.Document.LineCount)
+            return;
+
+        var line = Editor.Document.GetLineByNumber(lineNumber);
+        var text = Editor.Document.GetText(line);
+        var match = Regex.Match(text, @"^(?<prefix>\s*print\s+)(?<expr>.*?)(?<suffix>\s*;\s*)$", RegexOptions.IgnoreCase);
+        if (!match.Success)
+            return;
+
+        var prefix = match.Groups["prefix"].Value;
+        var expression = match.Groups["expr"].Value.Trim();
+        var suffix = match.Groups["suffix"].Value;
+        var replacement = $"{prefix}length({expression}){suffix}";
+        Editor.Document.Replace(line.Offset, line.Length, replacement.TrimEnd('\r', '\n'));
+    }
+
+    private void InsertReturnStub(int lineNumber, string returnType)
+    {
+        if (Editor.Document is null)
+            return;
+
+        var line = Math.Clamp(lineNumber, 1, Editor.Document.LineCount);
+        var documentLine = Editor.Document.GetLineByNumber(line);
+        var indent = GetIndentation(Editor.Document.GetText(documentLine));
+        var returnValue = returnType.ToLowerInvariant() switch
+        {
+            "real" => "0.0",
+            "string" => "\"\"",
+            "bool" => "false",
+            _ => "0"
+        };
+
+        Editor.Document.Insert(documentLine.Offset, $"{indent}return {returnValue};{Environment.NewLine}");
+    }
+
+    private string InferNearestFunctionReturnType(int lineNumber)
+    {
+        if (Editor.Document is null || DataContext is not MainViewModel vm)
+            return "integer";
+
+        var function = vm.HoverInfos
+            .Where(info => info.IsDefinition &&
+                           info.Kind.Contains("function", StringComparison.OrdinalIgnoreCase) &&
+                           info.Line <= lineNumber)
+            .OrderByDescending(info => info.Line)
+            .FirstOrDefault();
+
+        return string.IsNullOrWhiteSpace(function?.Type) ? "integer" : function.Type;
+    }
+
+    private sealed record QuickFix(string Title, Action Apply);
+
+    private void JumpToLineColumn(int line, int column)
+    {
+        if (Editor.Document is null || line <= 0 || line > Editor.Document.LineCount)
+            return;
+
+        var documentLine = Editor.Document.GetLineByNumber(line);
+        var offset = documentLine.Offset + Math.Clamp(column - 1, 0, documentLine.Length);
+        Editor.CaretOffset = offset;
+        Editor.Select(offset, 0);
+        Editor.ScrollToLine(line);
+        Editor.Focus();
+        _currentLineHighlighter.Refresh();
     }
 
     private void FormatLines(int startLine, int endLine)
