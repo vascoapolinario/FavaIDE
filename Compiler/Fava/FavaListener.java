@@ -1,4 +1,4 @@
-// Generated from C:/Users/User/IdeaProjects/Compiladores/FavaCompiler/src/Fava.g4 by ANTLR 4.13.2
+// Generated from Fava.g4 by ANTLR 4.13.2
 package Fava;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
@@ -57,6 +57,26 @@ public interface FavaListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitType(FavaParser.TypeContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link FavaParser#baseType}.
+	 * @param ctx the parse tree
+	 */
+	void enterBaseType(FavaParser.BaseTypeContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link FavaParser#baseType}.
+	 * @param ctx the parse tree
+	 */
+	void exitBaseType(FavaParser.BaseTypeContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link FavaParser#arraySuffix}.
+	 * @param ctx the parse tree
+	 */
+	void enterArraySuffix(FavaParser.ArraySuffixContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link FavaParser#arraySuffix}.
+	 * @param ctx the parse tree
+	 */
+	void exitArraySuffix(FavaParser.ArraySuffixContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link FavaParser#block}.
 	 * @param ctx the parse tree
@@ -139,6 +159,30 @@ public interface FavaListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitWhileStmt(FavaParser.WhileStmtContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code ForStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 */
+	void enterForStmt(FavaParser.ForStmtContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ForStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 */
+	void exitForStmt(FavaParser.ForStmtContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code ForEachStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 */
+	void enterForEachStmt(FavaParser.ForEachStmtContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ForEachStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 */
+	void exitForEachStmt(FavaParser.ForEachStmtContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code IfElseStmt}
 	 * labeled alternative in {@link FavaParser#stmt}.

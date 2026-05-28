@@ -1,4 +1,4 @@
-// Generated from C:/Users/User/IdeaProjects/Compiladores/FavaCompiler/src/Fava.g4 by ANTLR 4.13.2
+// Generated from Fava.g4 by ANTLR 4.13.2
 package Fava;
 
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -72,6 +72,30 @@ public class FavaBaseListener implements FavaListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitType(FavaParser.TypeContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterBaseType(FavaParser.BaseTypeContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitBaseType(FavaParser.BaseTypeContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterArraySuffix(FavaParser.ArraySuffixContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitArraySuffix(FavaParser.ArraySuffixContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -156,6 +180,30 @@ public class FavaBaseListener implements FavaListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitWhileStmt(FavaParser.WhileStmtContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterForStmt(FavaParser.ForStmtContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitForStmt(FavaParser.ForStmtContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterForEachStmt(FavaParser.ForEachStmtContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitForEachStmt(FavaParser.ForEachStmtContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

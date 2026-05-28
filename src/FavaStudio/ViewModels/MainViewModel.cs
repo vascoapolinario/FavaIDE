@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -20,6 +21,10 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly TextEditor _editor;
     private bool _isLiveChecking;
     private readonly DispatcherTimer _liveCheckTimer;
+    private const int LiveCheckDebounceMilliseconds = 3000;
+    private int _liveCheckRevision;
+    private string? _lastLiveCheckedFile;
+    private string? _lastLiveCheckedText;
     private string? _currentFile;
     private ProjectNode? _selectedProjectNode;
     private bool _suppressDirtyTracking;
@@ -29,12 +34,17 @@ public class MainViewModel : INotifyPropertyChanged
     private string _vmOutput = "";
     private string _constantPoolOutput = "";
     private string _instructionsOutput = "";
+    private string _consoleInput = "";
+    private Func<string, Task>? _consoleInputWriter;
+    private bool _isConsoleAcceptingInput;
     private string _typeInfoOutput = "";
     private string _sourceMapOutput = "";
     private string _lastFullOutput = "";
     private string _lastRunStatus = "No run yet";
     private string _lastRunDurationText = "--";
     private Brush _lastRunStatusBrush = Brushes.Gray;
+    private CancellationTokenSource? _executionCancellationSource;
+    private bool _isExecutionRunning;
     private bool _showDiagnostics = true;
     private bool _isSettingsViewVisible;
     private bool _isToolsViewVisible;
@@ -189,6 +199,18 @@ public class MainViewModel : INotifyPropertyChanged
     public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); OnPropertyChanged(nameof(ConsoleLineCountText)); } }
     public string ConstantPoolOutput { get => _constantPoolOutput; set { _constantPoolOutput = value; OnPropertyChanged(); } }
     public string InstructionsOutput { get => _instructionsOutput; set { _instructionsOutput = value; OnPropertyChanged(); } }
+    public string ConsoleInput { get => _consoleInput; set { _consoleInput = value; OnPropertyChanged(); SendConsoleInputCommand.RaiseCanExecuteChanged(); } }
+    public bool IsConsoleAcceptingInput
+    {
+        get => _isConsoleAcceptingInput;
+        private set
+        {
+            if (_isConsoleAcceptingInput == value)
+                return;
+            _isConsoleAcceptingInput = value;
+            OnPropertyChanged();
+        }
+    }
     public IReadOnlyList<FavaHoverInfo> HoverInfos => _hoverInfos;
     public bool ShowDiagnostics
     {
@@ -199,6 +221,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsRightPanelVisible));
             OnPropertyChanged(nameof(ShowDiagnosticsPanel));
+            OnPropertyChanged(nameof(CanStopExecution));
         }
     }
     public bool IsSettingsViewVisible { get => _isSettingsViewVisible; set { _isSettingsViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
@@ -277,6 +300,27 @@ public class MainViewModel : INotifyPropertyChanged
     public string LastRunStatus { get => _lastRunStatus; set { _lastRunStatus = value; OnPropertyChanged(); } }
     public string LastRunDurationText { get => _lastRunDurationText; set { _lastRunDurationText = value; OnPropertyChanged(); } }
     public Brush LastRunStatusBrush { get => _lastRunStatusBrush; set { _lastRunStatusBrush = value; OnPropertyChanged(); } }
+    public bool IsCurrentFavaFile => IsFavaFile(_currentFile);
+    public bool IsExecutionRunning
+    {
+        get => _isExecutionRunning;
+        private set
+        {
+            if (_isExecutionRunning == value)
+                return;
+            _isExecutionRunning = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanStopExecution));
+            RunCurrentCommand.RaiseCanExecuteChanged();
+            StartDebugCommand.RaiseCanExecuteChanged();
+            StopExecutionCommand.RaiseCanExecuteChanged();
+            SendConsoleInputCommand.RaiseCanExecuteChanged();
+            DebugStopCommand.RaiseCanExecuteChanged();
+            if (!value)
+                IsConsoleAcceptingInput = false;
+        }
+    }
+    public bool CanStopExecution => IsExecutionRunning || CanDebugStop;
     public string OutputHeaderTitle => ShowOutputOnly ? "Program Output" : "Full Compiler Output";
     public string ConsoleLineCountText => $"{CountOutputLines(VmOutput)} lines";
     public string VisualizerRunOutput { get => _visualizerRunOutput; set { _visualizerRunOutput = value; OnPropertyChanged(); } }
@@ -415,12 +459,18 @@ public class MainViewModel : INotifyPropertyChanged
 
     public RelayCommand OpenProjectCommand { get; }
     public RelayCommand CreateProjectCommand { get; }
+    public RelayCommand CloseProjectCommand { get; }
+    public RelayCommand DeleteProjectCommand { get; }
+    public RelayCommand RemoveRecentProjectCommand { get; }
+    public RelayCommand DeleteRecentProjectCommand { get; }
     public RelayCommand NewFavaFileCommand { get; }
     public RelayCommand NewTextFileCommand { get; }
     public RelayCommand NewDirectoryCommand { get; }
     public RelayCommand DeleteNodeCommand { get; }
     public RelayCommand SaveFileCommand { get; }
     public RelayCommand RunCurrentCommand { get; }
+    public RelayCommand StopExecutionCommand { get; }
+    public RelayCommand SendConsoleInputCommand { get; }
     public RelayCommand CopyOutputCommand { get; }
     public RelayCommand ClearOutputCommand { get; }
     public RelayCommand ToggleDiagnosticsCommand { get; }
@@ -478,7 +528,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasReferenceResults));
         };
 
-        _liveCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+        _liveCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(LiveCheckDebounceMilliseconds) };
         _liveCheckTimer.Tick += async (_, _) =>
         {
             _liveCheckTimer.Stop();
@@ -486,7 +536,10 @@ public class MainViewModel : INotifyPropertyChanged
         };
         _editor.TextChanged += (_, _) =>
         {
-            if (!_suppressDirtyTracking && _selectedEditorTab is not null)
+            if (_suppressDirtyTracking)
+                return;
+
+            if (_selectedEditorTab is not null)
             {
                 _selectedEditorTab.Content = _editor.Text;
                 _selectedEditorTab.IsDirty = true;
@@ -494,18 +547,25 @@ public class MainViewModel : INotifyPropertyChanged
                 _hasUnsavedChanges = true;
                 OnPropertyChanged(nameof(CurrentFileName));
             }
-            _liveCheckTimer.Stop();
-            _liveCheckTimer.Start();
+
+            _liveCheckRevision++;
+            ScheduleLiveCheck();
         };
 
         OpenProjectCommand = new RelayCommand(_ => OpenProject());
         CreateProjectCommand = new RelayCommand(_ => CreateProject());
+        CloseProjectCommand = new RelayCommand(_ => CloseProject(), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        DeleteProjectCommand = new RelayCommand(p => DeleteProject(p as string), p => !string.IsNullOrWhiteSpace((p as string) ?? Settings.ProjectRoot));
+        RemoveRecentProjectCommand = new RelayCommand(p => RemoveProjectReference(p as string), p => !string.IsNullOrWhiteSpace(p as string));
+        DeleteRecentProjectCommand = new RelayCommand(p => DeleteProject(p as string), p => !string.IsNullOrWhiteSpace(p as string));
         NewFavaFileCommand = new RelayCommand(node => NewFile(".fava", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         NewTextFileCommand = new RelayCommand(node => NewFile(".txt", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         NewDirectoryCommand = new RelayCommand(node => NewDirectory(node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         DeleteNodeCommand = new RelayCommand(n => DeleteNode(n as ProjectNode), n => n is ProjectNode);
         SaveFileCommand = new RelayCommand(_ => SaveFile());
-        RunCurrentCommand = new RelayCommand(_ => RunCurrentFile(), _ => !string.IsNullOrWhiteSpace(_currentFile));
+        RunCurrentCommand = new RelayCommand(_ => RunCurrentFile(), _ => IsCurrentFavaFile && !IsExecutionRunning);
+        StopExecutionCommand = new RelayCommand(_ => StopExecution(), _ => CanStopExecution);
+        SendConsoleInputCommand = new RelayCommand(_ => SendConsoleInput(), _ => IsExecutionRunning && _consoleInputWriter != null);
         CopyOutputCommand = new RelayCommand(_ => CopyConsoleOutput(), _ => !string.IsNullOrWhiteSpace(VmOutput));
         ClearOutputCommand = new RelayCommand(_ => ClearConsoleOutput(), _ => HasConsoleOutput());
         ToggleDiagnosticsCommand = new RelayCommand(_ => ShowDiagnostics = !ShowDiagnostics);
@@ -586,12 +646,12 @@ public class MainViewModel : INotifyPropertyChanged
         VisualizerResetCommand = new RelayCommand(_ => VisualizerReset(), _ => VisualizerHasData);
         VisualizerJumpToEndCommand = new RelayCommand(_ => VisualizerJumpToEnd(), _ => VisualizerCanStep);
 
-        StartDebugCommand = new RelayCommand(_ => StartDebug(), _ => !string.IsNullOrWhiteSpace(_currentFile));
+        StartDebugCommand = new RelayCommand(_ => StartDebug(), _ => IsCurrentFavaFile && !IsExecutionRunning);
         DebugStepCommand = new RelayCommand(_ => DebugStep(), _ => CanDebugStep);
         DebugContinueCommand = new RelayCommand(_ => DebugContinue(), _ => CanDebugContinue);
         DebugJumpToCallCommand = new RelayCommand(_ => DebugJumpToCall(), _ => CanDebugJumpToCall);
         DebugStepBackCommand = new RelayCommand(_ => DebugStepBack(), _ => CanDebugBack);
-        DebugStopCommand = new RelayCommand(_ => DebugStop(), _ => CanDebugStop);
+        DebugStopCommand = new RelayCommand(_ => StopExecution(), _ => CanStopExecution);
         ToggleBreakpointAtCaretCommand = new RelayCommand(_ => ToggleBreakpointAtCaret(), _ => _editor.Document is not null);
 
         RefreshRecentCollections();
@@ -656,7 +716,8 @@ public class MainViewModel : INotifyPropertyChanged
 
             if (answer == MessageBoxResult.Yes)
             {
-                FileService.WriteText(tab.FilePath, tab.Content);
+                if (!TryWriteTextToExistingPath(tab.FilePath, tab.Content, showDialog: true))
+                    return false;
                 tab.IsDirty = false;
             }
             else
@@ -700,6 +761,63 @@ public class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
+    private bool CloseTabsForDeletedPath(string path)
+    {
+        if (_selectedEditorTab is not null)
+        {
+            _selectedEditorTab.Content = _editor.Text;
+            _selectedEditorTab.IsDirty = _hasUnsavedChanges;
+        }
+
+        var tabsToClose = OpenEditorTabs
+            .Where(tab => IsSameOrInsidePath(tab.FilePath, path))
+            .ToList();
+
+        if (tabsToClose.Count == 0)
+            return true;
+
+        var dirtyTabs = tabsToClose.Where(tab => tab.IsDirty).ToList();
+        if (dirtyTabs.Count > 0)
+        {
+            var answer = MessageBox.Show(
+                dirtyTabs.Count == 1
+                    ? $"Discard unsaved changes in '{dirtyTabs[0].FileName}' before deleting?"
+                    : $"Discard unsaved changes in {dirtyTabs.Count} open files before deleting?",
+                "Unsaved Changes",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (answer != MessageBoxResult.Yes)
+                return false;
+        }
+
+        foreach (var tab in tabsToClose)
+            RemoveEditorTabWithoutPrompt(tab);
+
+        return true;
+    }
+
+    private void RemoveEditorTabWithoutPrompt(EditorTab tab)
+    {
+        var removedIndex = OpenEditorTabs.IndexOf(tab);
+        if (removedIndex < 0)
+            return;
+
+        var wasSelected = ReferenceEquals(_selectedEditorTab, tab);
+        OpenEditorTabs.Remove(tab);
+        _currentTestTabPaths.Remove(tab.FilePath);
+
+        if (!wasSelected)
+            return;
+
+        _hasUnsavedChanges = false;
+        var newSelectedTab = OpenEditorTabs.Count == 0
+            ? null
+            : OpenEditorTabs[Math.Clamp(removedIndex, 0, OpenEditorTabs.Count - 1)];
+
+        SelectEditorTab(newSelectedTab);
+    }
+
     private void SelectEditorTab(EditorTab? tab)
     {
         if (ReferenceEquals(_selectedEditorTab, tab))
@@ -714,6 +832,7 @@ public class MainViewModel : INotifyPropertyChanged
         _selectedEditorTab = tab;
         _currentFile = tab?.FilePath;
         _hasUnsavedChanges = tab?.IsDirty ?? false;
+        _liveCheckTimer.Stop();
 
         _suppressDirtyTracking = true;
         _editor.Text = tab?.Content ?? "";
@@ -721,8 +840,16 @@ public class MainViewModel : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(SelectedEditorTab));
         OnPropertyChanged(nameof(CurrentFileName));
+        OnPropertyChanged(nameof(IsCurrentFavaFile));
+        if (!IsCurrentFavaFile)
+        {
+            Diagnostics.Clear();
+            OnPropertyChanged(nameof(DiagnosticsHeader));
+        }
         RunCurrentCommand.RaiseCanExecuteChanged();
         StartDebugCommand.RaiseCanExecuteChanged();
+        CloseProjectCommand.RaiseCanExecuteChanged();
+        DeleteProjectCommand.RaiseCanExecuteChanged();
     }
 
     private void OpenProject()
@@ -748,19 +875,16 @@ public class MainViewModel : INotifyPropertyChanged
         var projectRoot = Path.Combine(baseFolder, "FavaProject");
         if (Directory.Exists(projectRoot))
         {
-            var maxSuffix = Directory.GetDirectories(baseFolder, "FavaProject*")
-                .Select(Path.GetFileName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name =>
-                {
-                    if (name == "FavaProject") return 0;
-                    var suffixText = name!["FavaProject".Length..];
-                    return int.TryParse(suffixText, out var parsed) ? parsed : 0;
-                })
-                .DefaultIfEmpty(0)
-                .Max();
+            StatusText = $"Project already exists: {projectRoot}";
+            StatusColor = Brushes.Orange;
+            return;
+        }
 
-            projectRoot = Path.Combine(baseFolder, $"FavaProject{maxSuffix + 1}");
+        if (HasProjectNameConflict(projectRoot, out var conflictingProject))
+        {
+            StatusText = $"Project name '{GetProjectName(projectRoot)}' is already used by {conflictingProject}.";
+            StatusColor = Brushes.Orange;
+            return;
         }
 
         Directory.CreateDirectory(projectRoot);
@@ -771,6 +895,13 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void LoadProject(string folder, bool skipUnsavedCheck = false)
     {
+        if (HasProjectNameConflict(folder, out var conflictingProject))
+        {
+            StatusText = $"Project name '{GetProjectName(folder)}' is already used by {conflictingProject}.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
         if (!skipUnsavedCheck && !TryResolveUnsavedChanges())
             return;
 
@@ -792,13 +923,12 @@ public class MainViewModel : INotifyPropertyChanged
         ProjectTree.Clear();
         try
         {
-            var root = BuildNode(folder);
+            var root = BuildNode(folder, isRoot: true);
             ProjectTree.Add(root);
             Settings.ProjectRoot = folder;
             AddRecentProject(folder);
-            Settings.Save();
+            ConfigureProjectTestFolders(folder, createIfMissing: false);
             RefreshRecentCollections();
-            EnsureTestFoldersConfigured(createIfMissing: false);
             RefreshTestSuiteCases();
             IsWelcomeViewVisible = false;
             BackToEditor();
@@ -808,6 +938,8 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsWorkspaceVisible));
             RaiseSettingsValidationChanged();
             CreateTestPairCommand.RaiseCanExecuteChanged();
+            CloseProjectCommand.RaiseCanExecuteChanged();
+            DeleteProjectCommand.RaiseCanExecuteChanged();
 
             RestoreExpandedPaths(root, expandedPaths);
             OpenInitialProjectFile(root, folder, selectedPath);
@@ -819,7 +951,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private ProjectNode BuildNode(string path)
+    private ProjectNode BuildNode(string path, bool isRoot = false)
     {
         var isDirectory = Directory.Exists(path);
         var name = Path.GetFileName(path);
@@ -827,7 +959,8 @@ public class MainViewModel : INotifyPropertyChanged
         {
             Name = string.IsNullOrWhiteSpace(name) ? path : name,
             FullPath = path,
-            IsDirectory = isDirectory
+            IsDirectory = isDirectory,
+            IsRoot = isRoot
         };
 
         if (!isDirectory) return node;
@@ -839,6 +972,66 @@ public class MainViewModel : INotifyPropertyChanged
             node.Children.Add(BuildNode(file));
 
         return node;
+    }
+
+    private void RefreshProjectTree(string? selectedPath = null, string? parentPath = null)
+    {
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot) || !Directory.Exists(Settings.ProjectRoot))
+            return;
+
+        var expandedPaths = CaptureExpandedPaths(ProjectTree.FirstOrDefault());
+        AddAncestorPaths(expandedPaths, selectedPath);
+        AddAncestorPaths(expandedPaths, parentPath);
+        ProjectTree.Clear();
+        var root = BuildNode(Settings.ProjectRoot, isRoot: true);
+        ProjectTree.Add(root);
+        RestoreExpandedPaths(root, expandedPaths, expandRoot: true);
+    }
+
+    private bool AddProjectNodeInPlace(string path)
+    {
+        var parentPath = Path.GetDirectoryName(path);
+        var parentNode = string.IsNullOrWhiteSpace(parentPath)
+            ? null
+            : FindNodeByPath(ProjectTree.FirstOrDefault(), parentPath);
+        if (parentNode is null || !parentNode.IsDirectory)
+            return false;
+
+        if (FindNodeByPath(parentNode, path) is not null)
+            return true;
+
+        var newNode = BuildNode(path);
+        var insertIndex = 0;
+        while (insertIndex < parentNode.Children.Count && ShouldSortBefore(parentNode.Children[insertIndex], newNode))
+            insertIndex++;
+
+        parentNode.Children.Insert(insertIndex, newNode);
+        parentNode.IsExpanded = true;
+        return true;
+    }
+
+    private bool RemoveProjectNodeInPlace(string path)
+    {
+        var parentPath = Path.GetDirectoryName(path);
+        var parentNode = string.IsNullOrWhiteSpace(parentPath)
+            ? null
+            : FindNodeByPath(ProjectTree.FirstOrDefault(), parentPath);
+        if (parentNode is null)
+            return false;
+
+        var node = parentNode.Children.FirstOrDefault(child => string.Equals(child.FullPath, path, StringComparison.OrdinalIgnoreCase));
+        if (node is null)
+            return false;
+
+        parentNode.Children.Remove(node);
+        return true;
+    }
+
+    private static bool ShouldSortBefore(ProjectNode existing, ProjectNode incoming)
+    {
+        if (existing.IsDirectory != incoming.IsDirectory)
+            return existing.IsDirectory;
+        return string.Compare(existing.Name, incoming.Name, StringComparison.OrdinalIgnoreCase) < 0;
     }
 
     private void NewFile(string extension, ProjectNode? node)
@@ -865,8 +1058,8 @@ public class MainViewModel : INotifyPropertyChanged
         if (dialog.ShowDialog() != true) return;
 
         FileService.WriteText(dialog.FileName, "");
-        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
-            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
+        if (!AddProjectNodeInPlace(dialog.FileName))
+            RefreshProjectTree(dialog.FileName, parentPath: Path.GetDirectoryName(dialog.FileName));
         var createdNode = FindNodeByPath(ProjectTree.FirstOrDefault(), dialog.FileName);
         if (createdNode is not null)
             SetSelectedProjectNode(createdNode);
@@ -894,8 +1087,11 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         Directory.CreateDirectory(candidate);
-        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
-            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
+        if (!AddProjectNodeInPlace(candidate))
+            RefreshProjectTree(candidate, parentPath: candidate);
+        var createdNode = FindNodeByPath(ProjectTree.FirstOrDefault(), candidate);
+        if (createdNode is not null)
+            createdNode.IsExpanded = true;
         StatusText = $"Created directory: {Path.GetFileName(candidate)}";
         StatusColor = Brushes.LightGreen;
     }
@@ -903,18 +1099,143 @@ public class MainViewModel : INotifyPropertyChanged
     private void DeleteNode(ProjectNode? node)
     {
         if (node is null || string.IsNullOrWhiteSpace(node.FullPath)) return;
-        if (node.FullPath == Settings.ProjectRoot) return;
+        if (node.FullPath == Settings.ProjectRoot)
+        {
+            DeleteProject(Settings.ProjectRoot);
+            return;
+        }
 
         var answer = MessageBox.Show($"Delete '{node.Name}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (answer != MessageBoxResult.Yes) return;
+        if (!CloseTabsForDeletedPath(node.FullPath)) return;
 
         if (node.IsDirectory && Directory.Exists(node.FullPath))
             Directory.Delete(node.FullPath, true);
         else if (File.Exists(node.FullPath))
             File.Delete(node.FullPath);
 
-        if (!string.IsNullOrWhiteSpace(Settings.ProjectRoot))
-            LoadProject(Settings.ProjectRoot, skipUnsavedCheck: true);
+        if (!RemoveProjectNodeInPlace(node.FullPath))
+            RefreshProjectTree(parentPath: Path.GetDirectoryName(node.FullPath));
+    }
+
+    private void CloseProject()
+    {
+        if (!TryResolveUnsavedChanges())
+            return;
+
+        ClearLoadedProject();
+        IsWelcomeViewVisible = true;
+        StatusText = "Project closed.";
+        StatusColor = Brushes.LightGray;
+    }
+
+    private void DeleteProject(string? projectPath)
+    {
+        projectPath = string.IsNullOrWhiteSpace(projectPath) ? Settings.ProjectRoot : projectPath;
+        if (string.IsNullOrWhiteSpace(projectPath))
+            return;
+        if (!Directory.Exists(projectPath))
+        {
+            RemoveProjectReference(projectPath);
+            return;
+        }
+
+        var projectName = GetProjectName(projectPath);
+        var answer = MessageBox.Show(
+            $"Remove project '{projectName}' from Fava Studio?\n\nChoose Yes to remove it from recent projects only.\nChoose No to delete the project folder and all files inside it.\n\n{projectPath}",
+            "Delete Project",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Warning);
+        if (answer == MessageBoxResult.Cancel)
+            return;
+
+        if (answer == MessageBoxResult.Yes)
+        {
+            RemoveProjectReference(projectPath);
+            return;
+        }
+
+        if (string.Equals(Path.GetFullPath(projectPath), Path.GetFullPath(Settings.ProjectRoot), StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryResolveUnsavedChanges())
+                return;
+            ClearLoadedProject();
+        }
+
+        try
+        {
+            Directory.Delete(projectPath, true);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Failed to delete project: {ex.Message}";
+            StatusColor = Brushes.IndianRed;
+            return;
+        }
+        Settings.RecentProjects.RemoveAll(p => string.Equals(p, projectPath, StringComparison.OrdinalIgnoreCase));
+        Settings.RecentFiles.RemoveAll(f => f.StartsWith(projectPath, StringComparison.OrdinalIgnoreCase));
+        Settings.Save();
+        RefreshRecentCollections();
+        IsWelcomeViewVisible = true;
+        StatusText = $"Deleted project: {projectName}";
+        StatusColor = Brushes.Orange;
+    }
+
+    private void RemoveProjectReference(string? projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            return;
+
+        var wasCurrentProject = !string.IsNullOrWhiteSpace(Settings.ProjectRoot)
+            && string.Equals(Path.GetFullPath(projectPath), Path.GetFullPath(Settings.ProjectRoot), StringComparison.OrdinalIgnoreCase);
+
+        if (wasCurrentProject)
+        {
+            if (!TryResolveUnsavedChanges())
+                return;
+            ClearLoadedProject();
+            IsWelcomeViewVisible = true;
+        }
+
+        Settings.RecentProjects.RemoveAll(p => string.Equals(p, projectPath, StringComparison.OrdinalIgnoreCase));
+        Settings.RecentFiles.RemoveAll(f => f.StartsWith(projectPath, StringComparison.OrdinalIgnoreCase));
+        Settings.Save();
+        RefreshRecentCollections();
+        StatusText = $"Removed project from Fava Studio: {GetProjectName(projectPath)}";
+        StatusColor = Brushes.LightGray;
+    }
+
+    private void ClearLoadedProject()
+    {
+        ProjectTree.Clear();
+        TestResults.Clear();
+        ToolTestPairs.Clear();
+        OpenEditorTabs.Clear();
+        QuickOpenResults.Clear();
+        SelectedProjectNode = null;
+        SelectedTestResult = null;
+        SelectedToolTestPair = null;
+        _currentTestTabPaths.Clear();
+        _selectedEditorTab = null;
+        _currentFile = null;
+        _hasUnsavedChanges = false;
+        _suppressDirtyTracking = true;
+        _editor.Text = "";
+        _suppressDirtyTracking = false;
+        Settings.ProjectRoot = "";
+        Settings.InputsDir = "";
+        Settings.OutputsDir = "";
+        Settings.Save();
+        TestSummary = "No tests run yet.";
+        OnPropertyChanged(nameof(SelectedEditorTab));
+        OnPropertyChanged(nameof(CurrentFileName));
+        OnPropertyChanged(nameof(CurrentProjectDirectory));
+        RaiseSettingsValidationChanged();
+        RunCurrentCommand.RaiseCanExecuteChanged();
+        StartDebugCommand.RaiseCanExecuteChanged();
+        CloseProjectCommand.RaiseCanExecuteChanged();
+        DeleteProjectCommand.RaiseCanExecuteChanged();
+        CreateTestPairCommand.RaiseCanExecuteChanged();
     }
 
     private void SaveFile()
@@ -924,7 +1245,8 @@ public class MainViewModel : INotifyPropertyChanged
             return;
 
         activeTab.Content = _editor.Text;
-        FileService.WriteText(activeTab.FilePath, activeTab.Content);
+        if (!TryWriteTextToExistingPath(activeTab.FilePath, activeTab.Content, showDialog: true))
+            return;
         activeTab.IsDirty = false;
         _currentFile = activeTab.FilePath;
         AddRecentFile(activeTab.FilePath);
@@ -935,25 +1257,110 @@ public class MainViewModel : INotifyPropertyChanged
         StatusColor = Brushes.LightGreen;
     }
 
+    private bool TryWriteTextToExistingPath(string path, string content, bool showDialog)
+    {
+        if (!CanWriteToExistingFolder(path, out var message))
+        {
+            StatusText = message;
+            StatusColor = Brushes.IndianRed;
+            if (showDialog)
+                MessageBox.Show(message, "Save Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        try
+        {
+            FileService.WriteText(path, content);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            var error = $"Could not save '{Path.GetFileName(path)}': {ex.Message}";
+            StatusText = error;
+            StatusColor = Brushes.IndianRed;
+            if (showDialog)
+                MessageBox.Show(error, "Save Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+    }
+
+    private static bool CanWriteToExistingFolder(string path, out string message)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+        {
+            message = $"Cannot save '{Path.GetFileName(path)}' because its folder no longer exists.";
+            return false;
+        }
+
+        message = "";
+        return true;
+    }
+
+    private void ScheduleLiveCheck()
+    {
+        _liveCheckTimer.Stop();
+        if (IsCurrentFavaFile)
+            _liveCheckTimer.Start();
+    }
+
     private async Task RunLiveCheckAsync()
     {
-        if (string.IsNullOrWhiteSpace(_currentFile) || _isLiveChecking) return;
+        if (string.IsNullOrWhiteSpace(_currentFile)) return;
+        if (_isLiveChecking)
+        {
+            ScheduleLiveCheck();
+            return;
+        }
+
+        if (!IsCurrentFavaFile)
+        {
+            Diagnostics.Clear();
+            OnPropertyChanged(nameof(DiagnosticsHeader));
+            return;
+        }
         if (!CanRunCompiler(showStatus: false)) return;
+
+        var checkFile = _currentFile;
+        var checkText = _editor.Text;
+        var checkRevision = _liveCheckRevision;
+
+        if (string.Equals(_lastLiveCheckedFile, checkFile, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(_lastLiveCheckedText, checkText, StringComparison.Ordinal))
+            return;
 
         _isLiveChecking = true;
         try
         {
-            FileService.WriteText(_currentFile, _editor.Text);
+            if (!File.Exists(checkFile) || !CanWriteToExistingFolder(checkFile, out _))
+            {
+                Diagnostics.Clear();
+                OnPropertyChanged(nameof(DiagnosticsHeader));
+                StatusText = "Live check skipped: the current file no longer exists.";
+                StatusColor = Brushes.Orange;
+                return;
+            }
+
+            if (!TryWriteTextToExistingPath(checkFile, checkText, showDialog: false))
+                return;
+
             var runner = new JavaCompilerService(Settings);
-            var result = await runner.RunFileAsync(_currentFile);
+            var result = await runner.RunFileAsync(checkFile, checkOnly: true);
 
             UpdateCompilerMetadata(result.Output);
-            var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text)
-                .Concat(DeadCodeAnalyzer.Analyze(_editor.Text, _hoverInfos))
+            var diagnostics = DiagnosticsParser.Parse(result.Output, checkText)
+                .Concat(DeadCodeAnalyzer.Analyze(checkText, _hoverInfos))
                 .ToList();
+
+            if (checkRevision != _liveCheckRevision ||
+                !string.Equals(checkFile, _currentFile, StringComparison.OrdinalIgnoreCase))
+                return;
+
             Diagnostics.Clear();
             foreach (var d in diagnostics) Diagnostics.Add(d);
             OnPropertyChanged(nameof(DiagnosticsHeader));
+            _lastLiveCheckedFile = checkFile;
+            _lastLiveCheckedText = checkText;
 
             if (diagnostics.Count > 0)
             {
@@ -966,26 +1373,65 @@ public class MainViewModel : INotifyPropertyChanged
                 StatusColor = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
             }
         }
+        catch (IOException ex)
+        {
+            Diagnostics.Clear();
+            OnPropertyChanged(nameof(DiagnosticsHeader));
+            StatusText = $"Live check skipped: {ex.Message}";
+            StatusColor = Brushes.Orange;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Diagnostics.Clear();
+            OnPropertyChanged(nameof(DiagnosticsHeader));
+            StatusText = $"Live check skipped: {ex.Message}";
+            StatusColor = Brushes.Orange;
+        }
         finally
         {
             _isLiveChecking = false;
+            if (checkRevision != _liveCheckRevision)
+                ScheduleLiveCheck();
         }
     }
 
     private async void RunCurrentFile()
     {
         if (string.IsNullOrWhiteSpace(_currentFile)) return;
+        if (!IsCurrentFavaFile)
+        {
+            StatusText = "Only .fava files can be run.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
         if (!CanRunCompiler(showStatus: true)) return;
         SaveFile();
+        _executionCancellationSource?.Dispose();
+        _executionCancellationSource = new CancellationTokenSource();
+        var cancellationToken = _executionCancellationSource.Token;
+        IsExecutionRunning = true;
         StatusText = "Running…";
         StatusColor = Brushes.LightGray;
         LastRunStatus = $"Running {Path.GetFileName(_currentFile)}";
         LastRunDurationText = "--";
         LastRunStatusBrush = Brushes.LightGray;
+        _consoleInputWriter = null;
+        IsConsoleAcceptingInput = false;
+        SendConsoleInputCommand.RaiseCanExecuteChanged();
 
         var runner = new JavaCompilerService(Settings);
         var stopwatch = Stopwatch.StartNew();
-        var result = await runner.RunFileAsync(_currentFile);
+        try
+        {
+            var result = await runner.RunFileAsync(
+                _currentFile,
+                onOutputChanged: output => Application.Current.Dispatcher.Invoke(() => UpdateOutputs(output)),
+                onInputWriterChanged: writer => Application.Current.Dispatcher.Invoke(() =>
+                {
+                    _consoleInputWriter = writer;
+                    SendConsoleInputCommand.RaiseCanExecuteChanged();
+                }),
+                cancellationToken: cancellationToken);
         stopwatch.Stop();
         UpdateCompilerMetadata(result.Output);
         var diagnostics = DiagnosticsParser.Parse(result.Output, _editor.Text)
@@ -1001,6 +1447,35 @@ public class MainViewModel : INotifyPropertyChanged
         LastRunStatus = result.Success ? "Run completed" : "Run failed";
         LastRunDurationText = FormatDuration(stopwatch.Elapsed);
         LastRunStatusBrush = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
+        }
+        catch (OperationCanceledException)
+        {
+            stopwatch.Stop();
+            StatusText = "Execution stopped.";
+            StatusColor = Brushes.Orange;
+            LastRunStatus = "Run stopped";
+            LastRunDurationText = FormatDuration(stopwatch.Elapsed);
+            LastRunStatusBrush = Brushes.Orange;
+        }
+        finally
+        {
+            _consoleInputWriter = null;
+            IsConsoleAcceptingInput = false;
+            IsExecutionRunning = false;
+            _executionCancellationSource?.Dispose();
+            _executionCancellationSource = null;
+        }
+    }
+
+    private async void SendConsoleInput()
+    {
+        var writer = _consoleInputWriter;
+        if (writer == null)
+            return;
+
+        var line = ConsoleInput;
+        ConsoleInput = "";
+        await writer(line);
     }
 
     private static string SliceSection(string output, string[] starts, string[] stops)
@@ -1027,7 +1502,7 @@ public class MainViewModel : INotifyPropertyChanged
         return string.Join("\n", result).Trim();
     }
 
-    private void UpdateOutputs(string fullOutput)
+    private void UpdateOutputs(string fullOutput, bool syncVisualizer = true)
     {
         _lastFullOutput = fullOutput;
         ConstantPoolOutput = SliceSection(fullOutput,
@@ -1053,11 +1528,45 @@ public class MainViewModel : INotifyPropertyChanged
             VmOutput = fullOutput;
         }
 
-        if (VisualizerAutoSync)
+        UpdateConsoleInputState(fullOutput);
+
+        if (syncVisualizer && VisualizerAutoSync)
             LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
 
         CopyOutputCommand.RaiseCanExecuteChanged();
         ClearOutputCommand.RaiseCanExecuteChanged();
+    }
+
+    private void UpdateConsoleInputState(string fullOutput)
+    {
+        if (!IsExecutionRunning || _consoleInputWriter == null)
+        {
+            IsConsoleAcceptingInput = false;
+            return;
+        }
+
+        var vmMarker = "*** VM output ***";
+        var vmIndex = fullOutput.LastIndexOf(vmMarker, StringComparison.OrdinalIgnoreCase);
+        if (vmIndex < 0)
+        {
+            IsConsoleAcceptingInput = false;
+            return;
+        }
+
+        var vmOutput = fullOutput[(vmIndex + vmMarker.Length)..];
+        var traceMarker = "*** VM trace ***";
+        var traceIndex = vmOutput.IndexOf(traceMarker, StringComparison.OrdinalIgnoreCase);
+        if (traceIndex >= 0)
+            vmOutput = vmOutput[..traceIndex];
+
+        if (vmOutput.StartsWith("\r\n", StringComparison.Ordinal))
+            vmOutput = vmOutput[2..];
+        else if (vmOutput.StartsWith("\n", StringComparison.Ordinal))
+            vmOutput = vmOutput[1..];
+
+        IsConsoleAcceptingInput = vmOutput.Length > 0
+            && !vmOutput.EndsWith("\n", StringComparison.Ordinal)
+            && !vmOutput.EndsWith("\r", StringComparison.Ordinal);
     }
 
     private void CopyConsoleOutput()
@@ -1080,6 +1589,7 @@ public class MainViewModel : INotifyPropertyChanged
     private void ClearConsoleOutput()
     {
         _lastFullOutput = "";
+        IsConsoleAcceptingInput = false;
         VmOutput = "";
         ConstantPoolOutput = "";
         InstructionsOutput = "";
@@ -1363,14 +1873,26 @@ public class MainViewModel : INotifyPropertyChanged
     private async void StartDebug()
     {
         if (string.IsNullOrWhiteSpace(_currentFile)) return;
+        if (!IsCurrentFavaFile)
+        {
+            StatusText = "Only .fava files can be debugged.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
         if (!CanRunCompiler(showStatus: true)) return;
 
         SaveFile();
+        _executionCancellationSource?.Dispose();
+        _executionCancellationSource = new CancellationTokenSource();
+        var cancellationToken = _executionCancellationSource.Token;
+        IsExecutionRunning = true;
         StatusText = "Starting debug session…";
         StatusColor = Brushes.LightGray;
 
         var runner = new JavaCompilerService(Settings);
-        var result = await runner.RunFileAsync(_currentFile, includeTrace: true);
+        try
+        {
+        var result = await runner.RunFileAsync(_currentFile, includeTrace: true, cancellationToken: cancellationToken);
         UpdateOutputs(result.Output);
         LoadVisualizerFromSections(ConstantPoolOutput, InstructionsOutput);
 
@@ -1406,6 +1928,18 @@ public class MainViewModel : INotifyPropertyChanged
             ? $"🔴 Debug mode — paused at first breakpoint (instruction {firstBreakpointPosition.Value + 1})"
             : "🔴 Debug mode — no breakpoints found, executed to completion";
         StatusColor = Brushes.IndianRed;
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Debug execution stopped.";
+            StatusColor = Brushes.Orange;
+        }
+        finally
+        {
+            IsExecutionRunning = false;
+            _executionCancellationSource?.Dispose();
+            _executionCancellationSource = null;
+        }
     }
 
     private void DebugStep()
@@ -1531,6 +2065,20 @@ public class MainViewModel : INotifyPropertyChanged
         RaiseDebugStateChanged();
         StatusText = "Debug session stopped.";
         StatusColor = Brushes.LightGray;
+    }
+
+    private void StopExecution()
+    {
+        if (IsExecutionRunning)
+        {
+            StatusText = "Stopping execution...";
+            StatusColor = Brushes.Orange;
+            _executionCancellationSource?.Cancel();
+            return;
+        }
+
+        if (CanDebugStop)
+            DebugStop();
     }
 
     private void SaveDebugSnapshot()
@@ -1714,7 +2262,9 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanDebugContinue));
         OnPropertyChanged(nameof(CanDebugJumpToCall));
         OnPropertyChanged(nameof(CanDebugStop));
+        OnPropertyChanged(nameof(CanStopExecution));
         StartDebugCommand.RaiseCanExecuteChanged();
+        StopExecutionCommand.RaiseCanExecuteChanged();
         DebugStepCommand.RaiseCanExecuteChanged();
         DebugContinueCommand.RaiseCanExecuteChanged();
         DebugJumpToCallCommand.RaiseCanExecuteChanged();
@@ -1968,18 +2518,18 @@ public class MainViewModel : INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(Settings.ProjectRoot))
             return;
 
-        var changed = false;
-        if (string.IsNullOrWhiteSpace(Settings.InputsDir))
-        {
-            Settings.InputsDir = Path.Combine(Settings.ProjectRoot, "tests", "inputs");
-            changed = true;
-        }
+        ConfigureProjectTestFolders(Settings.ProjectRoot, createIfMissing);
+    }
 
-        if (string.IsNullOrWhiteSpace(Settings.OutputsDir))
-        {
-            Settings.OutputsDir = Path.Combine(Settings.ProjectRoot, "tests", "outputs");
-            changed = true;
-        }
+    private void ConfigureProjectTestFolders(string projectRoot, bool createIfMissing)
+    {
+        var inputsDir = Path.Combine(projectRoot, "tests", "inputs");
+        var outputsDir = Path.Combine(projectRoot, "tests", "outputs");
+        var changed = !string.Equals(Settings.InputsDir, inputsDir, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(Settings.OutputsDir, outputsDir, StringComparison.OrdinalIgnoreCase);
+
+        Settings.InputsDir = inputsDir;
+        Settings.OutputsDir = outputsDir;
 
         if (createIfMissing)
         {
@@ -1989,6 +2539,8 @@ public class MainViewModel : INotifyPropertyChanged
 
         if (changed)
             Settings.Save();
+
+        RaiseSettingsValidationChanged();
     }
 
     private void RefreshTestSuiteCases(string? selectedName = null)
@@ -2467,6 +3019,40 @@ public class MainViewModel : INotifyPropertyChanged
         Settings.Save();
     }
 
+    private bool HasProjectNameConflict(string projectPath, out string conflictingProject)
+    {
+        conflictingProject = "";
+        var projectName = GetProjectName(projectPath);
+        if (string.IsNullOrWhiteSpace(projectName))
+            return false;
+
+        var fullPath = Path.GetFullPath(projectPath);
+        foreach (var recentProject in Settings.RecentProjects)
+        {
+            if (string.IsNullOrWhiteSpace(recentProject) || !Directory.Exists(recentProject))
+                continue;
+
+            var recentFullPath = Path.GetFullPath(recentProject);
+            if (string.Equals(recentFullPath, fullPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (string.Equals(GetProjectName(recentProject), projectName, StringComparison.OrdinalIgnoreCase))
+            {
+                conflictingProject = recentProject;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetProjectName(string projectPath)
+    {
+        var trimmed = projectPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var name = Path.GetFileName(trimmed);
+        return string.IsNullOrWhiteSpace(name) ? projectPath : name;
+    }
+
     private void RefreshRecentCollections()
     {
         RecentProjects.Clear();
@@ -2553,7 +3139,8 @@ public class MainViewModel : INotifyPropertyChanged
         {
             foreach (var tab in dirtyTabs)
             {
-                FileService.WriteText(tab.FilePath, tab.Content);
+                if (!TryWriteTextToExistingPath(tab.FilePath, tab.Content, showDialog: true))
+                    return false;
                 tab.IsDirty = false;
             }
         }
@@ -2611,13 +3198,33 @@ public class MainViewModel : INotifyPropertyChanged
             CaptureExpandedPathsRecursive(child, result);
     }
 
-    private static void RestoreExpandedPaths(ProjectNode? root, HashSet<string> expandedPaths)
+    private static void RestoreExpandedPaths(ProjectNode? root, HashSet<string> expandedPaths, bool expandRoot = false)
     {
         if (root is null) return;
-        root.IsExpanded = expandedPaths.Contains(root.FullPath);
+        root.IsExpanded = expandRoot || expandedPaths.Contains(root.FullPath);
         foreach (var child in root.Children)
             RestoreExpandedPaths(child, expandedPaths);
     }
+
+    private static void AddAncestorPaths(HashSet<string> expandedPaths, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var current = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+        while (!string.IsNullOrWhiteSpace(current))
+        {
+            expandedPaths.Add(current);
+            current = Path.GetDirectoryName(current);
+        }
+    }
+
+    private static bool IsFavaFile(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && path.EndsWith(".fava", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSameOrInsidePath(string path, string rootPath) =>
+        string.Equals(Path.GetFullPath(path), Path.GetFullPath(rootPath), StringComparison.OrdinalIgnoreCase)
+        || IsPathInside(path, rootPath);
 
     private void OpenInitialProjectFile(ProjectNode root, string folder, string? previousSelectedPath)
     {
@@ -2659,6 +3266,8 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CurrentFileName));
         RunCurrentCommand.RaiseCanExecuteChanged();
         StartDebugCommand.RaiseCanExecuteChanged();
+        CloseProjectCommand.RaiseCanExecuteChanged();
+        DeleteProjectCommand.RaiseCanExecuteChanged();
     }
 
     private static bool IsPathInside(string path, string rootPath)
@@ -2718,6 +3327,8 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CompilerRootStatusBrush));
         OnPropertyChanged(nameof(AntlrStatusText));
         OnPropertyChanged(nameof(AntlrStatusBrush));
+        OnPropertyChanged(nameof(ToolInputsFolder));
+        OnPropertyChanged(nameof(ToolOutputsFolder));
         OnPropertyChanged(nameof(TestFoldersStatusText));
         OnPropertyChanged(nameof(TestFoldersStatusBrush));
         OnPropertyChanged(nameof(IsCompilerConfigured));

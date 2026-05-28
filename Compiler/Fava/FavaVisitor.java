@@ -1,4 +1,4 @@
-// Generated from C:/Users/User/IdeaProjects/Compiladores/FavaCompiler/src/Fava.g4 by ANTLR 4.13.2
+// Generated from Fava.g4 by ANTLR 4.13.2
 package Fava;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -40,6 +40,18 @@ public interface FavaVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitType(FavaParser.TypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link FavaParser#baseType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBaseType(FavaParser.BaseTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link FavaParser#arraySuffix}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArraySuffix(FavaParser.ArraySuffixContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link FavaParser#block}.
 	 * @param ctx the parse tree
@@ -88,6 +100,20 @@ public interface FavaVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitWhileStmt(FavaParser.WhileStmtContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ForStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitForStmt(FavaParser.ForStmtContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ForEachStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitForEachStmt(FavaParser.ForEachStmtContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code IfElseStmt}
 	 * labeled alternative in {@link FavaParser#stmt}.

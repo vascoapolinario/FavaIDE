@@ -4,9 +4,11 @@ import VM.Instruction.Instruction;
 import VM.Instruction.Instruction1Arg;
 
 import java.io.ByteArrayInputStream;
+import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
@@ -23,6 +25,7 @@ public class vm {
     private final List<Object> constantPool = new ArrayList<>();
     private final List<Object> globals = new ArrayList<>();
     private final List<String> traceBuffer = new ArrayList<>();
+    private final BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
 
     private static final Object NULL_VALUE = new Object() {
         @Override
@@ -231,10 +234,12 @@ public class vm {
 
     private void exec_iprint() {
         System.out.println(popInt());
+        System.out.flush();
     }
 
     private void exec_dprint() {
         System.out.println(popDouble());
+        System.out.flush();
     }
 
     private void exec_duminus() {
@@ -298,6 +303,7 @@ public class vm {
 
     private void exec_sprint() {
         System.out.println(popString());
+        System.out.flush();
     }
 
     private void exec_sconcat() {
@@ -329,6 +335,7 @@ public class vm {
 
     private void exec_bprint() {
         System.out.println(popBool());
+        System.out.flush();
     }
 
     private void exec_beq() {
@@ -494,6 +501,66 @@ public class vm {
         stack.push(array.length);
     }
 
+    private void exec_slength() {
+        String value = popString();
+        stack.push(value.length());
+    }
+
+    private String readLine(String typeName) {
+        try {
+            String line = input.readLine();
+            if (line == null) {
+                runtime_error("expected " + typeName + " input, got end of input");
+            }
+            return line;
+        } catch (IOException e) {
+            runtime_error("failed to read input: " + e.getMessage());
+            return "";
+        }
+    }
+
+    private void printPrompt(Object prompt) {
+        System.out.print(String.valueOf(prompt));
+        System.out.flush();
+    }
+
+    private void exec_iread() {
+        printPrompt(stack.pop());
+        String line = readLine("integer").trim();
+        try {
+            stack.push(Integer.parseInt(line));
+        } catch (NumberFormatException e) {
+            runtime_error("invalid integer input: " + line);
+        }
+    }
+
+    private void exec_dread() {
+        printPrompt(stack.pop());
+        String line = readLine("real").trim();
+        try {
+            stack.push(Double.parseDouble(line));
+        } catch (NumberFormatException e) {
+            runtime_error("invalid real input: " + line);
+        }
+    }
+
+    private void exec_sread() {
+        printPrompt(stack.pop());
+        stack.push(readLine("string"));
+    }
+
+    private void exec_bread() {
+        printPrompt(stack.pop());
+        String line = readLine("bool").trim();
+        if (line.equalsIgnoreCase("true")) {
+            stack.push(true);
+        } else if (line.equalsIgnoreCase("false")) {
+            stack.push(false);
+        } else {
+            runtime_error("invalid bool input: " + line);
+        }
+    }
+
     private void exec_inst(Instruction inst) {
         if (trace) {
             String bytes = inst.nArgs() == 0
@@ -616,6 +683,12 @@ public class vm {
             case aload -> exec_aload();
             case astore -> exec_astore();
             case alength -> exec_alength();
+
+            case iread -> exec_iread();
+            case dread -> exec_dread();
+            case sread -> exec_sread();
+            case bread -> exec_bread();
+            case slength -> exec_slength();
         }
     }
 

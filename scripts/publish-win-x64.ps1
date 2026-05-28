@@ -14,4 +14,8 @@ dotnet publish ./src/FavaStudio/FavaStudio.csproj `
   -p:IncludeNativeLibrariesForSelfExtract=true `
   -o $OutputDir
 
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE"
+}
+
 Write-Host "Done. Output: $OutputDir"

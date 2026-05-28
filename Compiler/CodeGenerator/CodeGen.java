@@ -92,6 +92,14 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         return type;
     }
 
+    private FavaType indexedType(FavaType type, int indexes) {
+        FavaType result = type;
+        for (int i = 0; i < indexes; i++) {
+            result = result.elementType();
+        }
+        return result;
+    }
+
     private int saveDouble(String text) {
         double value = Double.parseDouble(text);
         Integer existing = doubleIndexes.get(value);
@@ -130,6 +138,38 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         }
     }
 
+    private boolean isReadCall(FavaParser.CallContext ctx) {
+        return ctx.ID().getText().equalsIgnoreCase("Read");
+    }
+
+    private boolean isLengthCall(FavaParser.CallContext ctx) {
+        return ctx.ID().getText().equalsIgnoreCase("Length");
+    }
+
+    private void emitReadForType(FavaType type) {
+        if (type.isInteger()) {
+            emit(OpCode.iread);
+        } else if (type.isReal()) {
+            emit(OpCode.dread);
+        } else if (type.isString()) {
+            emit(OpCode.sread);
+        } else if (type.isBool()) {
+            emit(OpCode.bread);
+        } else {
+            throw new IllegalArgumentException("Unsupported read type: " + type.readableName());
+        }
+    }
+
+    private void emitLengthForType(FavaType type) {
+        if (type.isArray()) {
+            emit(OpCode.alength);
+        } else if (type.isString()) {
+            emit(OpCode.slength);
+        } else {
+            throw new IllegalArgumentException("Unsupported length type: " + type.readableName());
+        }
+    }
+
     private void emitToStringConversion(FavaType type) {
         if (type.isInteger()) {
             emit(OpCode.itos);
@@ -154,6 +194,13 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         } else {
             emit(OpCode.lstore, symbol.getAddress());
         }
+    }
+
+    private void emitIncrement(Symbol symbol) {
+        emitLoad(symbol);
+        emit(OpCode.iconst, 1);
+        emit(OpCode.iadd);
+        emitStore(symbol);
     }
 
     private void emitIntToRealIfNeeded(FavaType targetType, FavaType sourceType) {
@@ -196,7 +243,7 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         return false;
     }
 
-    private int scalarBaseType(FavaParser.TypeContext ctx) {
+    private int scalarBaseType(FavaParser.BaseTypeContext ctx) {
         if (ctx.TYPEINTEGER() != null) return FavaLexer.INT;
         if (ctx.TYPEREAL() != null) return FavaLexer.REAL;
         if (ctx.TYPESTRING() != null) return FavaLexer.STRING;
@@ -205,33 +252,32 @@ public class CodeGen extends FavaBaseVisitor<Void> {
     }
 
     private FavaType declaredTypeToExprType(FavaParser.TypeContext ctx) {
-        FavaType scalar = FavaType.scalar(scalarBaseType(ctx));
-        return ctx.LBRACK() == null ? scalar : FavaType.array(scalar.baseType());
+        return FavaType.of(scalarBaseType(ctx.baseType()), ctx.arraySuffix().size());
     }
 
     private void emitBlock(FavaParser.BlockContext ctx, boolean emitFinalPop) {
         int localCount = blockLocalCount(ctx);
 
-        for (FavaParser.DeclContext decl : ctx.decl()) {
-            int declarationLocalCount = declarationLocalCount(decl);
-            if (declarationLocalCount > 0) {
-                emit(OpCode.lalloc, declarationLocalCount);
-            }
-
-            FavaType declaredType = declaredTypeToExprType(decl.type());
-            for (FavaParser.VarDeclContext varDecl : decl.varDecl()) {
-                if (varDecl.expr() == null) {
-                    continue;
+        for (ParseTree child : ctx.children) {
+            if (child instanceof FavaParser.DeclContext decl) {
+                int declarationLocalCount = declarationLocalCount(decl);
+                if (declarationLocalCount > 0) {
+                    emit(OpCode.lalloc, declarationLocalCount);
                 }
-                Symbol symbol = resolvedSymbols.get(varDecl);
-                visit(varDecl.expr());
-                emitIntToRealIfNeeded(declaredType, exprType(varDecl.expr()));
-                emitStore(symbol);
-            }
-        }
 
-        for (FavaParser.StmtContext stmt : ctx.stmt()) {
-            visit(stmt);
+                FavaType declaredType = declaredTypeToExprType(decl.type());
+                for (FavaParser.VarDeclContext varDecl : decl.varDecl()) {
+                    if (varDecl.expr() == null) {
+                        continue;
+                    }
+                    Symbol symbol = resolvedSymbols.get(varDecl);
+                    visit(varDecl.expr());
+                    emitIntToRealIfNeeded(declaredType, exprType(varDecl.expr()));
+                    emitStore(symbol);
+                }
+            } else if (child instanceof FavaParser.StmtContext stmt) {
+                visit(stmt);
+            }
         }
 
         if (emitFinalPop && localCount > 0) {
@@ -240,6 +286,20 @@ public class CodeGen extends FavaBaseVisitor<Void> {
     }
 
     private void emitCall(FavaParser.CallContext ctx) {
+        if (isReadCall(ctx)) {
+            FavaParser.ExprContext prompt = ctx.argList().expr(0);
+            visit(prompt);
+            emitReadForType(exprType(prompt));
+            return;
+        }
+
+        if (isLengthCall(ctx)) {
+            FavaParser.ExprContext target = ctx.argList().expr(0);
+            visit(target);
+            emitLengthForType(exprType(target));
+            return;
+        }
+
         Symbol function = resolvedSymbols.get(ctx);
         List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
         for (int i = 0; i < arguments.size(); i++) {
@@ -252,15 +312,19 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         callPatches.add(new CallPatch(callInstruction, function));
     }
 
-    private void emitArrayLoad(FavaParser.ExprContext ctx) {
-        emitLoad(resolvedSymbols.get(ctx.ID()));
-        visit(ctx.expr(0));
+    private void emitArrayLoad(FavaParser.ExprContext arrayExpr, FavaParser.ExprContext indexExpr) {
+        visit(arrayExpr);
+        visit(indexExpr);
         emit(OpCode.aload);
     }
 
     private void emitArrayStore(FavaParser.LvalueContext ctx, FavaType targetType, FavaParser.ExprContext expr) {
         emitLoad(resolvedSymbols.get(ctx.ID()));
-        visit(ctx.expr());
+        for (int i = 0; i < ctx.expr().size() - 1; i++) {
+            visit(ctx.expr(i));
+            emit(OpCode.aload);
+        }
+        visit(ctx.expr(ctx.expr().size() - 1));
         visit(expr);
         emitIntToRealIfNeeded(targetType, exprType(expr));
         emit(OpCode.astore);
@@ -344,8 +408,8 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         FavaParser.LvalueContext lvalue = ctx.lvalue();
         Symbol symbol = resolvedSymbols.get(lvalue.ID());
 
-        if (lvalue.expr() != null) {
-            emitArrayStore(lvalue, symbol.getType().elementType(), ctx.expr());
+        if (!lvalue.expr().isEmpty()) {
+            emitArrayStore(lvalue, indexedType(symbol.getType(), lvalue.expr().size()), ctx.expr());
             exitSource(previous);
             return null;
         }
@@ -433,6 +497,63 @@ public class CodeGen extends FavaBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitForStmt(FavaParser.ForStmtContext ctx) {
+        int previous = enterSource(ctx);
+        Symbol loopSymbol = resolvedSymbols.get(ctx.ID(0));
+        Symbol incrementSymbol = resolvedSymbols.get(ctx.ID(1));
+        FavaType loopType = declaredTypeToExprType(ctx.type());
+
+        emit(OpCode.lalloc, 1);
+        visit(ctx.expr(0));
+        emitIntToRealIfNeeded(loopType, exprType(ctx.expr(0)));
+        emitStore(loopSymbol);
+
+        int loopStart = currentAddress();
+        visit(ctx.expr(1));
+        int jumpFalse = currentAddress();
+        emit(OpCode.jumpf, -1);
+        visit(ctx.stmt());
+        emitIncrement(incrementSymbol);
+        emit(OpCode.jump, loopStart);
+        patchJump(jumpFalse, currentAddress());
+        emit(OpCode.pop, 1);
+
+        exitSource(previous);
+        return null;
+    }
+
+    @Override
+    public Void visitForEachStmt(FavaParser.ForEachStmtContext ctx) {
+        int previous = enterSource(ctx);
+        Symbol indexSymbol = resolvedSymbols.get(ctx.ID());
+        int arrayAddress = indexSymbol.getAddress() + 1;
+        Symbol arraySymbol = new Symbol("$" + indexSymbol.getName() + "_array", Symbol.Kind.LOCAL_VARIABLE, exprType(ctx.expr()), arrayAddress, ctx.start.getLine());
+
+        emit(OpCode.lalloc, 2);
+        visit(ctx.expr());
+        emitStore(arraySymbol);
+        emit(OpCode.iconst, 0);
+        emitStore(indexSymbol);
+
+        int loopStart = currentAddress();
+        emitLoad(indexSymbol);
+        emitLoad(arraySymbol);
+        emit(OpCode.alength);
+        emit(OpCode.ilt);
+        int jumpFalse = currentAddress();
+        emit(OpCode.jumpf, -1);
+
+        visit(ctx.stmt());
+        emitIncrement(indexSymbol);
+        emit(OpCode.jump, loopStart);
+        patchJump(jumpFalse, currentAddress());
+        emit(OpCode.pop, 2);
+
+        exitSource(previous);
+        return null;
+    }
+
+    @Override
     public Void visitEmptyStmt(FavaParser.EmptyStmtContext ctx) {
         return null;
     }
@@ -453,15 +574,8 @@ public class CodeGen extends FavaBaseVisitor<Void> {
             return null;
         }
 
-        if (ctx.LENGTH() != null) {
-            visit(ctx.expr(0));
-            emit(OpCode.alength);
-            exitSource(previous);
-            return null;
-        }
-
-        if (ctx.ID() != null && ctx.LBRACK() != null) {
-            emitArrayLoad(ctx);
+        if (ctx.expr().size() == 2 && ctx.LBRACK() != null) {
+            emitArrayLoad(ctx.expr(0), ctx.expr(1));
             exitSource(previous);
             return null;
         }
@@ -677,9 +791,9 @@ public class CodeGen extends FavaBaseVisitor<Void> {
             FavaParser.ExprContext ctx = entry.getKey();
             String name = ctx.getText();
             String kind = "expression";
-            if (ctx.ID() != null && ctx.LBRACK() == null) {
+            if (ctx.ID() != null) {
                 kind = "variable";
-            } else if (ctx.ID() != null && ctx.LBRACK() != null) {
+            } else if (ctx.expr().size() == 2 && ctx.LBRACK() != null) {
                 kind = "array element";
             } else if (ctx.call() != null) {
                 kind = "call";
@@ -713,12 +827,27 @@ public class CodeGen extends FavaBaseVisitor<Void> {
                         symbol.getAddress());
                 continue;
             }
+            if (entry.getKey() instanceof FavaParser.CallContext call) {
+                Symbol symbol = entry.getValue();
+                addTypeInfo(
+                        result,
+                        call.ID().getSymbol(),
+                        call.ID().getSymbol(),
+                        "call",
+                        symbol.getName(),
+                        signature(symbol),
+                        symbol.getAddress());
+                continue;
+            }
             if (entry.getKey() instanceof TerminalNode node) {
                 Symbol symbol = entry.getValue();
                 String type = symbol.getKind() == Symbol.Kind.FUNCTION
                         ? signature(symbol)
                         : symbol.getType().readableName();
-                addTypeInfo(result, node.getSymbol(), node.getSymbol(), symbol.getKind().name().toLowerCase(), symbol.getName(), type, symbol.getAddress());
+                String kind = symbol.getKind() == Symbol.Kind.FUNCTION
+                        ? "call"
+                        : symbol.getKind().name().toLowerCase();
+                addTypeInfo(result, node.getSymbol(), node.getSymbol(), kind, symbol.getName(), type, symbol.getAddress());
             }
         }
         return result;

@@ -5,14 +5,91 @@
         xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
         xmlns:local="clr-namespace:FavaStudio.Models"
         xmlns:conv="clr-namespace:FavaStudio.Converters"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Fava Studio"
         Height="920"
         Width="1500"
+        WindowStyle="None"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="38"
+                            ResizeBorderThickness="6"
+                            GlassFrameThickness="0"
+                            CornerRadius="0"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
+
+        <Style x:Key="WindowControlButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ChromeButtonSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ChromeButtonSurface" Property="Background" Value="#3A3D43"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ChromeButtonSurface" Property="Background" Value="#4D5663"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WindowCloseButton" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ChromeButtonSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ChromeButtonSurface" Property="Background" Value="#C42B1C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ChromeButtonSurface" Property="Background" Value="#A32014"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Window.InputBindings>
@@ -21,7 +98,7 @@
         <KeyBinding Key="F9" Command="{Binding ToggleBreakpointAtCaretCommand}"/>
         <KeyBinding Key="F5" Command="{Binding StartDebugCommand}"/>
         <KeyBinding Key="F10" Command="{Binding DebugStepCommand}"/>
-        <KeyBinding Key="F5" Modifiers="Shift" Command="{Binding DebugStopCommand}"/>
+        <KeyBinding Key="F5" Modifiers="Shift" Command="{Binding StopExecutionCommand}"/>
         <KeyBinding Key="Escape" Command="{Binding CloseQuickOpenCommand}"/>
     </Window.InputBindings>
 
@@ -36,29 +113,53 @@
                 Background="{StaticResource BgPanelBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="8,4">
+                Padding="10,7">
             <DockPanel LastChildFill="False">
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <Button Command="{Binding BackToEditorCommand}"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="4,0,18,0"
-                            Cursor="Hand">
-                        <TextBlock Text="Fava Studio"
-                                   FontWeight="Bold"
-                                   FontSize="22"
-                                   FontFamily="Segoe UI Semibold"
-                                   Foreground="#FF9A3D"
-                                   VerticalAlignment="Center"/>
-                    </Button>
-                </StackPanel>
+                <Button DockPanel.Dock="Left"
+                        Command="{Binding BackToEditorCommand}"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="0"
+                        Margin="0,0,14,0"
+                        Cursor="Hand">
+                    <Border Background="{StaticResource ControlDarkerBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="9,4">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="24"
+                                    Height="24"
+                                    CornerRadius="4"
+                                    Background="{StaticResource FavaFileBadgeBrush}"
+                                    Margin="0,0,8,0">
+                                <TextBlock Text="F"
+                                           Foreground="#1A1110"
+                                           FontWeight="Bold"
+                                           FontSize="15"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Fava Studio"
+                                       FontWeight="Bold"
+                                       FontSize="18"
+                                       FontFamily="Segoe UI Semibold"
+                                       Foreground="#FF9A3D"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </Button>
 
-                <Menu Background="Transparent" DockPanel.Dock="Left" FontSize="14">
+                <Menu Background="Transparent"
+                      DockPanel.Dock="Left"
+                      FontSize="14"
+                      shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <MenuItem Header="Project">
-                        <MenuItem Header="Create New Project" Command="{Binding CreateProjectCommand}"/>
+                        <MenuItem Header="New Project" Command="{Binding CreateProjectCommand}"/>
                         <MenuItem Header="Open Project" Command="{Binding OpenProjectCommand}"/>
-                        <Separator/>
                         <MenuItem Header="Quick Open (Ctrl+P)" Command="{Binding OpenQuickOpenCommand}"/>
+                        <Separator/>
                         <MenuItem Header="Recent Projects" ItemsSource="{Binding RecentProjects}">
                             <MenuItem.ItemContainerStyle>
                                 <Style TargetType="MenuItem">
@@ -77,19 +178,21 @@
                                 </Style>
                             </MenuItem.ItemContainerStyle>
                         </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="Close Project" Command="{Binding CloseProjectCommand}"/>
+                        <MenuItem Header="Remove/Delete Project" Command="{Binding DeleteProjectCommand}"/>
                     </MenuItem>
-                    <MenuItem Header="Settings">
-                        <MenuItem Header="Open Settings" Command="{Binding OpenSettingsCommand}"/>
+                    <MenuItem Header="View">
                         <MenuItem Header="Back to Editor" Command="{Binding BackToEditorCommand}"/>
-                    </MenuItem>
-                    <MenuItem Header="Tools">
-                        <MenuItem Header="Open Test Tool" Command="{Binding OpenToolsCommand}"/>
-                        <MenuItem Header="Open Visualizer" Command="{Binding OpenVisualizerCommand}"/>
+                        <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}"/>
+                        <MenuItem Header="Test Tool" Command="{Binding OpenToolsCommand}"/>
+                        <MenuItem Header="VM Visualizer" Command="{Binding OpenVisualizerCommand}"/>
+                        <MenuItem Header="Toggle Errors Panel" Command="{Binding ToggleDiagnosticsCommand}"/>
                     </MenuItem>
                     <MenuItem Header="Run">
                         <MenuItem Header="Run Current File" Command="{Binding RunCurrentCommand}"/>
-                        <MenuItem Header="Save Current File" Command="{Binding SaveFileCommand}"/>
-                        <MenuItem Header="Toggle Errors Panel" Command="{Binding ToggleDiagnosticsCommand}"/>
+                        <MenuItem Header="Stop Execution (Shift+F5)" Command="{Binding StopExecutionCommand}"/>
+                        <Separator/>
                         <MenuItem Header="Start Debug (F5)" Command="{Binding StartDebugCommand}"/>
                         <MenuItem Header="Step (F10)" Command="{Binding DebugStepCommand}"/>
                         <MenuItem Header="Jump to Next Call" Command="{Binding DebugJumpToCallCommand}"/>
@@ -97,12 +200,12 @@
                         <MenuItem Header="Step Back" Command="{Binding DebugStepBackCommand}"/>
                         <Separator/>
                         <MenuItem Header="Toggle Breakpoint (F9)" Command="{Binding ToggleBreakpointAtCaretCommand}"/>
-                        <MenuItem Header="Stop Debug (Shift+F5)" Command="{Binding DebugStopCommand}"/>
                     </MenuItem>
                 </Menu>
 
                 <StackPanel DockPanel.Dock="Right"
                             Orientation="Horizontal"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             VerticalAlignment="Center">
                     <Button Command="{Binding RunCurrentCommand}"
                             Style="{StaticResource AccentButton}"
@@ -125,6 +228,17 @@
                                 <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 11 V 4 H 14 V 8 H 16 V 11 H 14 V 15 H 11 V 17 H 5 V 15 H 2 V 11 H 0 V 8 H 2 V 4 H 5 Z M 5 6 H 11 V 4 H 5 Z M 5 12 V 15 H 11 V 12 Z"/>
                             </Viewbox>
                             <TextBlock Text="Debug"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding StopExecutionCommand}"
+                            ToolTip="Stop running or debug execution"
+                            Padding="12,5"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="12" Height="12" Margin="0,0,7,0">
+                                <Path Fill="{StaticResource DangerBrush}" Data="M 2 2 H 14 V 14 H 2 Z"/>
+                            </Viewbox>
+                            <TextBlock Text="Stop"/>
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding SaveFileCommand}"
@@ -171,6 +285,40 @@
                             <TextBlock Text="VM"/>
                         </StackPanel>
                     </Button>
+                    <Button Click="MinimizeWindow_OnClick"
+                            ToolTip="Minimize"
+                            Style="{StaticResource WindowControlButton}"
+                            Width="38"
+                            Height="30"
+                            Margin="8,0,0,0">
+                        <TextBlock Text="&#xE921;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="10"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                    </Button>
+                    <Button Click="MaximizeWindow_OnClick"
+                            ToolTip="Maximize or restore"
+                            Style="{StaticResource WindowControlButton}"
+                            Width="38"
+                            Height="30">
+                        <TextBlock Text="&#xE922;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="10"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                    </Button>
+                    <Button Click="CloseWindow_OnClick"
+                            ToolTip="Close"
+                            Style="{StaticResource WindowCloseButton}"
+                            Width="42"
+                            Height="30">
+                        <TextBlock Text="&#xE8BB;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="10"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                    </Button>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -202,10 +350,27 @@
                                     BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="0,0,0,1"
                                     Background="{StaticResource BgPanelAltBrush}">
-                                <TextBlock Text="PROJECT"
-                                           FontSize="10"
-                                           FontWeight="Bold"
-                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="Close"
+                                                Command="{Binding CloseProjectCommand}"
+                                                Padding="8,2"
+                                                FontSize="11"
+                                                Margin="0,0,4,0"/>
+                                        <Button Content="Delete"
+                                                Command="{Binding DeleteProjectCommand}"
+                                                Padding="8,2"
+                                                FontSize="11"
+                                                Background="#3A1D1D"
+                                                BorderBrush="#6A2A2A"
+                                                Margin="0"/>
+                                    </StackPanel>
+                                    <TextBlock Text="PROJECT"
+                                               FontSize="10"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               VerticalAlignment="Center"/>
+                                </DockPanel>
                             </Border>
 
                             <Border DockPanel.Dock="Top"
@@ -226,32 +391,43 @@
                                       BorderThickness="0">
                                 <TreeView.Resources>
                                     <HierarchicalDataTemplate DataType="{x:Type local:ProjectNode}" ItemsSource="{Binding Children}">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border MinWidth="24"
-                                                    Height="18"
-                                                    CornerRadius="4"
-                                                    Background="{Binding BadgeBrush}"
-                                                    BorderBrush="{StaticResource BorderBrush}"
-                                                    BorderThickness="1"
-                                                    Margin="0,0,7,0"
-                                                    Padding="4,0">
-                                                <TextBlock Text="{Binding Icon}"
-                                                           Foreground="{Binding BadgeTextBrush}"
-                                                           FontSize="9"
-                                                           FontWeight="Bold"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
-                                            </Border>
-                                            <TextBlock Text="{Binding Name}"
+                                        <Grid Height="24" Margin="0,1" ToolTip="{Binding FullPath}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="220"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock x:Name="ProjectTreeIcon"
+                                                       Text="&#xE8A5;"
+                                                       FontFamily="Segoe MDL2 Assets"
+                                                       Foreground="{Binding TreeIconBrush}"
+                                                       FontSize="13"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Name}"
                                                        Foreground="{StaticResource TextMainBrush}"
-                                                       FontSize="14"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                                       FontSize="13"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                        <HierarchicalDataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                                <Setter TargetName="ProjectTreeIcon" Property="Text" Value="&#xE8B7;"/>
+                                            </DataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsDirectory}" Value="True"/>
+                                                    <Condition Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter TargetName="ProjectTreeIcon" Property="Text" Value="&#xE838;"/>
+                                            </MultiDataTrigger>
+                                        </HierarchicalDataTemplate.Triggers>
                                     </HierarchicalDataTemplate>
                                 </TreeView.Resources>
                                 <TreeView.ItemContainerStyle>
                                     <Style TargetType="TreeViewItem">
                                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
                                         <Setter Property="Tag"
                                                 Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         <Setter Property="ContextMenu">
@@ -389,10 +565,6 @@
                                                 Padding="8,3"
                                                 FontSize="12"
                                                 Margin="0,0,6,0"/>
-                                        <Button Content="Open Output"
-                                                Command="{Binding OpenSelectedTestExpectedOutputCommand}"
-                                                Padding="8,3"
-                                                FontSize="12"/>
                                         </StackPanel>
                                         <TextBlock Text="{Binding TestSummary}"
                                                    FontSize="13"
@@ -435,15 +607,10 @@
                             </Border>
 
                             <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="3*"/>
-                                    <RowDefinition Height="2*"/>
-                                </Grid.RowDefinitions>
-
-                                <Grid Grid.Row="0">
+                                <Grid>
                                      <ListBox ItemsSource="{Binding TestResults}"
                                               SelectedItem="{Binding SelectedTestResult}"
-                                              Margin="4,4,4,0"
+                                              Margin="4"
                                               Background="Transparent"
                                               BorderThickness="0"
                                               Foreground="{StaticResource TextMainBrush}"
@@ -493,14 +660,11 @@
                                                                    TextTrimming="CharacterEllipsis"
                                                                    FontSize="11"
                                                                    Foreground="{StaticResource TextMutedBrush}"/>
-                                                        <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                        <TextBlock Text="{Binding InputFileName}"
+                                                                   Foreground="{StaticResource TextMutedBrush}"
                                                                    FontFamily="Consolas"
                                                                    FontSize="10"
-                                                                   TextTrimming="CharacterEllipsis">
-                                                            <Run Text="{Binding InputFileName, Mode=OneWay}"/>
-                                                            <Run Text=" -> "/>
-                                                            <Run Text="{Binding ExpectedOutputFileName, Mode=OneWay}"/>
-                                                        </TextBlock>
+                                                                   TextTrimming="CharacterEllipsis"/>
                                                     </StackPanel>
                                                 </DockPanel>
                                             </DataTemplate>
@@ -525,68 +689,6 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </Grid>
-
-                                <Grid Grid.Row="1" Margin="8,6,8,8">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                    </Grid.RowDefinitions>
-                                    <DockPanel Grid.Row="0" Margin="0,0,0,6">
-                                        <TextBlock DockPanel.Dock="Right"
-                                                   Text="{Binding SelectedTestDurationText}"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   FontFamily="Consolas"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding SelectedTestResult.Message}"
-                                                   Foreground="{StaticResource TextMainBrush}"
-                                                   FontWeight="SemiBold"
-                                                   TextWrapping="Wrap"/>
-                                    </DockPanel>
-                                    <TabControl Grid.Row="1">
-                                        <TabItem Header="Diff">
-                                            <TextBox Text="{Binding SelectedTestDiffOutput, Mode=OneWay}"
-                                                     IsReadOnly="True"
-                                                     AcceptsReturn="True"
-                                                     TextWrapping="NoWrap"
-                                                     HorizontalScrollBarVisibility="Auto"
-                                                     VerticalScrollBarVisibility="Auto"
-                                                     BorderThickness="0"
-                                                     Background="{StaticResource BgMainBrush}"
-                                                     Foreground="{StaticResource TextMainBrush}"
-                                                     FontFamily="Consolas"
-                                                     FontSize="12"
-                                                     Padding="8"/>
-                                        </TabItem>
-                                        <TabItem Header="Expected">
-                                            <TextBox Text="{Binding SelectedTestExpectedOutput, Mode=OneWay}"
-                                                     IsReadOnly="True"
-                                                     AcceptsReturn="True"
-                                                     TextWrapping="NoWrap"
-                                                     HorizontalScrollBarVisibility="Auto"
-                                                     VerticalScrollBarVisibility="Auto"
-                                                     BorderThickness="0"
-                                                     Background="{StaticResource BgMainBrush}"
-                                                     Foreground="{StaticResource TextMainBrush}"
-                                                     FontFamily="Consolas"
-                                                     FontSize="12"
-                                                     Padding="8"/>
-                                        </TabItem>
-                                        <TabItem Header="Actual">
-                                            <TextBox Text="{Binding SelectedTestActualOutput, Mode=OneWay}"
-                                                     IsReadOnly="True"
-                                                     AcceptsReturn="True"
-                                                     TextWrapping="NoWrap"
-                                                     HorizontalScrollBarVisibility="Auto"
-                                                     VerticalScrollBarVisibility="Auto"
-                                                     BorderThickness="0"
-                                                     Background="{StaticResource BgMainBrush}"
-                                                     Foreground="{StaticResource TextMainBrush}"
-                                                     FontFamily="Consolas"
-                                                     FontSize="12"
-                                                     Padding="8"/>
-                                        </TabItem>
-                                    </TabControl>
-                                </Grid>
                             </Grid>
                         </DockPanel>
                     </Grid>
@@ -603,9 +705,9 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="4*"/>
-                        <RowDefinition Height="5"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="5"/>
+                        <RowDefinition Height="260" MinHeight="140"/>
                     </Grid.RowDefinitions>
 
                     <Border Grid.Row="0"
@@ -648,8 +750,8 @@
                                         FontSize="12"
                                         Margin="0,0,4,0"/>
                                 <Button Content="Stop"
-                                        Command="{Binding DebugStopCommand}"
-                                        ToolTip="Stop debug session (Shift+F5)"
+                                        Command="{Binding StopExecutionCommand}"
+                                        ToolTip="Stop execution (Shift+F5)"
                                         Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}"
                                         Background="#4A1A1A"
                                         Foreground="IndianRed"
@@ -1162,9 +1264,10 @@
                                   Background="{StaticResource BorderBrush}"/>
 
                     <Border Grid.Row="4"
-                            Background="{StaticResource BgPanelBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,1,0,0">
+                            Background="#181A1F"
+                            BorderBrush="#4A4F58"
+                            BorderThickness="0,1,0,1"
+                            SnapsToDevicePixels="True">
                         <DockPanel>
                             <Border DockPanel.Dock="Top"
                                     Background="#202226"
@@ -1242,20 +1345,82 @@
                                     </StackPanel>
                                 </DockPanel>
                             </Border>
-                            <TabControl Background="{StaticResource BgMainBrush}">
+                            <TabControl Background="#181A1F"
+                                        BorderThickness="0">
+                                <TabControl.Resources>
+                                    <Style TargetType="TabItem" BasedOn="{x:Null}">
+                                        <Setter Property="MinWidth" Value="126"/>
+                                        <Setter Property="Padding" Value="14,8"/>
+                                        <Setter Property="Margin" Value="0"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Background" Value="#22252B"/>
+                                        <Setter Property="BorderBrush" Value="#30343B"/>
+                                        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                        <Setter Property="FontSize" Value="13"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="TabItem">
+                                                    <Grid Background="{TemplateBinding Background}">
+                                                        <Border x:Name="TabSurface"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter ContentSource="Header"
+                                                                              HorizontalAlignment="Center"
+                                                                              VerticalAlignment="Center"
+                                                                              RecognizesAccessKey="True"
+                                                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                                                        </Border>
+                                                        <Border x:Name="ActiveRail"
+                                                                Height="2"
+                                                                VerticalAlignment="Bottom"
+                                                                Background="{StaticResource AccentSoftBrush}"
+                                                                Opacity="0"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="TabSurface" Property="Background" Value="#2A2E35"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter Property="Background" Value="#181A1F"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+                                                            <Setter Property="BorderBrush" Value="#181A1F"/>
+                                                            <Setter TargetName="ActiveRail" Property="Opacity" Value="1"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </TabControl.Resources>
                                 <TabItem Header="Console">
-                                    <TextBox x:Name="VmOutputBox"
-                                             Text="{Binding VmOutput, Mode=OneWay}"
-                                             IsReadOnly="True"
-                                             TextWrapping="NoWrap"
-                                             FontFamily="Consolas"
-                                             FontSize="13"
-                                             Background="#141519"
-                                             Foreground="{StaticResource TextMainBrush}"
-                                             BorderThickness="0"
-                                             Padding="14,12"
-                                             HorizontalScrollBarVisibility="Auto"
-                                             VerticalScrollBarVisibility="Auto"/>
+                                    <Border x:Name="TerminalSurface"
+                                            Background="#181A1F"
+                                            MouseDown="TerminalSurface_OnMouseDown"
+                                            PreviewTextInput="TerminalSurface_OnPreviewTextInput"
+                                            PreviewKeyDown="TerminalSurface_OnPreviewKeyDown">
+                                        <TextBox x:Name="VmOutputBox"
+                                                 Text="{Binding VmOutput, Mode=OneWay}"
+                                                 IsReadOnly="True"
+                                                 TextWrapping="Wrap"
+                                                 AcceptsReturn="True"
+                                                 AcceptsTab="False"
+                                                 FontFamily="Consolas"
+                                                 FontSize="15"
+                                                 Background="#181A1F"
+                                                 Foreground="{StaticResource TextMainBrush}"
+                                                 BorderThickness="0"
+                                                 Padding="18,16,18,22"
+                                                 Cursor="IBeam"
+                                                 CaretBrush="{StaticResource TextMainBrush}"
+                                                 HorizontalScrollBarVisibility="Disabled"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 PreviewKeyDown="VmOutputBox_OnPreviewKeyDown"
+                                                 PreviewTextInput="VmOutputBox_OnPreviewTextInput"/>
+                                    </Border>
                                 </TabItem>
                                 <TabItem Header="Constant Pool">
                                     <TextBox Text="{Binding ConstantPoolOutput, Mode=OneWay}"
@@ -1263,7 +1428,7 @@
                                              TextWrapping="NoWrap"
                                              FontFamily="Consolas"
                                              FontSize="12"
-                                             Background="#141519"
+                                             Background="#181A1F"
                                              Foreground="{StaticResource TextMainBrush}"
                                              BorderThickness="0"
                                              Padding="14,12"
@@ -1276,7 +1441,7 @@
                                              TextWrapping="NoWrap"
                                              FontFamily="Consolas"
                                              FontSize="12"
-                                             Background="#141519"
+                                             Background="#181A1F"
                                              Foreground="{StaticResource TextMainBrush}"
                                              BorderThickness="0"
                                              Padding="14,12"
@@ -1299,17 +1464,30 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <Border Width="62"
+                                    Height="62"
+                                    CornerRadius="8"
+                                    Background="{StaticResource FavaFileBadgeBrush}"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,0,0,18">
+                                <TextBlock Text="F"
+                                           Foreground="#1A1110"
+                                           FontSize="34"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
                             <TextBlock Text="Fava Studio"
                                        FontSize="42"
                                        FontWeight="Bold"
                                        Foreground="#FF9A3D"
                                        Margin="0,0,0,6"/>
-                            <TextBlock Text="Compiler workspace"
+                            <TextBlock Text="Project workspace"
                                        FontSize="18"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextMainBrush}"
                                        Margin="0,0,0,8"/>
-                            <TextBlock Text="Open a recent project or start a clean workspace."
+                            <TextBlock Text="Create, open, close, and clean up Fava projects from one place."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        FontSize="14"
@@ -1365,18 +1543,36 @@
                                          BorderThickness="0"
                                          Background="Transparent"
                                          Padding="8">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="0"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <ContentPresenter/>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Button Command="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding Path}"
-                                                    Margin="0,0,0,6"
-                                                    Padding="0"
-                                                    HorizontalContentAlignment="Stretch">
-                                                <Grid Width="Auto" Margin="12,10">
+                                            <Border Margin="0,0,0,6"
+                                                    Background="{StaticResource ControlDarkerBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="10">
+                                                <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="12"/>
                                                         <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
                                                     <Border Width="34"
                                                             Height="34"
@@ -1405,8 +1601,37 @@
                                                                    FontSize="11"
                                                                    Margin="0,4,0,0"/>
                                                     </StackPanel>
+                                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Button Content="Open"
+                                                                Command="{Binding DataContext.OpenRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Path}"
+                                                                Padding="10,4"
+                                                                Margin="12,0,4,0"/>
+                                                        <Button Content="Remove"
+                                                                Command="{Binding DataContext.RemoveRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Path}"
+                                                                ToolTip="Remove from recent projects"
+                                                                Padding="10,4"
+                                                                Margin="0,0,4,0"/>
+                                                        <Button Command="{Binding DataContext.DeleteRecentProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding Path}"
+                                                            ToolTip="Delete project folder and files"
+                                                            Width="30"
+                                                            Height="30"
+                                                            Padding="0"
+                                                            Background="#331B1B"
+                                                                BorderBrush="#5D2828"
+                                                                Margin="0">
+                                                            <TextBlock Text="&#xE74D;"
+                                                                       FontFamily="Segoe MDL2 Assets"
+                                                                       Foreground="{StaticResource DangerBrush}"
+                                                                       FontSize="12"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Button>
+                                                    </StackPanel>
                                                 </Grid>
-                                            </Button>
+                                            </Border>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>

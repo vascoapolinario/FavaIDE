@@ -18,14 +18,22 @@ varDecl
     ;
 
 type
-    : TYPEBOOL (LBRACK RBRACK)?
-    | TYPEINTEGER (LBRACK RBRACK)?
-    | TYPEREAL (LBRACK RBRACK)?
-    | TYPESTRING (LBRACK RBRACK)?
+    : baseType arraySuffix*
+    ;
+
+baseType
+    : TYPEBOOL
+    | TYPEINTEGER
+    | TYPEREAL
+    | TYPESTRING
+    ;
+
+arraySuffix
+    : LBRACK RBRACK
     ;
 
 block
-    : LBRACE decl* stmt* RBRACE
+    : LBRACE (decl | stmt)* RBRACE
     ;
 
 stmt
@@ -35,14 +43,15 @@ stmt
     | RETURN expr? ';'                         # ReturnStmt
     | block                                    # BlockStmt
     | WHILE LPAREN expr RPAREN stmt            # WhileStmt
+    | FOR LPAREN type ID ASSIGN expr ';' expr ';' ID INC RPAREN stmt # ForStmt
+    | FOR ID IN expr stmt                      # ForEachStmt
     | IF LPAREN expr RPAREN stmt ELSE stmt     # IfElseStmt
     | IF LPAREN expr RPAREN stmt               # IfStmt
     | ';'                                      # EmptyStmt
     ;
 
 lvalue
-    : ID
-    | ID LBRACK expr RBRACK
+    : ID (LBRACK expr RBRACK)*
     ;
 
 call
@@ -56,9 +65,8 @@ argList
 expr
     : LPAREN expr RPAREN
     | (NOT | MINUS) expr
-    | NEW (TYPEBOOL | TYPEINTEGER | TYPEREAL | TYPESTRING) LBRACK expr RBRACK
-    | LENGTH LPAREN expr RPAREN
-    | ID LBRACK expr RBRACK
+    | NEW baseType arraySuffix* LBRACK expr RBRACK
+    | expr LBRACK expr RBRACK
     | expr (TIMES | DIV | MOD) expr
     | expr (PLUS | MINUS) expr
     | expr CONCAT expr
@@ -79,6 +87,7 @@ ARROW            : '->';
 EQUAL            : '=';
 NEQUAL           : '<>';
 CONCAT           : '||';
+INC              : '++';
 LPAREN           : '(';
 RPAREN           : ')';
 LBRACE           : '{';
@@ -103,10 +112,11 @@ FUNCTION         : [fF] [uU] [nN] [cC] [tT] [iI] [oO] [nN];
 PRINT            : [pP] [rR] [iI] [nN] [tT];
 RETURN           : [rR] [eE] [tT] [uU] [rR] [nN];
 WHILE            : [wW] [hH] [iI] [lL] [eE];
+FOR              : [fF] [oO] [rR];
+IN               : [iI] [nN];
 IF               : [iI] [fF];
 ELSE             : [eE] [lL] [sS] [eE];
 NEW              : [nN] [eE] [wW];
-LENGTH           : [lL] [eE] [nN] [gG] [tT] [hH];
 
 TYPEBOOL         : [bB] [oO] [oO] [lL];
 TYPEINTEGER      : [iI] [nN] [tT] [eE] [gG] [eE] [rR];

@@ -18,6 +18,7 @@ public class FavaCompileAndRun {
     static boolean showParserErrors = true;
     static boolean showAssembly = true;
     static boolean trace = false;
+    static boolean checkOnly = false;
 
     public static void main(String[] args) {
         InputStream inputStream = null;
@@ -25,9 +26,12 @@ public class FavaCompileAndRun {
         try {
             if (args.length > 0) {
                 inputStream = new FileInputStream(args[0]);
-                if (args.length > 1 && args[1].equals("-trace"))
-                {
-                    trace = true;
+                for (int i = 1; i < args.length; i++) {
+                    if (args[i].equals("-trace")) {
+                        trace = true;
+                    } else if (args[i].equals("-check") || args[i].equals("--check")) {
+                        checkOnly = true;
+                    }
                 }
             } else {
                 inputStream = System.in;
@@ -77,6 +81,10 @@ public class FavaCompileAndRun {
                 codeGen.dumpInstructions();
                 codeGen.dumpTypeInfo();
                 codeGen.dumpSourceMap();
+            }
+
+            if (checkOnly) {
+                return;
             }
 
             codeGen.saveBytecodes("bytecodes.bc");

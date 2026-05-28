@@ -71,11 +71,11 @@ public class SettingsService
         if (string.IsNullOrWhiteSpace(compilerRoot))
             return;
 
-        if (string.IsNullOrWhiteSpace(settings.CompilerRoot))
+        if (string.IsNullOrWhiteSpace(settings.CompilerRoot) || !IsCompilerRoot(settings.CompilerRoot))
             settings.CompilerRoot = compilerRoot;
 
         var antlrJar = Directory.GetFiles(compilerRoot, "antlr-*-complete.jar").FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(settings.AntlrJar) && !string.IsNullOrWhiteSpace(antlrJar))
+        if ((string.IsNullOrWhiteSpace(settings.AntlrJar) || !File.Exists(settings.AntlrJar)) && !string.IsNullOrWhiteSpace(antlrJar))
             settings.AntlrJar = antlrJar;
     }
 
@@ -94,6 +94,12 @@ public class SettingsService
 
         return candidates
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault(path => File.Exists(Path.Combine(path, "FavaCompileAndRun.java"))) ?? "";
+            .FirstOrDefault(IsCompilerRoot) ?? "";
+    }
+
+    private static bool IsCompilerRoot(string path)
+    {
+        return File.Exists(Path.Combine(path, "FavaCompileAndRun.java"))
+            || File.Exists(Path.Combine(path, "build", "classes", "FavaCompileAndRun.class"));
     }
 }

@@ -12,6 +12,10 @@ public record FavaType(int baseType, int dimensions) {
         return new FavaType(baseType, 1);
     }
 
+    public static FavaType of(int baseType, int dimensions) {
+        return new FavaType(baseType, dimensions);
+    }
+
     public boolean isArray() {
         return dimensions > 0;
     }

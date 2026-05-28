@@ -96,7 +96,7 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
         addError(ctx, "operator " + operator + " is invalid for " + readableType(operandType));
     }
 
-    private int scalarBaseType(FavaParser.TypeContext ctx) {
+    private int scalarBaseType(FavaParser.BaseTypeContext ctx) {
         if (ctx.TYPEINTEGER() != null) return FavaLexer.INT;
         if (ctx.TYPEREAL() != null) return FavaLexer.REAL;
         if (ctx.TYPESTRING() != null) return FavaLexer.STRING;
@@ -105,21 +105,25 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
     }
 
     private int scalarBaseType(FavaParser.ExprContext ctx) {
-        if (ctx.TYPEINTEGER() != null) return FavaLexer.INT;
-        if (ctx.TYPEREAL() != null) return FavaLexer.REAL;
-        if (ctx.TYPESTRING() != null) return FavaLexer.STRING;
-        if (ctx.TYPEBOOL() != null) return FavaLexer.BOOL;
+        if (ctx.baseType() != null) return scalarBaseType(ctx.baseType());
         throw new IllegalArgumentException("unknown array element type: " + ctx.getText());
     }
 
     private FavaType declaredTypeToExprType(FavaParser.TypeContext ctx) {
-        FavaType scalar = FavaType.scalar(scalarBaseType(ctx));
-        return ctx.LBRACK() == null ? scalar : FavaType.array(scalar.baseType());
+        return FavaType.of(scalarBaseType(ctx.baseType()), ctx.arraySuffix().size());
     }
 
     private boolean assignmentCompatible(FavaType targetType, FavaType sourceType) {
         if (targetType.equals(sourceType)) return true;
         return targetType.isReal() && sourceType.isInteger();
+    }
+
+    private boolean isReadCall(String name) {
+        return name.equalsIgnoreCase("Read");
+    }
+
+    private boolean isLengthCall(String name) {
+        return name.equalsIgnoreCase("Length");
     }
 
     private void collectGlobalDeclarations(List<FavaParser.DeclContext> declarations) {
@@ -151,7 +155,10 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
         for (FavaParser.FuncDeclContext function : functions) {
             String name = function.ID(0).getText();
             Symbol symbol;
-            if (symbolTable.hasGlobalName(name)) {
+            if (isReadCall(name)) {
+                addError(function, "Read is a built-in function");
+                symbol = buildTemporaryFunction(function);
+            } else if (symbolTable.hasGlobalName(name)) {
                 addError(function, name + " already declared");
                 symbol = buildTemporaryFunction(function);
             } else {
@@ -211,29 +218,29 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
 
         int blockLocals = 0;
 
-        for (FavaParser.DeclContext decl : ctx.decl()) {
-            FavaType declaredType = declaredTypeToExprType(decl.type());
-            for (FavaParser.VarDeclContext varDecl : decl.varDecl()) {
-                String name = varDecl.ID().getText();
-                if (symbolTable.containsInCurrentScope(name)) {
-                    addError(varDecl, name + " already declared");
-                } else {
-                    Symbol symbol = symbolTable.declareScopedVariable(name, declaredType, Symbol.Kind.LOCAL_VARIABLE, nextLocalAddress++, varDecl.start.getLine());
-                    remember(varDecl, symbol);
-                    blockLocals++;
-                }
+        for (ParseTree child : ctx.children) {
+            if (child instanceof FavaParser.DeclContext decl) {
+                FavaType declaredType = declaredTypeToExprType(decl.type());
+                for (FavaParser.VarDeclContext varDecl : decl.varDecl()) {
+                    String name = varDecl.ID().getText();
+                    if (symbolTable.containsInCurrentScope(name)) {
+                        addError(varDecl, name + " already declared");
+                    } else {
+                        Symbol symbol = symbolTable.declareScopedVariable(name, declaredType, Symbol.Kind.LOCAL_VARIABLE, nextLocalAddress++, varDecl.start.getLine());
+                        remember(varDecl, symbol);
+                        blockLocals++;
+                    }
 
-                if (varDecl.expr() != null) {
-                    FavaType exprType = visit(varDecl.expr());
-                    if (exprType != null && !assignmentCompatible(declaredType, exprType)) {
-                        addError(varDecl, "operator := is invalid between " + readableType(declaredType) + " and " + readableType(exprType));
+                    if (varDecl.expr() != null) {
+                        FavaType exprType = visit(varDecl.expr());
+                        if (exprType != null && !assignmentCompatible(declaredType, exprType)) {
+                            addError(varDecl, "operator := is invalid between " + readableType(declaredType) + " and " + readableType(exprType));
+                        }
                     }
                 }
+            } else if (child instanceof FavaParser.StmtContext stmt) {
+                visit(stmt);
             }
-        }
-
-        for (FavaParser.StmtContext stmt : ctx.stmt()) {
-            visit(stmt);
         }
 
         nextLocalAddress -= blockLocals;
@@ -264,6 +271,16 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
         return false;
     }
 
+    private boolean addLoopVariable(FavaParser.StmtContext ctx, ParseTree idNode, String name, FavaType type) {
+        if (symbolTable.containsInCurrentScope(name)) {
+            addError(ctx, name + " already declared");
+            return false;
+        }
+        Symbol symbol = symbolTable.declareScopedVariable(name, type, Symbol.Kind.LOCAL_VARIABLE, nextLocalAddress++, ctx.start.getLine());
+        remember(idNode, symbol);
+        return true;
+    }
+
     private Symbol resolveVariable(String name) {
         return symbolTable.lookupVisibleVariable(name);
     }
@@ -282,29 +299,32 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
             } else {
                 addError(ctx, name + " not declared");
             }
-            if (ctx.expr() != null) {
-                visit(ctx.expr());
+            for (FavaParser.ExprContext index : ctx.expr()) {
+                visit(index);
             }
             return null;
         }
 
         remember(ctx.ID(), variable);
 
-        if (ctx.expr() == null) {
+        if (ctx.expr().isEmpty()) {
             return variable.getType();
         }
 
-        FavaType indexType = visit(ctx.expr());
-        if (indexType != null && !indexType.isInteger()) {
-            addError(ctx, "array index must be of type integer");
+        FavaType targetType = variable.getType();
+        for (FavaParser.ExprContext index : ctx.expr()) {
+            FavaType indexType = visit(index);
+            if (indexType != null && !indexType.isInteger()) {
+                addError(ctx, "array index must be of type integer");
+            }
+            if (!targetType.isArray()) {
+                addError(ctx, name + " is not an array");
+                return null;
+            }
+            targetType = targetType.elementType();
         }
 
-        if (!variable.getType().isArray()) {
-            addError(ctx, name + " is not an array");
-            return null;
-        }
-
-        return variable.getType().elementType();
+        return targetType;
     }
 
     private FavaType validateCall(FavaParser.CallContext ctx, boolean usedAsStatement) {
@@ -318,6 +338,58 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
                 }
             }
             return null;
+        }
+
+        if (isReadCall(name)) {
+            List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+            if (arguments.size() != 1) {
+                addError(ctx, "function Read expects 1 argument");
+                for (FavaParser.ExprContext expr : arguments) {
+                    visit(expr);
+                }
+                return null;
+            }
+
+            FavaType promptType = visit(arguments.get(0));
+            if (promptType == null) {
+                return null;
+            }
+            if (!promptType.isScalar()) {
+                addError(ctx, "Read expects a scalar prompt expression");
+                return null;
+            }
+            if (usedAsStatement) {
+                addError(ctx, "value of function Read must be assigned to a variable");
+                return null;
+            }
+
+            return promptType;
+        }
+
+        if (isLengthCall(name)) {
+            List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+            if (arguments.size() != 1) {
+                addError(ctx, "function Length expects 1 argument");
+                for (FavaParser.ExprContext expr : arguments) {
+                    visit(expr);
+                }
+                return null;
+            }
+
+            FavaType argumentType = visit(arguments.get(0));
+            if (argumentType == null) {
+                return null;
+            }
+            if (!argumentType.isArray() && !argumentType.isString()) {
+                addError(ctx, "Length expects an array or string, got " + readableType(argumentType));
+                return null;
+            }
+            if (usedAsStatement) {
+                addError(ctx, "value of function Length must be assigned to a variable");
+                return null;
+            }
+
+            return FavaType.scalar(FavaLexer.INT);
         }
 
         Symbol function = resolveFunction(name);
@@ -483,6 +555,59 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
     }
 
     @Override
+    public FavaType visitForStmt(FavaParser.ForStmtContext ctx) {
+        symbolTable.enterScope();
+
+        FavaType loopType = declaredTypeToExprType(ctx.type());
+        String loopName = ctx.ID(0).getText();
+        boolean declaredLoopVariable = addLoopVariable(ctx, ctx.ID(0), loopName, loopType);
+
+        FavaType initType = visit(ctx.expr(0));
+        if (initType != null && !assignmentCompatible(loopType, initType)) {
+            addError(ctx, "operator := is invalid between " + readableType(loopType) + " and " + readableType(initType));
+        }
+
+        FavaType conditionType = visit(ctx.expr(1));
+        if (conditionType != null && !conditionType.isBool()) {
+            addError(ctx, "for expression must be of type bool");
+        }
+
+        Symbol incrementSymbol = resolveVariable(ctx.ID(1).getText());
+        if (incrementSymbol == null) {
+            addError(ctx, ctx.ID(1).getText() + " not declared");
+        } else {
+            remember(ctx.ID(1), incrementSymbol);
+            if (!incrementSymbol.getType().isInteger()) {
+                addError(ctx, "operator ++ is invalid for " + readableType(incrementSymbol.getType()));
+            }
+        }
+
+        visit(ctx.stmt());
+
+        if (declaredLoopVariable) {
+            nextLocalAddress--;
+        }
+        symbolTable.exitScope();
+        return null;
+    }
+
+    @Override
+    public FavaType visitForEachStmt(FavaParser.ForEachStmtContext ctx) {
+        FavaType arrayType = visit(ctx.expr());
+        if (arrayType != null && !arrayType.isArray()) {
+            addError(ctx, "for-in expects an array expression");
+        }
+
+        symbolTable.enterScope();
+        boolean declaredIndexVariable = addLoopVariable(ctx, ctx.ID(), ctx.ID().getText(), FavaType.scalar(FavaLexer.INT));
+        nextLocalAddress++;
+        visit(ctx.stmt());
+        nextLocalAddress -= declaredIndexVariable ? 2 : 1;
+        symbolTable.exitScope();
+        return null;
+    }
+
+    @Override
     public FavaType visitIfStmt(FavaParser.IfStmtContext ctx) {
         FavaType conditionType = visit(ctx.expr());
         if (conditionType != null && !conditionType.isBool()) {
@@ -523,46 +648,25 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
             if (sizeType != null && !sizeType.isInteger()) {
                 addError(ctx, "array size must be of type integer");
             }
-            FavaType type = FavaType.array(scalarBaseType(ctx));
+            FavaType type = FavaType.of(scalarBaseType(ctx), ctx.arraySuffix().size() + 1);
             saveType(ctx, type);
             return type;
         }
 
-        if (ctx.LENGTH() != null) {
+        if (ctx.expr().size() == 2 && ctx.LBRACK() != null) {
             FavaType arrayType = visit(ctx.expr(0));
-            if (arrayType != null && !arrayType.isArray()) {
-                addError(ctx, "length expects an array expression");
-                return null;
-            }
-            FavaType type = FavaType.scalar(FavaLexer.INT);
-            saveType(ctx, type);
-            return type;
-        }
-
-        if (ctx.ID() != null && ctx.LBRACK() != null) {
-            String name = ctx.ID().getText();
-            Symbol variable = resolveVariable(name);
-            if (variable == null) {
-                if (resolveFunction(name) != null) {
-                    addError(ctx, name + " is not a variable");
-                } else {
-                    addError(ctx, name + " not declared");
-                }
-                visit(ctx.expr(0));
-                return null;
-            }
-
-            remember(ctx.ID(), variable);
-            FavaType indexType = visit(ctx.expr(0));
+            FavaType indexType = visit(ctx.expr(1));
             if (indexType != null && !indexType.isInteger()) {
                 addError(ctx, "array index must be of type integer");
             }
-            if (!variable.getType().isArray()) {
-                addError(ctx, name + " is not an array");
+            if (arrayType == null) {
                 return null;
             }
-
-            FavaType type = variable.getType().elementType();
+            if (!arrayType.isArray()) {
+                addError(ctx, "cannot index expression of type " + readableType(arrayType));
+                return null;
+            }
+            FavaType type = arrayType.elementType();
             saveType(ctx, type);
             return type;
         }

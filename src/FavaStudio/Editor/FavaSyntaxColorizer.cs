@@ -11,13 +11,15 @@ public sealed class FavaSyntaxColorizer : DocumentColorizingTransformer
     private static readonly Regex StringRegex = new("\"(?:\\\\.|[^\"\\\\])*\"?", RegexOptions.Compiled);
     private static readonly Regex CommentRegex = new("//.*$", RegexOptions.Compiled);
     private static readonly Regex TypeRegex = new(@"\b(integer|real|bool|string)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex KeywordRegex = new(@"\b(function|return|if|else|while|print|true|false|new|length)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KeywordRegex = new(@"\b(function|return|if|else|while|for|in|print|true|false|new)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex FunctionDeclarationRegex = new(@"\bfunction\s+([A-Za-z_][A-Za-z0-9_]*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ForEachHeaderRegex = new(@"\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+(.+?)(?=\s*(?:\{|$))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex IdentifierRegex = new(@"\b[A-Za-z_][A-Za-z0-9_]*\b", RegexOptions.Compiled);
     private static readonly Regex FunctionCallRegex = new(@"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", RegexOptions.Compiled);
 
     private static readonly HashSet<string> NonCallIdentifiers = new(StringComparer.OrdinalIgnoreCase)
     {
-        "if", "while", "print", "function", "return", "integer", "real", "bool", "string", "true", "false", "else", "new", "length"
+        "if", "while", "for", "in", "print", "function", "return", "integer", "real", "bool", "string", "true", "false", "else", "new"
     };
 
     protected override void ColorizeLine(DocumentLine line)
@@ -36,6 +38,20 @@ public sealed class FavaSyntaxColorizer : DocumentColorizingTransformer
             if (!match.Success || match.Groups.Count < 2) continue;
             var name = match.Groups[1];
             ApplyStyle(line, name.Index, name.Length, new SolidColorBrush(Color.FromRgb(0xFF, 0x9A, 0x3D)), FontWeights.Bold);
+        }
+
+        foreach (Match match in ForEachHeaderRegex.Matches(text))
+        {
+            if (!match.Success || match.Groups.Count < 3) continue;
+            var loopVariable = match.Groups[1];
+            ApplyStyle(line, loopVariable.Index, loopVariable.Length, new SolidColorBrush(Color.FromRgb(0xC5, 0x9B, 0xFF)), FontWeights.SemiBold);
+
+            var sourceExpression = match.Groups[2];
+            foreach (Match identifier in IdentifierRegex.Matches(sourceExpression.Value))
+            {
+                if (!identifier.Success || NonCallIdentifiers.Contains(identifier.Value)) continue;
+                ApplyStyle(line, sourceExpression.Index + identifier.Index, identifier.Length, new SolidColorBrush(Color.FromRgb(0xC5, 0x9B, 0xFF)));
+            }
         }
 
         foreach (Match match in FunctionCallRegex.Matches(text))

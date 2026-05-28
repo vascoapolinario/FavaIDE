@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using ICSharpCode.AvalonEdit.Document;
 using FavaStudio.Editor;
@@ -27,10 +29,12 @@ public partial class MainWindow : Window
     private EditorTab? _draggedTab;
     private readonly ToolTip _diagnosticToolTip = new();
     private string _activeTooltipText = "";
+    private int _terminalInputStart;
 
     public MainWindow()
     {
         InitializeComponent();
+        SourceInitialized += MainWindow_SourceInitialized;
         _diagnosticToolTip.Background = new SolidColorBrush(Color.FromRgb(0x2B, 0x2D, 0x30));
         _diagnosticToolTip.BorderBrush = new SolidColorBrush(Color.FromRgb(0x6A, 0x2A, 0x2A));
         _diagnosticToolTip.Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0xEA, 0xF0));
@@ -82,7 +86,14 @@ public partial class MainWindow : Window
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(vm.VmOutput))
-                VmOutputBox.ScrollToEnd();
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    VmOutputBox.ScrollToEnd();
+                    if (vm.IsConsoleAcceptingInput)
+                        StartTerminalInputAtEnd();
+                }));
+            if (e.PropertyName == nameof(vm.IsConsoleAcceptingInput))
+                Dispatcher.BeginInvoke(new Action(() => UpdateTerminalInputMode(vm.IsConsoleAcceptingInput)));
             if (e.PropertyName == nameof(vm.DebugCurrentSourceLine))
             {
                 _debugCurrentLineHighlighter.SetLine(vm.DebugCurrentSourceLine);
@@ -104,6 +115,46 @@ public partial class MainWindow : Window
             RefreshBreakpointRenderers(vm);
         };
         vm.BreakpointsChanged += () => RefreshBreakpointRenderers(vm);
+    }
+
+    private void MainWindow_SourceInitialized(object? sender, EventArgs e)
+    {
+        if (PresentationSource.FromVisual(this) is HwndSource source)
+            source.AddHook(WindowProc);
+    }
+
+    private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int wmGetMinMaxInfo = 0x0024;
+        if (msg == wmGetMinMaxInfo)
+        {
+            ApplyMaximizedWorkArea(hwnd, lParam);
+            handled = true;
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private static void ApplyMaximizedWorkArea(IntPtr hwnd, IntPtr lParam)
+    {
+        var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+        if (monitor == IntPtr.Zero)
+            return;
+
+        var monitorInfo = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+            return;
+
+        var minMaxInfo = Marshal.PtrToStructure<MinMaxInfo>(lParam);
+        var workArea = monitorInfo.Work;
+        var monitorArea = monitorInfo.Monitor;
+
+        minMaxInfo.MaxPosition.X = Math.Abs(workArea.Left - monitorArea.Left);
+        minMaxInfo.MaxPosition.Y = Math.Abs(workArea.Top - monitorArea.Top);
+        minMaxInfo.MaxSize.X = Math.Abs(workArea.Right - workArea.Left);
+        minMaxInfo.MaxSize.Y = Math.Abs(workArea.Bottom - workArea.Top);
+
+        Marshal.StructureToPtr(minMaxInfo, lParam, true);
     }
 
     private void Editor_OnMouseMove(object sender, MouseEventArgs e)
@@ -143,6 +194,23 @@ public partial class MainWindow : Window
             ? BuildHoverCard("Diagnostic", diagnostic.Severity, diagnostic.Message, diagnostic.Explanation, diagnostic.SourceLine)
             : BuildTypeCard(tooltipText);
         _diagnosticToolTip.IsOpen = true;
+    }
+
+    private void MinimizeWindow_OnClick(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeWindow_OnClick(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+    }
+
+    private void CloseWindow_OnClick(object sender, RoutedEventArgs e)
+    {
+        Close();
     }
 
     private void HideDiagnosticToolTip()
@@ -1177,5 +1245,216 @@ public partial class MainWindow : Window
             current = VisualTreeHelper.GetParent(current);
         }
         return null;
+    }
+
+    private void TerminalSurface_OnMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not MainViewModel { IsConsoleAcceptingInput: true })
+            return;
+
+        VmOutputBox.Focus();
+        MoveTerminalCaretToInputEnd();
+    }
+
+    private void TerminalSurface_OnPreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (DataContext is not MainViewModel { IsConsoleAcceptingInput: true })
+            return;
+
+        if (Keyboard.FocusedElement == VmOutputBox)
+            return;
+
+        VmOutputBox.Focus();
+        MoveTerminalCaretToInputEnd();
+        VmOutputBox.SelectedText = e.Text;
+        e.Handled = true;
+    }
+
+    private void TerminalSurface_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel { IsConsoleAcceptingInput: true })
+            return;
+
+        if (Keyboard.FocusedElement == VmOutputBox)
+            return;
+
+        if (e.Key is Key.Back or Key.Delete or Key.Left or Key.Right or Key.Home or Key.End)
+        {
+            VmOutputBox.Focus();
+            MoveTerminalCaretToInputEnd();
+        }
+        else if (e.Key == Key.Enter)
+        {
+            VmOutputBox.Focus();
+            if (DataContext is MainViewModel vm && vm.SendConsoleInputCommand.CanExecute(null))
+            {
+                SendInlineTerminalInput(vm);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void VmOutputBox_OnPreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (DataContext is not MainViewModel { IsConsoleAcceptingInput: true })
+        {
+            e.Handled = true;
+            return;
+        }
+
+        EnsureTerminalCaretInInput();
+    }
+
+    private void VmOutputBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel { IsConsoleAcceptingInput: true })
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+                e.Handled = e.Key is not Key.Tab;
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            return;
+
+        if (e.Key == Key.Enter)
+        {
+            if (DataContext is MainViewModel vm && vm.SendConsoleInputCommand.CanExecute(null))
+                SendInlineTerminalInput(vm);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Home)
+        {
+            VmOutputBox.CaretIndex = _terminalInputStart;
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Back && VmOutputBox.SelectionLength == 0 && VmOutputBox.CaretIndex <= _terminalInputStart)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Delete && VmOutputBox.SelectionLength == 0 && VmOutputBox.CaretIndex < _terminalInputStart)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if ((e.Key is Key.Left or Key.Up or Key.PageUp) && VmOutputBox.CaretIndex <= _terminalInputStart)
+        {
+            VmOutputBox.CaretIndex = _terminalInputStart;
+            e.Handled = true;
+            return;
+        }
+
+        EnsureTerminalSelectionDoesNotTouchHistory(e);
+    }
+
+    private void StartTerminalInputAtEnd()
+    {
+        _terminalInputStart = VmOutputBox.Text.Length;
+        MoveTerminalCaretToInputEnd();
+        VmOutputBox.ScrollToEnd();
+    }
+
+    private void UpdateTerminalInputMode(bool isAcceptingInput)
+    {
+        VmOutputBox.IsReadOnly = !isAcceptingInput;
+        VmOutputBox.CaretBrush = isAcceptingInput
+            ? (Brush)FindResource("TextMainBrush")
+            : Brushes.Transparent;
+
+        if (isAcceptingInput)
+        {
+            StartTerminalInputAtEnd();
+            VmOutputBox.Focus();
+        }
+        else if (Keyboard.FocusedElement == VmOutputBox)
+        {
+            Keyboard.ClearFocus();
+            VmOutputBox.ScrollToEnd();
+        }
+    }
+
+    private void MoveTerminalCaretToInputEnd()
+    {
+        VmOutputBox.CaretIndex = VmOutputBox.Text.Length;
+    }
+
+    private void EnsureTerminalCaretInInput()
+    {
+        if (VmOutputBox.CaretIndex < _terminalInputStart)
+            MoveTerminalCaretToInputEnd();
+    }
+
+    private void EnsureTerminalSelectionDoesNotTouchHistory(KeyEventArgs e)
+    {
+        if (VmOutputBox.SelectionLength == 0)
+        {
+            EnsureTerminalCaretInInput();
+            return;
+        }
+
+        var selectionStart = VmOutputBox.SelectionStart;
+        if (selectionStart < _terminalInputStart)
+        {
+            VmOutputBox.Select(_terminalInputStart, Math.Max(0, VmOutputBox.Text.Length - _terminalInputStart));
+            e.Handled = true;
+        }
+    }
+
+    private void SendInlineTerminalInput(MainViewModel vm)
+    {
+        var text = VmOutputBox.Text;
+        var input = _terminalInputStart <= text.Length ? text[_terminalInputStart..] : "";
+        vm.ConsoleInput = input.Replace("\r", "").Replace("\n", "");
+        vm.SendConsoleInputCommand.Execute(null);
+    }
+
+    private const int MonitorDefaultToNearest = 0x00000002;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MinMaxInfo
+    {
+        public NativePoint Reserved;
+        public NativePoint MaxSize;
+        public NativePoint MaxPosition;
+        public NativePoint MinTrackSize;
+        public NativePoint MaxTrackSize;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect Work;
+        public int Flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
     }
 }

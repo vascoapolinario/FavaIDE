@@ -65,7 +65,13 @@ public enum OpCode {
     aalloc (53, 0),
     aload  (54, 0),
     astore (55, 0),
-    alength(56, 0);
+    alength(56, 0),
+
+    iread  (57, 0),
+    dread  (58, 0),
+    sread  (59, 0),
+    bread  (60, 0),
+    slength(61, 0);
 
     private final int code;
     private final int nArgs;

@@ -219,6 +219,31 @@ public static class VisualizerService
                     stack.Add(new VisualizerValue { Type = "int", Value = lengthArray.Count });
                     note = $"Pushed array length {lengthArray.Count}.";
                     return true;
+                case "slength":
+                    if (!TryPopString(stack, out var lengthString, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "int", Value = lengthString.Length });
+                    note = $"Pushed string length {lengthString.Length}.";
+                    return true;
+                case "iread":
+                    if (!TryPopAny(stack, out var intPrompt, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "int", Value = 0 });
+                    note = $"Read integer input after prompt {FormatValue(intPrompt)}. Visualizer uses 0.";
+                    return true;
+                case "dread":
+                    if (!TryPopAny(stack, out var realPrompt, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "double", Value = 0.0 });
+                    note = $"Read real input after prompt {FormatValue(realPrompt)}. Visualizer uses 0.0.";
+                    return true;
+                case "sread":
+                    if (!TryPopAny(stack, out var stringPrompt, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "string", Value = "" });
+                    note = $"Read string input after prompt {FormatValue(stringPrompt)}. Visualizer uses empty string.";
+                    return true;
+                case "bread":
+                    if (!TryPopAny(stack, out var boolPrompt, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "boolean", Value = false });
+                    note = $"Read bool input after prompt {FormatValue(boolPrompt)}. Visualizer uses false.";
+                    return true;
                 case "ieq":
                     return ApplyIntCompare(stack, (a, b) => a == b, out note);
                 case "ineq":
@@ -773,6 +798,21 @@ public static class VisualizerService
         return false;
     }
 
+    private static bool TryPopAny(List<VisualizerValue> stack, out VisualizerValue value, out string note)
+    {
+        value = new VisualizerValue();
+        if (stack.Count == 0)
+        {
+            note = "Stack underflow.";
+            return false;
+        }
+
+        value = stack[^1];
+        stack.RemoveAt(stack.Count - 1);
+        note = "";
+        return true;
+    }
+
     private static string Unquote(string value)
     {
         var trimmed = value.Trim();
@@ -857,6 +897,11 @@ public static class VisualizerService
         { 53, ("aalloc", "Pops an int size and pushes a NULL-initialized array reference.") },
         { 54, ("aload", "Pops array reference and index, then pushes the initialized element.") },
         { 55, ("astore", "Pops value, index, and array reference, then stores the element.") },
-        { 56, ("alength", "Pops an array reference and pushes its integer length.") }
+        { 56, ("alength", "Pops an array reference and pushes its integer length.") },
+        { 57, ("iread", "Pops a prompt value, reads a line, parses it as integer, and pushes it.") },
+        { 58, ("dread", "Pops a prompt value, reads a line, parses it as real, and pushes it.") },
+        { 59, ("sread", "Pops a prompt value, reads a line, and pushes it as string.") },
+        { 60, ("bread", "Pops a prompt value, reads true or false, and pushes it as bool.") },
+        { 61, ("slength", "Pops a string and pushes its character length.") }
     };
 }

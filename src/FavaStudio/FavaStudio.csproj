@@ -6,10 +6,33 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\Compiler\antlr-4.13.2-complete.jar"
+          Link="Compiler\antlr-4.13.2-complete.jar"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\Compiler\build\classes\**\*"
+             Link="Compiler\build\classes\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CopyCompilerRuntimeToPublishDirectory" AfterTargets="Publish">
+    <ItemGroup>
+      <CompilerJar Include="$(MSBuildProjectDirectory)\..\..\Compiler\antlr-4.13.2-complete.jar" />
+      <CompilerClasses Include="$(MSBuildProjectDirectory)\..\..\Compiler\build\classes\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CompilerJar)"
+          DestinationFiles="@(CompilerJar->'$(PublishDir)Compiler\%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(CompilerClasses)"
+          DestinationFiles="@(CompilerClasses->'$(PublishDir)Compiler\build\classes\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 
 </Project>
