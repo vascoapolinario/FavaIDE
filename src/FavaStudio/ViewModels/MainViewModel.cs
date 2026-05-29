@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,6 +20,8 @@ using Rectangle = System.Windows.Shapes.Rectangle;
 namespace FavaStudio.ViewModels;
 
 public sealed record DiscordPresenceOption(string Key, string Label);
+internal sealed record ProjectTemplateOption(string Key, string Label, string Description);
+internal sealed record ProjectCreationRequest(string ParentFolder, string FolderName, string Title, string Description, string TemplateKey);
 
 public class MainViewModel : INotifyPropertyChanged
 {
@@ -57,6 +60,9 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _isQuickOpenVisible;
     private string _quickOpenQuery = "";
     private string? _selectedQuickOpenFile;
+    private bool _isProjectDeleteDialogVisible;
+    private string _pendingDeleteProjectPath = "";
+    private string _pendingDeleteProjectName = "";
     private bool _showOutputOnly = true;
     private bool _toolCompareFullOutput;
     private TestFilePair? _selectedToolTestPair;
@@ -129,6 +135,18 @@ public class MainViewModel : INotifyPropertyChanged
         new("custom", "Custom text"),
         new("hidden", "Do not show")
     ];
+    public IReadOnlyList<DiscordPresenceOption> SyntaxColorModeOptions { get; } =
+    [
+        new("default", "Default Fava syntax"),
+        new("theme", "Theme colors"),
+        new("simple", "Theme colors simplified")
+    ];
+    private static readonly IReadOnlyList<ProjectTemplateOption> ProjectTemplateOptions =
+    [
+        new("tutorial", "Create project with tutorial file", "Creates main.fava with a runnable tour of Fava's language features."),
+        new("hello", "Create project with main.fava", "Creates a clean Hello World main.fava file."),
+        new("empty", "Create empty project", "Creates only the project folder and metadata.")
+    ];
 
     public SettingsService Settings { get; } = SettingsService.Load();
     public event Action? StyleSettingsChanged;
@@ -151,8 +169,22 @@ public class MainViewModel : INotifyPropertyChanged
     public string CurrentProjectDirectory => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Project directory: (not set)" : Settings.ProjectRoot;
     public string SettingsProjectName => string.IsNullOrWhiteSpace(Settings.ProjectRoot)
         ? "No project loaded"
-        : Path.GetFileName(Settings.ProjectRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        : GetProjectDisplayName(Settings.ProjectRoot);
+    public string SettingsProjectDescription => string.IsNullOrWhiteSpace(Settings.ProjectRoot)
+        ? "Create or open a project to edit its title and description."
+        : GetProjectMetadata(Settings.ProjectRoot)?.Description ?? "No description yet.";
     public string SettingsProjectPath => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Open a project to enable project-local workflows." : Settings.ProjectRoot;
+    public string ProjectTitle
+    {
+        get => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "" : GetProjectDisplayName(Settings.ProjectRoot);
+        set => SetCurrentProjectMetadata(title: value, description: null);
+    }
+    public string ProjectDescription
+    {
+        get => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "" : GetProjectMetadata(Settings.ProjectRoot)?.Description ?? "";
+        set => SetCurrentProjectMetadata(title: null, description: value);
+    }
+    public string IdeDataLocation => SettingsService.DataDirectory;
     public string JavaPath
     {
         get => Settings.JavaPath;
@@ -175,29 +207,16 @@ public class MainViewModel : INotifyPropertyChanged
             RaiseSettingsValidationChanged();
         }
     }
-    public string AntlrJar
-    {
-        get => Settings.AntlrJar;
-        set
-        {
-            if (Settings.AntlrJar == value) return;
-            Settings.AntlrJar = value;
-            OnPropertyChanged();
-            RaiseSettingsValidationChanged();
-        }
-    }
     public string CompilerStatusText => IsCompilerConfigured ? "Ready to run" : "Needs configuration";
     public Brush CompilerStatusBrush => IsCompilerConfigured ? Brushes.LightGreen : Brushes.Orange;
     public string JavaStatusText => string.IsNullOrWhiteSpace(Settings.JavaPath) ? "Required" : "Configured";
     public Brush JavaStatusBrush => string.IsNullOrWhiteSpace(Settings.JavaPath) ? Brushes.Orange : Brushes.LightGreen;
     public string CompilerRootStatusText => Directory.Exists(Settings.CompilerRoot) ? "Folder found" : "Missing folder";
     public Brush CompilerRootStatusBrush => Directory.Exists(Settings.CompilerRoot) ? Brushes.LightGreen : Brushes.Orange;
-    public string AntlrStatusText => File.Exists(Settings.AntlrJar) ? "Jar found" : "Missing jar";
-    public Brush AntlrStatusBrush => File.Exists(Settings.AntlrJar) ? Brushes.LightGreen : Brushes.Orange;
     public bool IsCompilerConfigured =>
         !string.IsNullOrWhiteSpace(Settings.JavaPath) &&
         Directory.Exists(Settings.CompilerRoot) &&
-        File.Exists(Settings.AntlrJar);
+        File.Exists(Settings.ResolveAntlrJar());
     public string TestFoldersStatusText => Directory.Exists(Settings.InputsDir) && !string.IsNullOrWhiteSpace(Settings.OutputsDir)
         ? "Test folders configured"
         : "Test folders need setup";
@@ -245,6 +264,9 @@ public class MainViewModel : INotifyPropertyChanged
     public bool IsWelcomeViewVisible { get => _isWelcomeViewVisible; set { _isWelcomeViewVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsWorkspaceVisible)); } }
     public bool IsWorkspaceVisible => !IsSettingsViewVisible && !IsToolsViewVisible && !IsVisualizerViewVisible && !IsWelcomeViewVisible;
     public bool IsQuickOpenVisible { get => _isQuickOpenVisible; set { _isQuickOpenVisible = value; OnPropertyChanged(); } }
+    public bool IsProjectDeleteDialogVisible { get => _isProjectDeleteDialogVisible; set { _isProjectDeleteDialogVisible = value; OnPropertyChanged(); } }
+    public string PendingDeleteProjectPath { get => _pendingDeleteProjectPath; set { _pendingDeleteProjectPath = value; OnPropertyChanged(); } }
+    public string PendingDeleteProjectName { get => _pendingDeleteProjectName; set { _pendingDeleteProjectName = value; OnPropertyChanged(); } }
     public string QuickOpenQuery
     {
         get => _quickOpenQuery;
@@ -324,6 +346,7 @@ public class MainViewModel : INotifyPropertyChanged
     public string EditorFontFamily { get => Settings.EditorFontFamily; set => SetStyleSetting(Settings.EditorFontFamily, value, v => Settings.EditorFontFamily = v); }
     public double EditorFontSize { get => Settings.EditorFontSize; set => SetStyleNumber(Settings.EditorFontSize, value, v => Settings.EditorFontSize = v); }
     public double ConsoleFontSize { get => Settings.ConsoleFontSize; set => SetStyleNumber(Settings.ConsoleFontSize, value, v => Settings.ConsoleFontSize = v); }
+    public string SyntaxColorMode { get => Settings.SyntaxColorMode; set => SetStyleSetting(Settings.SyntaxColorMode, value, v => Settings.SyntaxColorMode = v); }
     public bool DiscordPresenceEnabled
     {
         get => Settings.DiscordPresenceEnabled;
@@ -524,6 +547,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand NewTextFileCommand { get; }
     public RelayCommand NewDirectoryCommand { get; }
     public RelayCommand DeleteNodeCommand { get; }
+    public RelayCommand OpenNodeInExplorerCommand { get; }
     public RelayCommand SaveFileCommand { get; }
     public RelayCommand RunCurrentCommand { get; }
     public RelayCommand StopExecutionCommand { get; }
@@ -535,12 +559,15 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BackToEditorCommand { get; }
     public RelayCommand BrowseJavaPathCommand { get; }
     public RelayCommand BrowseCompilerRootCommand { get; }
-    public RelayCommand BrowseAntlrJarCommand { get; }
     public RelayCommand SaveSettingsCommand { get; }
     public RelayCommand ApplyStylePresetCommand { get; }
     public RelayCommand ChooseStyleColorCommand { get; }
     public RelayCommand ClearRecentProjectsCommand { get; }
     public RelayCommand ClearRecentFilesCommand { get; }
+    public RelayCommand ResetIdeDataCommand { get; }
+    public RelayCommand CancelProjectDeleteCommand { get; }
+    public RelayCommand RemoveProjectReferenceConfirmCommand { get; }
+    public RelayCommand DeleteProjectFolderConfirmCommand { get; }
     public RelayCommand OpenToolsCommand { get; }
     public RelayCommand OpenVisualizerCommand { get; }
     public RelayCommand OpenRecentProjectCommand { get; }
@@ -621,6 +648,7 @@ public class MainViewModel : INotifyPropertyChanged
         NewTextFileCommand = new RelayCommand(node => NewFile(".txt", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         NewDirectoryCommand = new RelayCommand(node => NewDirectory(node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         DeleteNodeCommand = new RelayCommand(n => DeleteNode(n as ProjectNode), n => n is ProjectNode);
+        OpenNodeInExplorerCommand = new RelayCommand(n => OpenNodeInExplorer(n as ProjectNode), n => n is ProjectNode);
         SaveFileCommand = new RelayCommand(_ => SaveFile());
         RunCurrentCommand = new RelayCommand(_ => RunCurrentFile(), _ => IsCurrentFavaFile && !IsExecutionRunning);
         StopExecutionCommand = new RelayCommand(_ => StopExecution(), _ => CanStopExecution);
@@ -637,7 +665,6 @@ public class MainViewModel : INotifyPropertyChanged
         BackToEditorCommand = new RelayCommand(_ => BackToEditor());
         BrowseJavaPathCommand = new RelayCommand(_ => BrowseJavaPath());
         BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => CompilerRoot = v, "Compiler Root Folder"));
-        BrowseAntlrJarCommand = new RelayCommand(_ => BrowseAntlrJar());
         SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
         ApplyStylePresetCommand = new RelayCommand(p => ApplyStylePreset(p as string));
         ChooseStyleColorCommand = new RelayCommand(p => ChooseStyleColor(p as string), p => !string.IsNullOrWhiteSpace(p as string));
@@ -659,6 +686,10 @@ public class MainViewModel : INotifyPropertyChanged
             StatusText = "Recent files cleared.";
             StatusColor = Brushes.LightGreen;
         });
+        ResetIdeDataCommand = new RelayCommand(_ => ResetIdeData());
+        CancelProjectDeleteCommand = new RelayCommand(_ => HideProjectDeleteDialog());
+        RemoveProjectReferenceConfirmCommand = new RelayCommand(_ => ConfirmRemoveProjectReference(), _ => IsProjectDeleteDialogVisible);
+        DeleteProjectFolderConfirmCommand = new RelayCommand(_ => ConfirmDeleteProjectFolder(), _ => IsProjectDeleteDialogVisible);
 
         OpenToolsCommand = new RelayCommand(_ =>
         {
@@ -927,13 +958,14 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void CreateProject()
     {
-        var dialog = new OpenFolderDialog { Title = "Select Parent Folder for New Project" };
-        if (dialog.ShowDialog() != true) return;
+        var request = ShowProjectCreationDialog();
+        if (request is null)
+            return;
 
-        var baseFolder = dialog.FolderName;
+        var baseFolder = request.ParentFolder;
         if (string.IsNullOrWhiteSpace(baseFolder) || !Directory.Exists(baseFolder)) return;
 
-        var projectRoot = Path.Combine(baseFolder, "FavaProject");
+        var projectRoot = Path.Combine(request.ParentFolder, request.FolderName);
         if (Directory.Exists(projectRoot))
         {
             StatusText = $"Project already exists: {projectRoot}";
@@ -949,10 +981,284 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         Directory.CreateDirectory(projectRoot);
+        Settings.ProjectMetadata[projectRoot] = new ProjectMetadata
+        {
+            Title = request.Title,
+            Description = request.Description,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        CreateStarterProjectFiles(projectRoot, request.Title, request.TemplateKey);
+        Settings.Save();
         LoadProject(projectRoot);
-        StatusText = $"Created project: {projectRoot}";
+        StatusText = $"Created project: {request.Title}";
         StatusColor = Brushes.LightBlue;
     }
+
+    private static ProjectCreationRequest? ShowProjectCreationDialog()
+    {
+        var parentFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "FavaStudio", "Projects");
+        var titleBox = new TextBox { Text = "My Fava Project", Margin = new Thickness(0, 4, 0, 10) };
+        var folderBox = new TextBox { Text = "FavaProject", Margin = new Thickness(0, 4, 0, 10), FontFamily = new FontFamily("Consolas") };
+        var parentFolderBox = new TextBox { Text = parentFolder, Margin = new Thickness(0, 4, 0, 10), FontFamily = new FontFamily("Consolas") };
+        var templateBox = new ComboBox
+        {
+            ItemsSource = ProjectTemplateOptions,
+            DisplayMemberPath = nameof(ProjectTemplateOption.Label),
+            SelectedValuePath = nameof(ProjectTemplateOption.Key),
+            SelectedIndex = 0,
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+        var templateDescription = new TextBlock
+        {
+            Text = ProjectTemplateOptions[0].Description,
+            Foreground = Brushes.Gray,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        var descriptionBox = new TextBox
+        {
+            Text = "A new Fava project.",
+            Margin = new Thickness(0, 4, 0, 0),
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 82,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        var errorText = new TextBlock
+        {
+            Foreground = Brushes.IndianRed,
+            Margin = new Thickness(0, 10, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        titleBox.TextChanged += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(titleBox.Text) && folderBox.Text == "FavaProject")
+                folderBox.Text = SanitizeProjectFolderName(titleBox.Text);
+        };
+        templateBox.SelectionChanged += (_, _) =>
+        {
+            if (templateBox.SelectedItem is ProjectTemplateOption option)
+                templateDescription.Text = option.Description;
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock { Text = "Create Project", FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
+        panel.Children.Add(new TextBlock { Text = "Project title", Foreground = Brushes.LightGray });
+        panel.Children.Add(titleBox);
+        panel.Children.Add(new TextBlock { Text = "Folder name", Foreground = Brushes.LightGray });
+        panel.Children.Add(folderBox);
+        panel.Children.Add(new TextBlock { Text = "Create inside", Foreground = Brushes.LightGray });
+        var parentPanel = new DockPanel { Margin = new Thickness(0, 4, 0, 10) };
+        var browseParent = new Button { Content = "Browse", Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(8, 0, 0, 0) };
+        DockPanel.SetDock(browseParent, Dock.Right);
+        parentPanel.Children.Add(browseParent);
+        parentPanel.Children.Add(parentFolderBox);
+        panel.Children.Add(parentPanel);
+        panel.Children.Add(new TextBlock { Text = "Starter files", Foreground = Brushes.LightGray });
+        panel.Children.Add(templateBox);
+        panel.Children.Add(templateDescription);
+        panel.Children.Add(new TextBlock { Text = "Description", Foreground = Brushes.LightGray });
+        panel.Children.Add(descriptionBox);
+        panel.Children.Add(errorText);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+        var create = new Button { Content = "Create", MinWidth = 86, Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(0, 0, 8, 0) };
+        var cancel = new Button { Content = "Cancel", MinWidth = 86, Padding = new Thickness(14, 7, 14, 7) };
+        buttons.Children.Add(create);
+        buttons.Children.Add(cancel);
+        panel.Children.Add(buttons);
+
+        var dialog = new Window
+        {
+            Title = "Create Fava Project",
+            Content = panel,
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Background = new SolidColorBrush(Color.FromRgb(30, 31, 34)),
+            Foreground = Brushes.White,
+            Owner = Application.Current.MainWindow
+        };
+
+        browseParent.Click += (_, _) =>
+        {
+            var folderDialog = new OpenFolderDialog { Title = "Select Parent Folder for New Project" };
+            if (Directory.Exists(parentFolderBox.Text))
+                folderDialog.InitialDirectory = parentFolderBox.Text;
+            if (folderDialog.ShowDialog() == true)
+                parentFolderBox.Text = folderDialog.FolderName;
+        };
+
+        create.Click += (_, _) =>
+        {
+            var title = titleBox.Text.Trim();
+            var folder = SanitizeProjectFolderName(folderBox.Text);
+            var selectedParent = string.IsNullOrWhiteSpace(parentFolderBox.Text)
+                ? parentFolder
+                : parentFolderBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                errorText.Text = "Project title is required.";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                errorText.Text = "Folder name is required.";
+                return;
+            }
+            if (!string.Equals(folder, folderBox.Text.Trim(), StringComparison.Ordinal))
+            {
+                folderBox.Text = folder;
+                errorText.Text = "Folder name was cleaned up. Press Create again if it looks right.";
+                return;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(selectedParent);
+            }
+            catch (Exception ex)
+            {
+                errorText.Text = $"Could not create parent folder: {ex.Message}";
+                return;
+            }
+
+            var templateKey = (templateBox.SelectedValue as string) ?? "tutorial";
+            dialog.Tag = new ProjectCreationRequest(selectedParent, folder, title, descriptionBox.Text.Trim(), templateKey);
+            dialog.DialogResult = true;
+        };
+        cancel.Click += (_, _) => dialog.DialogResult = false;
+
+        return dialog.ShowDialog() == true ? dialog.Tag as ProjectCreationRequest : null;
+    }
+
+    private static string SanitizeProjectFolderName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        var cleaned = new string(value.Trim().Select(ch => invalid.Contains(ch) ? '-' : ch).ToArray());
+        cleaned = Regex.Replace(cleaned, @"\s+", "-");
+        cleaned = Regex.Replace(cleaned, @"-+", "-").Trim('-', '.', ' ');
+        return string.IsNullOrWhiteSpace(cleaned) ? "FavaProject" : cleaned;
+    }
+
+    private static void CreateStarterProjectFiles(string projectRoot, string projectTitle, string templateKey)
+    {
+        var safeTitle = projectTitle.Replace("\"", "'");
+        var mainPath = Path.Combine(projectRoot, "main.fava");
+        var notesPath = Path.Combine(projectRoot, "README.txt");
+
+        if (templateKey == "tutorial")
+            File.WriteAllText(mainPath, BuildFeatureShowcaseSource(safeTitle));
+        else if (templateKey == "hello")
+            File.WriteAllText(mainPath, """
+function main() {
+    print("Hello World!");
+}
+""");
+
+        File.WriteAllText(notesPath,
+            $"# {safeTitle}{Environment.NewLine}{Environment.NewLine}" +
+            (templateKey == "tutorial"
+                ? "Start with main.fava. It demonstrates Fava variables, arrays, strings, functions, loops, file calls, time calls, casting, and input helpers."
+                : templateKey == "hello"
+                    ? "Start with main.fava. It contains a minimal Hello World program."
+                    : "This project starts empty. Create a .fava file when you are ready."));
+    }
+
+    private static string BuildFeatureShowcaseSource(string projectTitle) => $$"""
+// Fava language feature showcase for "{{projectTitle}}".
+// The interactiveDemo function shows Read(...) without pausing the normal run.
+
+function add(integer left, integer right) -> integer {
+    return left + right;
+}
+
+function describeScore(integer score) -> string {
+    if (score >= 90) {
+        return "excellent";
+    } else {
+        if (score >= 70) {
+            return "solid";
+        } else {
+            return "practice";
+        }
+    }
+}
+
+function interactiveDemo() {
+    string name := Read("Type your name: ");
+    string ageText := Read("Type your age: ");
+    integer age := ToInteger(ageText);
+    print("Hello " || name || ", next year you will be " || (age + 1));
+}
+
+function main() {
+    print("== Fava feature showcase ==");
+
+    integer count := 3;
+    real price := 2.5 + count;
+    bool ready := true and not false;
+    string word := "Fava";
+    print("numbers: " || count || ", " || price || ", " || ready);
+
+    integer[] scores := new integer[3];
+    scores[0] := 95;
+    scores[1] := 82;
+    scores[2] := 64;
+    print("scores length: " || Length(scores));
+    print("word length: " || Length(word));
+    print("first character: " || word[0]);
+
+    for (integer i := 0; i < Length(scores); i++) {
+        print("score " || i || " is " || scores[i] || " -> " || describeScore(scores[i]));
+    }
+
+    for letter in word {
+        print("letter: " || letter);
+    }
+
+    integer total := 0;
+    integer index := 0;
+    while (index < Length(scores)) {
+        total := total + scores[index];
+        index := index + 1;
+    }
+    print("total score: " || total);
+    print("add helper: " || add(10, 20));
+
+    string message := "Fava Studio";
+    print("substring: " || Substring(message, 0, 4));
+    print("replace: " || Replace(message, "Studio", "Language"));
+    print("concat: " || ("Project: " || "{{projectTitle}}"));
+
+    integer parsedInteger := ToInteger("42");
+    real parsedReal := ToReal("3.14");
+    bool parsedBool := ToBool("true");
+    real promoted := ToReal(parsedInteger);
+    integer rounded := ToInteger(9.8);
+    print("casts: " || parsedInteger || ", " || parsedReal || ", " || parsedBool || ", " || promoted || ", " || rounded);
+
+    print("random 1..6: " || RandomInt(1, 6));
+    print("utc date: " || Now("date"));
+    print("utc time: " || Now("time"));
+    Sleep(10);
+
+    string fileName := "showcase_output.txt";
+    CreateFile(fileName);
+    WriteFile(fileName, "Created by Fava.\n");
+    AppendFile(fileName, "Total score: " || total || "\n");
+    if (FileExists(fileName)) {
+        print("file contents:");
+        print(ReadFile(fileName));
+    }
+    DeleteFile(fileName);
+
+    print("== done ==");
+}
+""";
 
     private void LoadProject(string folder, bool skipUnsavedCheck = false)
     {
@@ -1018,7 +1324,7 @@ public class MainViewModel : INotifyPropertyChanged
         var name = Path.GetFileName(path);
         var node = new ProjectNode
         {
-            Name = string.IsNullOrWhiteSpace(name) ? path : name,
+            Name = isRoot ? GetProjectDisplayName(path) : string.IsNullOrWhiteSpace(name) ? path : name,
             FullPath = path,
             IsDirectory = isDirectory,
             IsRoot = isRoot
@@ -1179,6 +1485,28 @@ public class MainViewModel : INotifyPropertyChanged
             RefreshProjectTree(parentPath: Path.GetDirectoryName(node.FullPath));
     }
 
+    private void OpenNodeInExplorer(ProjectNode? node)
+    {
+        if (node is null || string.IsNullOrWhiteSpace(node.FullPath))
+            return;
+
+        var path = node.FullPath;
+        var psi = new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            UseShellExecute = true
+        };
+
+        if (File.Exists(path))
+            psi.Arguments = $"/select,\"{path}\"";
+        else if (Directory.Exists(path))
+            psi.Arguments = $"\"{path}\"";
+        else
+            return;
+
+        Process.Start(psi);
+    }
+
     private void CloseProject()
     {
         if (!TryResolveUnsavedChanges())
@@ -1201,45 +1529,62 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var projectName = GetProjectName(projectPath);
-        var answer = MessageBox.Show(
-            $"Remove project '{projectName}' from Fava Studio?\n\nChoose Yes to remove it from recent projects only.\nChoose No to delete the project folder and all files inside it.\n\n{projectPath}",
-            "Delete Project",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Warning);
-        if (answer == MessageBoxResult.Cancel)
-            return;
+        PendingDeleteProjectPath = projectPath;
+        PendingDeleteProjectName = GetProjectName(projectPath);
+        IsProjectDeleteDialogVisible = true;
+        RemoveProjectReferenceConfirmCommand.RaiseCanExecuteChanged();
+        DeleteProjectFolderConfirmCommand.RaiseCanExecuteChanged();
+    }
 
-        if (answer == MessageBoxResult.Yes)
-        {
-            RemoveProjectReference(projectPath);
-            return;
-        }
+    private void HideProjectDeleteDialog()
+    {
+        IsProjectDeleteDialogVisible = false;
+        PendingDeleteProjectPath = "";
+        PendingDeleteProjectName = "";
+        RemoveProjectReferenceConfirmCommand.RaiseCanExecuteChanged();
+        DeleteProjectFolderConfirmCommand.RaiseCanExecuteChanged();
+    }
 
-        if (string.Equals(Path.GetFullPath(projectPath), Path.GetFullPath(Settings.ProjectRoot), StringComparison.OrdinalIgnoreCase))
-        {
-            if (!TryResolveUnsavedChanges())
-                return;
-            ClearLoadedProject();
-        }
+    private void ConfirmRemoveProjectReference()
+    {
+        var projectPath = PendingDeleteProjectPath;
+        HideProjectDeleteDialog();
+        RemoveProjectReference(projectPath);
+    }
+
+    private void ConfirmDeleteProjectFolder()
+    {
+        var projectPath = PendingDeleteProjectPath;
+        var projectName = PendingDeleteProjectName;
+        HideProjectDeleteDialog();
+        if (string.IsNullOrWhiteSpace(projectPath))
+            return;
 
         try
         {
-            Directory.Delete(projectPath, true);
+            var fullProjectPath = Path.GetFullPath(projectPath);
+            var wasCurrentProject = IsSamePath(fullProjectPath, Settings.ProjectRoot);
+
+            if (wasCurrentProject)
+            {
+                if (!TryResolveUnsavedChanges())
+                    return;
+                ClearLoadedProject();
+            }
+
+            Directory.Delete(fullProjectPath, true);
+            RemoveProjectData(fullProjectPath);
+            Settings.Save();
+            RefreshRecentCollections();
+            IsWelcomeViewVisible = true;
+            StatusText = $"Deleted project: {projectName}";
+            StatusColor = Brushes.Orange;
         }
         catch (Exception ex)
         {
             StatusText = $"Failed to delete project: {ex.Message}";
             StatusColor = Brushes.IndianRed;
-            return;
         }
-        Settings.RecentProjects.RemoveAll(p => string.Equals(p, projectPath, StringComparison.OrdinalIgnoreCase));
-        Settings.RecentFiles.RemoveAll(f => f.StartsWith(projectPath, StringComparison.OrdinalIgnoreCase));
-        Settings.Save();
-        RefreshRecentCollections();
-        IsWelcomeViewVisible = true;
-        StatusText = $"Deleted project: {projectName}";
-        StatusColor = Brushes.Orange;
     }
 
     private void RemoveProjectReference(string? projectPath)
@@ -1258,12 +1603,20 @@ public class MainViewModel : INotifyPropertyChanged
             IsWelcomeViewVisible = true;
         }
 
-        Settings.RecentProjects.RemoveAll(p => string.Equals(p, projectPath, StringComparison.OrdinalIgnoreCase));
-        Settings.RecentFiles.RemoveAll(f => f.StartsWith(projectPath, StringComparison.OrdinalIgnoreCase));
+        RemoveProjectData(projectPath);
         Settings.Save();
         RefreshRecentCollections();
         StatusText = $"Removed project from Fava Studio: {GetProjectName(projectPath)}";
         StatusColor = Brushes.LightGray;
+    }
+
+    private void RemoveProjectData(string projectPath)
+    {
+        Settings.RecentProjects.RemoveAll(path => IsSamePath(path, projectPath));
+        Settings.RecentFiles.RemoveAll(path => IsSameOrInsidePathSafe(path, projectPath));
+
+        foreach (var key in Settings.ProjectMetadata.Keys.Where(key => IsSamePath(key, projectPath)).ToList())
+            Settings.ProjectMetadata.Remove(key);
     }
 
     private void ClearLoadedProject()
@@ -2823,19 +3176,6 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void BrowseAntlrJar()
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Select ANTLR Jar",
-            Filter = "JAR Files|*.jar|All Files|*.*"
-        };
-        if (dialog.ShowDialog() == true)
-        {
-            AntlrJar = dialog.FileName;
-        }
-    }
-
     private void BrowseFolder(Action<string> setter, string title)
     {
         var dialog = new OpenFolderDialog { Title = $"Select {title}" };
@@ -2854,6 +3194,65 @@ public class MainViewModel : INotifyPropertyChanged
         StatusText = "Settings saved.";
         StatusColor = Brushes.LightGreen;
         RaiseSettingsValidationChanged();
+    }
+
+    private void ResetIdeData()
+    {
+        var answer = MessageBox.Show(
+            "Reset Fava Studio IDE data?\n\nThis clears settings, project metadata, recent files, recent projects, style settings, and Discord presence preferences. Project folders on disk are not deleted.",
+            "Reset IDE Data",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes)
+            return;
+
+        ProjectTree.Clear();
+        TestResults.Clear();
+        ToolTestPairs.Clear();
+        OpenEditorTabs.Clear();
+        QuickOpenResults.Clear();
+        SelectedProjectNode = null;
+        SelectedTestResult = null;
+        SelectedToolTestPair = null;
+        _currentTestTabPaths.Clear();
+        _selectedEditorTab = null;
+        _currentFile = null;
+        _hasUnsavedChanges = false;
+        _suppressDirtyTracking = true;
+        _editor.Text = "";
+        _suppressDirtyTracking = false;
+
+        try
+        {
+            if (Directory.Exists(SettingsService.DataDirectory))
+                Directory.Delete(SettingsService.DataDirectory, true);
+        }
+        catch
+        {
+            // If a file is briefly locked, saving below still rewrites a clean settings file.
+        }
+
+        Settings.ResetToDefaults();
+        Settings.Save();
+        RefreshRecentCollections();
+        RefreshTestSuiteCases();
+        IsWelcomeViewVisible = true;
+        IsSettingsViewVisible = false;
+        IsToolsViewVisible = false;
+        IsVisualizerViewVisible = false;
+        TestSummary = "No tests run yet.";
+        StatusText = "Fava Studio data reset.";
+        StatusColor = Brushes.LightGreen;
+        StyleSettingsChanged?.Invoke();
+        OnPropertyChanged(nameof(SelectedEditorTab));
+        OnPropertyChanged(nameof(CurrentFileName));
+        OnPropertyChanged(nameof(CurrentProjectDirectory));
+        RaiseSettingsValidationChanged();
+        RunCurrentCommand.RaiseCanExecuteChanged();
+        StartDebugCommand.RaiseCanExecuteChanged();
+        CloseProjectCommand.RaiseCanExecuteChanged();
+        DeleteProjectCommand.RaiseCanExecuteChanged();
+        CreateTestPairCommand.RaiseCanExecuteChanged();
     }
 
     private void SetPlainSetting(string currentValue, string newValue, Action<string> assign, [CallerMemberName] string? propertyName = null)
@@ -2884,17 +3283,49 @@ public class MainViewModel : INotifyPropertyChanged
     {
         switch ((preset ?? "default").ToLowerInvariant())
         {
+            case "professional":
+                SetStyleValues("#1E1F22", "#2B2D30", "#25262A", "#E6EAF0", "#9AA4B2", "#4D8DFF", "#3C3F41", "#1E1F22", "#181A1F", "Consolas", 15, 15);
+                break;
             case "graphite":
                 SetStyleValues("#17191D", "#24272D", "#1E2127", "#ECEFF4", "#A8B0BE", "#8AB4FF", "#3A404A", "#16181C", "#14161A", "Cascadia Mono", 15, 15);
                 break;
             case "ember":
                 SetStyleValues("#201B19", "#2D2622", "#261F1C", "#F2ECE6", "#B8AAA0", "#FF9A3D", "#4B3B34", "#1B1715", "#181412", "Consolas", 15, 15);
                 break;
-            case "mint":
-                SetStyleValues("#141C1B", "#20302D", "#1A2927", "#E7F5F1", "#9DB8B0", "#56D6A3", "#314B46", "#111817", "#101615", "Cascadia Mono", 15, 15);
+            case "crimson":
+                SetStyleValues("#100B0D", "#1D1215", "#271619", "#F7ECEE", "#B9959B", "#FF4655", "#56303A", "#0D090B", "#090608", "Cascadia Mono", 15, 15);
                 break;
+            case "cherryblossom":
+                SetStyleValues("#FFF3F7", "#FFFFFF", "#FFE2EC", "#3A2029", "#8D6472", "#FF6FAE", "#F2B7CB", "#FFF9FB", "#FFF1F6", "Cascadia Mono", 15, 15);
+                break;
+            case "cyberpunk":
+                SetStyleValues("#101014", "#1A1722", "#211C2C", "#F7F7FF", "#AAA3C2", "#00E5FF", "#4A3B68", "#0D0D12", "#09090D", "Cascadia Mono", 15, 15);
+                break;
+            case "matrix":
+                SetStyleValues("#07110A", "#0D1B10", "#102515", "#D8FFE0", "#82B98F", "#36FF6A", "#24512D", "#050D07", "#040A05", "Cascadia Mono", 15, 15);
+                break;
+            case "ocean":
+                SetStyleValues("#0A1720", "#132837", "#10222F", "#E3F7FF", "#93B7C8", "#3CC7D9", "#285164", "#07131B", "#061018", "Cascadia Mono", 15, 15);
+                break;
+            case "royal":
+                SetStyleValues("#171225", "#251D38", "#20182F", "#F1ECFF", "#AEA2C9", "#B997FF", "#4A3A66", "#120E1D", "#0F0B18", "Cascadia Mono", 15, 15);
+                break;
+            case "solar":
+                SetStyleValues("#241B0D", "#332512", "#2A1F10", "#FFF4D8", "#C8AA72", "#FFC857", "#5A421F", "#1C150A", "#161007", "Consolas", 15, 15);
+                break;
+            case "midnight":
+                SetStyleValues("#101820", "#1D2833", "#17232D", "#EAF2FA", "#9CB0C3", "#7CC7FF", "#314457", "#0E141B", "#0C1218", "Cascadia Mono", 15, 15);
+                break;
+            case "orchid":
+                SetStyleValues("#1D1824", "#2A2233", "#231C2C", "#F2EAF8", "#B6A8C8", "#D18BFF", "#45344F", "#19131F", "#15101A", "Cascadia Mono", 15, 15);
+                break;
+            case "daylight":
+                SetStyleValues("#F4F6F8", "#FFFFFF", "#E9EEF3", "#18212B", "#5D6B78", "#1E7BD8", "#CBD5DF", "#FFFFFF", "#F8FAFC", "Consolas", 15, 15);
+                break;
+            case "mint":
+            case "default":
             default:
-                SetStyleValues("#1E1F22", "#2B2D30", "#25262A", "#E6EAF0", "#9AA4B2", "#4D8DFF", "#3C3F41", "#1E1F22", "#181A1F", "Consolas", 15, 15);
+                SetStyleValues("#141C1B", "#20302D", "#1A2927", "#E7F5F1", "#9DB8B0", "#56D6A3", "#314B46", "#111817", "#101615", "Cascadia Mono", 15, 15);
                 break;
         }
     }
@@ -2938,6 +3369,7 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(EditorFontFamily));
         OnPropertyChanged(nameof(EditorFontSize));
         OnPropertyChanged(nameof(ConsoleFontSize));
+        OnPropertyChanged(nameof(SyntaxColorMode));
         StyleSettingsChanged?.Invoke();
     }
 
@@ -3393,7 +3825,53 @@ public class MainViewModel : INotifyPropertyChanged
         return false;
     }
 
-    private static string GetProjectName(string projectPath)
+    private string GetProjectName(string projectPath) => GetProjectDisplayName(projectPath);
+
+    private string GetProjectDisplayName(string projectPath)
+    {
+        var metadata = GetProjectMetadata(projectPath);
+        if (!string.IsNullOrWhiteSpace(metadata?.Title))
+            return metadata.Title.Trim();
+
+        return GetFolderProjectName(projectPath);
+    }
+
+    private ProjectMetadata? GetProjectMetadata(string projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            return null;
+
+        if (Settings.ProjectMetadata.TryGetValue(projectPath, out var metadata))
+            return metadata;
+
+        return Settings.ProjectMetadata.FirstOrDefault(entry =>
+            string.Equals(Path.GetFullPath(entry.Key), Path.GetFullPath(projectPath), StringComparison.OrdinalIgnoreCase)).Value;
+    }
+
+    private void SetCurrentProjectMetadata(string? title, string? description)
+    {
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot))
+            return;
+
+        if (!Settings.ProjectMetadata.TryGetValue(Settings.ProjectRoot, out var metadata))
+        {
+            metadata = new ProjectMetadata { Title = GetFolderProjectName(Settings.ProjectRoot) };
+            Settings.ProjectMetadata[Settings.ProjectRoot] = metadata;
+        }
+
+        if (title is not null)
+            metadata.Title = string.IsNullOrWhiteSpace(title) ? GetFolderProjectName(Settings.ProjectRoot) : title.Trim();
+        if (description is not null)
+            metadata.Description = description.Trim();
+        metadata.UpdatedAt = DateTime.UtcNow;
+
+        Settings.Save();
+        RefreshRecentCollections();
+        RefreshProjectTree(SelectedProjectNode?.FullPath);
+        RaiseSettingsValidationChanged();
+    }
+
+    private static string GetFolderProjectName(string projectPath)
     {
         var trimmed = projectPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var name = Path.GetFileName(trimmed);
@@ -3408,7 +3886,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         WelcomeRecentProjects.Clear();
         foreach (var project in RecentProjects)
-            WelcomeRecentProjects.Add(new RecentProjectItem(project));
+            WelcomeRecentProjects.Add(new RecentProjectItem(project, GetProjectMetadata(project)));
 
         RecentFiles.Clear();
         foreach (var file in Settings.RecentFiles.Where(File.Exists))
@@ -3515,13 +3993,13 @@ public class MainViewModel : INotifyPropertyChanged
     {
         var hasJava = !string.IsNullOrWhiteSpace(Settings.JavaPath);
         var hasCompilerRoot = !string.IsNullOrWhiteSpace(Settings.CompilerRoot) && Directory.Exists(Settings.CompilerRoot);
-        var hasAntlr = !string.IsNullOrWhiteSpace(Settings.AntlrJar) && File.Exists(Settings.AntlrJar);
+        var hasAntlr = File.Exists(Settings.ResolveAntlrJar());
         if (hasJava && hasCompilerRoot && hasAntlr)
             return true;
 
         if (showStatus)
         {
-            StatusText = "Configure Java path, compiler root and ANTLR jar in Settings before running.";
+            StatusText = "Configure Java path and compiler root in Settings before running.";
             StatusColor = Brushes.Orange;
         }
 
@@ -3572,6 +4050,36 @@ public class MainViewModel : INotifyPropertyChanged
     private static bool IsSameOrInsidePath(string path, string rootPath) =>
         string.Equals(Path.GetFullPath(path), Path.GetFullPath(rootPath), StringComparison.OrdinalIgnoreCase)
         || IsPathInside(path, rootPath);
+
+    private static bool IsSamePath(string? path, string? otherPath)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(otherPath))
+            return false;
+
+        try
+        {
+            return string.Equals(Path.GetFullPath(path), Path.GetFullPath(otherPath), StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return string.Equals(path, otherPath, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private static bool IsSameOrInsidePathSafe(string? path, string? rootPath)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(rootPath))
+            return false;
+
+        try
+        {
+            return IsSameOrInsidePath(path, rootPath);
+        }
+        catch
+        {
+            return path.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     private void OpenInitialProjectFile(ProjectNode root, string folder, string? previousSelectedPath)
     {
@@ -3665,15 +4173,17 @@ public class MainViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(Settings));
         OnPropertyChanged(nameof(SettingsProjectName));
+        OnPropertyChanged(nameof(SettingsProjectDescription));
         OnPropertyChanged(nameof(SettingsProjectPath));
+        OnPropertyChanged(nameof(ProjectTitle));
+        OnPropertyChanged(nameof(ProjectDescription));
+        OnPropertyChanged(nameof(IdeDataLocation));
         OnPropertyChanged(nameof(CompilerStatusText));
         OnPropertyChanged(nameof(CompilerStatusBrush));
         OnPropertyChanged(nameof(JavaStatusText));
         OnPropertyChanged(nameof(JavaStatusBrush));
         OnPropertyChanged(nameof(CompilerRootStatusText));
         OnPropertyChanged(nameof(CompilerRootStatusBrush));
-        OnPropertyChanged(nameof(AntlrStatusText));
-        OnPropertyChanged(nameof(AntlrStatusBrush));
         OnPropertyChanged(nameof(ToolInputsFolder));
         OnPropertyChanged(nameof(ToolOutputsFolder));
         OnPropertyChanged(nameof(TestFoldersStatusText));

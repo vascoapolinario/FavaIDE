@@ -27,7 +27,11 @@ public class JavaCompilerService
         if (!result.Success) return result;
 
         var layout = ResolveCompilerLayout();
-        var classpath = string.Join(Path.PathSeparator, layout.ClassesDir, _settings.AntlrJar);
+        var antlrJar = _settings.ResolveAntlrJar();
+        if (string.IsNullOrWhiteSpace(antlrJar))
+            return (false, $"ANTLR jar not found in compiler root: {_settings.CompilerRoot}");
+
+        var classpath = string.Join(Path.PathSeparator, layout.ClassesDir, antlrJar);
 
         var psi = new ProcessStartInfo
         {
@@ -149,6 +153,10 @@ public class JavaCompilerService
     private async Task<(bool Success, string Output)> EnsureCompiledAsync(CancellationToken cancellationToken = default)
     {
         var layout = ResolveCompilerLayout();
+        var antlrJar = _settings.ResolveAntlrJar();
+        if (string.IsNullOrWhiteSpace(antlrJar))
+            return (false, $"ANTLR jar not found in compiler root: {_settings.CompilerRoot}");
+
         var javaFiles = Directory.GetFiles(layout.SourceDir, "*.java", SearchOption.AllDirectories);
         var classesDir = layout.ClassesDir;
         if (!NeedsCompile(classesDir, javaFiles))
@@ -160,7 +168,7 @@ public class JavaCompilerService
         var psi = new ProcessStartInfo
         {
             FileName = "javac",
-            Arguments = $"-cp \"{_settings.AntlrJar}\" -d \"{classesDir}\" {filesArg}",
+            Arguments = $"-cp \"{antlrJar}\" -d \"{classesDir}\" {filesArg}",
             WorkingDirectory = layout.SourceDir,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using FavaStudio.Models;
 
 namespace FavaStudio.Services;
 
@@ -14,27 +15,32 @@ public class SettingsService
     public bool ShowTestOutput { get; set; } = false;
     public List<string> RecentProjects { get; set; } = [];
     public List<string> RecentFiles { get; set; } = [];
-    public string UiBackgroundColor { get; set; } = "#1E1F22";
-    public string UiPanelColor { get; set; } = "#2B2D30";
-    public string UiPanelAltColor { get; set; } = "#25262A";
-    public string UiTextColor { get; set; } = "#E6EAF0";
-    public string UiMutedTextColor { get; set; } = "#9AA4B2";
-    public string UiAccentColor { get; set; } = "#4D8DFF";
-    public string UiBorderColor { get; set; } = "#3C3F41";
-    public string EditorBackgroundColor { get; set; } = "#1E1F22";
-    public string ConsoleBackgroundColor { get; set; } = "#181A1F";
-    public string EditorFontFamily { get; set; } = "Consolas";
+    public Dictionary<string, ProjectMetadata> ProjectMetadata { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public string UiBackgroundColor { get; set; } = "#141C1B";
+    public string UiPanelColor { get; set; } = "#20302D";
+    public string UiPanelAltColor { get; set; } = "#1A2927";
+    public string UiTextColor { get; set; } = "#E7F5F1";
+    public string UiMutedTextColor { get; set; } = "#9DB8B0";
+    public string UiAccentColor { get; set; } = "#56D6A3";
+    public string UiBorderColor { get; set; } = "#314B46";
+    public string EditorBackgroundColor { get; set; } = "#111817";
+    public string ConsoleBackgroundColor { get; set; } = "#101615";
+    public string EditorFontFamily { get; set; } = "Cascadia Mono";
     public double EditorFontSize { get; set; } = 15;
     public double ConsoleFontSize { get; set; } = 15;
+    public string SyntaxColorMode { get; set; } = "default";
     public bool DiscordPresenceEnabled { get; set; } = false;
     public string DiscordDetailsMode { get; set; } = "file";
     public string DiscordStateMode { get; set; } = "projectStatus";
     public string DiscordCustomDetails { get; set; } = "Editing {file}";
     public string DiscordCustomState { get; set; } = "{project} - {status}";
 
-    private static string SettingsPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                     "FavaStudio", "settings.json");
+    public string ResolvedAntlrJar => ResolveAntlrJar();
+
+    public static string DataDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FavaStudio");
+
+    public static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
 
     public static SettingsService Load()
     {
@@ -45,6 +51,7 @@ public class SettingsService
             {
                 var json = File.ReadAllText(SettingsPath);
                 settings = JsonSerializer.Deserialize<SettingsService>(json) ?? new SettingsService();
+                settings.ProjectMetadata = new Dictionary<string, ProjectMetadata>(settings.ProjectMetadata ?? [], StringComparer.OrdinalIgnoreCase);
                 ApplyBundledCompilerDefaults(settings);
                 return settings;
             }
@@ -59,9 +66,54 @@ public class SettingsService
     {
         RecentProjects = NormalizeMostRecentList(RecentProjects, 10);
         RecentFiles = NormalizeMostRecentList(RecentFiles, 20);
+        ProjectMetadata = NormalizeProjectMetadata(ProjectMetadata);
         var dir = Path.GetDirectoryName(SettingsPath) ?? Path.GetTempPath();
         Directory.CreateDirectory(dir);
         File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    public void ResetToDefaults()
+    {
+        var defaults = new SettingsService();
+        ApplyBundledCompilerDefaults(defaults);
+
+        JavaPath = defaults.JavaPath;
+        CompilerRoot = defaults.CompilerRoot;
+        AntlrJar = defaults.AntlrJar;
+        InputsDir = "";
+        OutputsDir = "";
+        ProjectRoot = "";
+        ShowTestOutput = defaults.ShowTestOutput;
+        RecentProjects.Clear();
+        RecentFiles.Clear();
+        ProjectMetadata.Clear();
+        UiBackgroundColor = defaults.UiBackgroundColor;
+        UiPanelColor = defaults.UiPanelColor;
+        UiPanelAltColor = defaults.UiPanelAltColor;
+        UiTextColor = defaults.UiTextColor;
+        UiMutedTextColor = defaults.UiMutedTextColor;
+        UiAccentColor = defaults.UiAccentColor;
+        UiBorderColor = defaults.UiBorderColor;
+        EditorBackgroundColor = defaults.EditorBackgroundColor;
+        ConsoleBackgroundColor = defaults.ConsoleBackgroundColor;
+        EditorFontFamily = defaults.EditorFontFamily;
+        EditorFontSize = defaults.EditorFontSize;
+        ConsoleFontSize = defaults.ConsoleFontSize;
+        SyntaxColorMode = defaults.SyntaxColorMode;
+        DiscordPresenceEnabled = defaults.DiscordPresenceEnabled;
+        DiscordDetailsMode = defaults.DiscordDetailsMode;
+        DiscordStateMode = defaults.DiscordStateMode;
+        DiscordCustomDetails = defaults.DiscordCustomDetails;
+        DiscordCustomState = defaults.DiscordCustomState;
+    }
+
+    public string ResolveAntlrJar()
+    {
+        var compilerJar = FindAntlrJarInCompilerRoot(CompilerRoot);
+        if (!string.IsNullOrWhiteSpace(compilerJar))
+            return compilerJar;
+
+        return File.Exists(AntlrJar) ? AntlrJar : "";
     }
 
     private static List<string> NormalizeMostRecentList(IEnumerable<string>? items, int maxItems)
@@ -82,6 +134,22 @@ public class SettingsService
         return normalized;
     }
 
+    private static Dictionary<string, ProjectMetadata> NormalizeProjectMetadata(Dictionary<string, ProjectMetadata>? metadata)
+    {
+        var normalized = new Dictionary<string, ProjectMetadata>(StringComparer.OrdinalIgnoreCase);
+        if (metadata is null)
+            return normalized;
+
+        foreach (var (path, value) in metadata)
+        {
+            if (string.IsNullOrWhiteSpace(path) || value is null)
+                continue;
+            normalized[path.Trim()] = value;
+        }
+
+        return normalized;
+    }
+
     private static void ApplyBundledCompilerDefaults(SettingsService settings)
     {
         var compilerRoot = FindBundledCompilerRoot();
@@ -91,9 +159,19 @@ public class SettingsService
         if (string.IsNullOrWhiteSpace(settings.CompilerRoot) || !IsCompilerRoot(settings.CompilerRoot))
             settings.CompilerRoot = compilerRoot;
 
-        var antlrJar = Directory.GetFiles(compilerRoot, "antlr-*-complete.jar").FirstOrDefault();
+        var antlrJar = FindAntlrJarInCompilerRoot(compilerRoot);
         if ((string.IsNullOrWhiteSpace(settings.AntlrJar) || !File.Exists(settings.AntlrJar)) && !string.IsNullOrWhiteSpace(antlrJar))
             settings.AntlrJar = antlrJar;
+    }
+
+    private static string FindAntlrJarInCompilerRoot(string compilerRoot)
+    {
+        if (string.IsNullOrWhiteSpace(compilerRoot) || !Directory.Exists(compilerRoot))
+            return "";
+
+        return Directory.GetFiles(compilerRoot, "antlr-*-complete.jar", SearchOption.TopDirectoryOnly)
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault() ?? "";
     }
 
     private static string FindBundledCompilerRoot()

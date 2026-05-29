@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly BreakpointLineHighlighter _breakpointHighlighter;
     private readonly DebugCurrentLineHighlighter _debugCurrentLineHighlighter;
     private readonly InlineValueHintRenderer _inlineValueHintRenderer;
+    private readonly FavaSyntaxColorizer _syntaxColorizer;
     private readonly CurrentLineHighlighter _currentLineHighlighter;
     private readonly BracketHighlightRenderer _bracketHighlightRenderer;
     private readonly SearchResultRenderer _searchResultRenderer;
@@ -45,7 +46,10 @@ public partial class MainWindow : Window
 
         _diagnosticUnderlineRenderer = new DiagnosticUnderlineRenderer(Editor);
         Editor.TextArea.TextView.BackgroundRenderers.Add(_diagnosticUnderlineRenderer);
-        Editor.TextArea.TextView.LineTransformers.Add(new FavaSyntaxColorizer());
+        _syntaxColorizer = new FavaSyntaxColorizer(() => DataContext is MainViewModel vm
+            ? BuildSyntaxPalette(vm.Settings)
+            : FavaSyntaxPalette.Default);
+        Editor.TextArea.TextView.LineTransformers.Add(_syntaxColorizer);
         Editor.Options.ConvertTabsToSpaces = true;
         Editor.Options.IndentationSize = 4;
         Editor.TextArea.SelectionBrush = new SolidColorBrush(Color.FromArgb(105, 77, 141, 255));
@@ -242,9 +246,41 @@ public partial class MainWindow : Window
         ConstantPoolOutputBox.Foreground = BrushOf(text);
         InstructionsOutputBox.Background = BrushOf(consoleBackground);
         InstructionsOutputBox.Foreground = BrushOf(text);
+        Editor.TextArea.TextView.Redraw();
 
         _diagnosticToolTip.Background = BrushOf(panel);
         _diagnosticToolTip.Foreground = BrushOf(text);
+    }
+
+    private static FavaSyntaxPalette BuildSyntaxPalette(SettingsService settings)
+    {
+        if (string.Equals(settings.SyntaxColorMode, "default", StringComparison.OrdinalIgnoreCase))
+            return FavaSyntaxPalette.Default;
+
+        var text = ParseColor(settings.UiTextColor, Color.FromRgb(0xE6, 0xEA, 0xF0));
+        var muted = ParseColor(settings.UiMutedTextColor, Color.FromRgb(0x9A, 0xA4, 0xB2));
+        var accent = ParseColor(settings.UiAccentColor, Color.FromRgb(0x56, 0xD6, 0xA3));
+        var background = ParseColor(settings.EditorBackgroundColor, Color.FromRgb(0x11, 0x18, 0x17));
+
+        if (string.Equals(settings.SyntaxColorMode, "simple", StringComparison.OrdinalIgnoreCase))
+        {
+            var simpleAccent = Blend(accent, text, 0.72);
+            return new FavaSyntaxPalette(
+                Blend(accent, text, 0.45),
+                muted,
+                simpleAccent,
+                simpleAccent,
+                simpleAccent,
+                simpleAccent);
+        }
+
+        return new FavaSyntaxPalette(
+            Blend(text, accent, 0.42),
+            muted,
+            Lighten(accent, 0.16),
+            accent,
+            Blend(accent, text, 0.52),
+            Blend(accent, background, 0.78));
     }
 
     private static Color ParseColor(string value, Color fallback)
@@ -661,7 +697,20 @@ public partial class MainWindow : Window
             DedentClosingBrace();
 
         _bracketHighlightRenderer.Refresh();
-        UpdateSearchMatches(resetActive: false);
+        ClearSearchAfterEditorEdit();
+    }
+
+    private void ClearSearchAfterEditorEdit()
+    {
+        if (EditorFindBar.Visibility != Visibility.Visible)
+            return;
+
+        _searchMatches.Clear();
+        _activeSearchIndex = -1;
+        _searchResultRenderer.Clear();
+        SearchStatus.Text = "";
+        FindBox.Text = "";
+        EditorFindBar.Visibility = Visibility.Collapsed;
     }
 
     private void DedentClosingBrace()

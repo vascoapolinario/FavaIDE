@@ -448,6 +448,10 @@
                                                                   Command="{Binding NewTextFileCommand}"
                                                                   CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                     </MenuItem>
+                                                    <MenuItem Header="Open in File Explorer"
+                                                              Command="{Binding OpenNodeInExplorerCommand}"
+                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                    <Separator/>
                                                     <MenuItem Header="Delete"
                                                               Command="{Binding DeleteNodeCommand}"
                                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
@@ -1493,7 +1497,7 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextMainBrush}"
                                        Margin="0,0,0,8"/>
-                            <TextBlock Text="Create, open, close, and clean up Fava projects from one place."
+                            <TextBlock Text="Create a guided tutorial, start from Hello World, or open an existing Fava workspace."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        FontSize="14"
@@ -1602,6 +1606,12 @@
                                                                    FontSize="12"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    Margin="0,2,0,0"/>
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                                   FontSize="12"
+                                                                   TextWrapping="Wrap"
+                                                                   MaxHeight="36"
+                                                                   Margin="0,4,0,0"/>
                                                         <TextBlock Text="{Binding Details}"
                                                                    Foreground="{DynamicResource AccentSoftBrush}"
                                                                    FontSize="11"
@@ -1663,15 +1673,33 @@
                                 CornerRadius="6"
                                 Padding="16,14"
                                 Margin="0,0,0,14">
-                            <DockPanel>
+                            <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
                                 <Border DockPanel.Dock="Right" Background="#263821" BorderBrush="#3E6A34" BorderThickness="1" CornerRadius="4" Padding="10,4">
                                     <TextBlock Text="{Binding CompilerStatusText}" Foreground="{Binding CompilerStatusBrush}" FontWeight="SemiBold"/>
                                 </Border>
                                 <StackPanel>
                                     <TextBlock Text="{Binding SettingsProjectName}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
                                     <TextBlock Text="{Binding SettingsProjectPath}" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding SettingsProjectDescription}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 </StackPanel>
                             </DockPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Project title" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ProjectTitle, UpdateSourceTrigger=LostFocus}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Description" VerticalAlignment="Top" Foreground="{DynamicResource TextMutedBrush}" Margin="0,6,0,0"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ProjectDescription, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="58"/>
+                            </Grid>
+                            </StackPanel>
                         </Border>
 
                         <Border BorderBrush="{DynamicResource BorderBrush}"
@@ -1693,8 +1721,6 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="10"/>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="10"/>
-                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Compiler" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
 
@@ -1711,13 +1737,6 @@
                                     <TextBlock Text="{Binding CompilerRootStatusText}" Foreground="{Binding CompilerRootStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
                                 </Border>
                                 <Button Grid.Row="4" Grid.Column="3" Content="Browse" Command="{Binding BrowseCompilerRootCommand}" Margin="8,0,0,0" Padding="12,5"/>
-
-                                <TextBlock Grid.Row="6" Grid.Column="0" Text="ANTLR jar" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"/>
-                                <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding AntlrJar, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
-                                <Border Grid.Row="6" Grid.Column="2" Background="{DynamicResource ControlDarkerBrush}" BorderBrush="{Binding AntlrStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
-                                    <TextBlock Text="{Binding AntlrStatusText}" Foreground="{Binding AntlrStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
-                                </Border>
-                                <Button Grid.Row="6" Grid.Column="3" Content="Browse" Command="{Binding BrowseAntlrJarCommand}" Margin="8,0,0,0" Padding="12,5"/>
                             </Grid>
                         </Border>
 
@@ -1754,12 +1773,215 @@
                                                    Foreground="{DynamicResource TextMutedBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,4,0,0"/>
-                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                            <Button Content="Default" Command="{Binding ApplyStylePresetCommand}" CommandParameter="default" Padding="10,4" Margin="0,0,6,0"/>
-                                            <Button Content="Graphite" Command="{Binding ApplyStylePresetCommand}" CommandParameter="graphite" Padding="10,4" Margin="0,0,6,0"/>
-                                            <Button Content="Ember" Command="{Binding ApplyStylePresetCommand}" CommandParameter="ember" Padding="10,4" Margin="0,0,6,0"/>
-                                            <Button Content="Mint" Command="{Binding ApplyStylePresetCommand}" CommandParameter="mint" Padding="10,4" Margin="0"/>
-                                        </StackPanel>
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="default" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#141C1B" Offset="0"/>
+                                                                <GradientStop Color="#20302D" Offset="0.45"/>
+                                                                <GradientStop Color="#56D6A3" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Default" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="professional" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#1E1F22" Offset="0"/>
+                                                                <GradientStop Color="#2B2D30" Offset="0.45"/>
+                                                                <GradientStop Color="#4D8DFF" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Professional" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="crimson" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#100B0D" Offset="0"/>
+                                                                <GradientStop Color="#271619" Offset="0.45"/>
+                                                                <GradientStop Color="#FF4655" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Crimson" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="cherryblossom" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#FFF3F7" Offset="0"/>
+                                                                <GradientStop Color="#FFE2EC" Offset="0.45"/>
+                                                                <GradientStop Color="#FF6FAE" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Cherry Blossom" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="cyberpunk" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#101014" Offset="0"/>
+                                                                <GradientStop Color="#211C2C" Offset="0.45"/>
+                                                                <GradientStop Color="#00E5FF" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Cyberpunk" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="matrix" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#07110A" Offset="0"/>
+                                                                <GradientStop Color="#102515" Offset="0.45"/>
+                                                                <GradientStop Color="#36FF6A" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Matrix" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="ocean" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#0A1720" Offset="0"/>
+                                                                <GradientStop Color="#132837" Offset="0.45"/>
+                                                                <GradientStop Color="#3CC7D9" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Ocean" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="royal" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#171225" Offset="0"/>
+                                                                <GradientStop Color="#251D38" Offset="0.45"/>
+                                                                <GradientStop Color="#B997FF" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Royal" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="solar" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#241B0D" Offset="0"/>
+                                                                <GradientStop Color="#332512" Offset="0.45"/>
+                                                                <GradientStop Color="#FFC857" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Solar" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="graphite" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#17191D" Offset="0"/>
+                                                                <GradientStop Color="#24272D" Offset="0.45"/>
+                                                                <GradientStop Color="#8AB4FF" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Graphite" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="ember" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#201B19" Offset="0"/>
+                                                                <GradientStop Color="#2D2622" Offset="0.45"/>
+                                                                <GradientStop Color="#FF9A3D" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Ember" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="midnight" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#101820" Offset="0"/>
+                                                                <GradientStop Color="#1D2833" Offset="0.45"/>
+                                                                <GradientStop Color="#7CC7FF" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Midnight" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="orchid" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#1D1824" Offset="0"/>
+                                                                <GradientStop Color="#2A2233" Offset="0.45"/>
+                                                                <GradientStop Color="#D18BFF" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Orchid" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Command="{Binding ApplyStylePresetCommand}" CommandParameter="daylight" Width="158" Padding="8,7" Margin="0,0,8,8" HorizontalContentAlignment="Stretch">
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="34" Height="20" CornerRadius="4" Margin="0,0,8,0">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#F4F6F8" Offset="0"/>
+                                                                <GradientStop Color="#E9EEF3" Offset="0.45"/>
+                                                                <GradientStop Color="#1E7BD8" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <TextBlock Text="Daylight" FontWeight="SemiBold"/>
+                                                </DockPanel>
+                                            </Button>
+                                        </WrapPanel>
+                                        <DockPanel Margin="0,6,0,0">
+                                            <TextBlock Text="Syntax colors"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,10,0"/>
+                                            <ComboBox Width="220"
+                                                      ItemsSource="{Binding SyntaxColorModeOptions}"
+                                                      DisplayMemberPath="Label"
+                                                      SelectedValuePath="Key"
+                                                      SelectedValue="{Binding SyntaxColorMode, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </DockPanel>
                                     </StackPanel>
                                 </DockPanel>
 
@@ -2013,6 +2235,26 @@
                                 <StackPanel>
                                     <TextBlock Text="Recent History" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
                                     <TextBlock Text="{Binding RecentSummary}" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <Border Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14" Margin="0,0,0,16">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right"
+                                        Content="Reset IDE Data"
+                                        Command="{Binding ResetIdeDataCommand}"
+                                        Padding="12,6"
+                                        Background="#331B1B"
+                                        BorderBrush="#5D2828"
+                                        Foreground="{DynamicResource DangerBrush}"/>
+                                <StackPanel>
+                                    <TextBlock Text="IDE Data" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
+                                    <TextBlock Text="{Binding IdeDataLocation}" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
+                                    <TextBlock Text="Clears saved settings, recent history, project metadata, style choices, and Discord presence preferences. Project folders are left alone."
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,18,0"/>
                                 </StackPanel>
                             </DockPanel>
                         </Border>
@@ -2362,6 +2604,83 @@
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+
+            <Border Visibility="{Binding IsProjectDeleteDialogVisible, Converter={StaticResource BoolToVisibility}}"
+                    Background="#CC111218"
+                    Panel.ZIndex="90">
+                <Grid>
+                    <Border Width="560"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource BgPanelBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="18">
+                        <StackPanel>
+                            <TextBlock Text="Delete Project"
+                                       FontSize="22"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextMainBrush}"/>
+                            <TextBlock Text="{Binding PendingDeleteProjectName}"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AccentSoftBrush}"
+                                       Margin="0,8,0,0"/>
+                            <TextBlock Text="{Binding PendingDeleteProjectPath}"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,14"/>
+                            <TextBlock Text="Choose exactly what Fava Studio should do with this project."
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,16"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0"
+                                        Command="{Binding RemoveProjectReferenceConfirmCommand}"
+                                        Padding="14,12"
+                                        HorizontalContentAlignment="Left">
+                                    <StackPanel>
+                                        <TextBlock Text="Remove from Fava Studio" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Keeps the folder on disk. It just disappears from recent projects."
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="2"
+                                        Command="{Binding DeleteProjectFolderConfirmCommand}"
+                                        Padding="14,12"
+                                        HorizontalContentAlignment="Left"
+                                        Background="#331B1B"
+                                        BorderBrush="#5D2828">
+                                    <StackPanel>
+                                        <TextBlock Text="Delete folder from disk" FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}"/>
+                                        <TextBlock Text="Permanently deletes the project folder and files."
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <Button Content="Cancel"
+                                    Command="{Binding CancelProjectDeleteCommand}"
+                                    HorizontalAlignment="Right"
+                                    Padding="16,7"
+                                    Margin="0,16,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
 
             <Border Visibility="{Binding IsQuickOpenVisible, Converter={StaticResource BoolToVisibility}}"
                     Background="#AA111218"
