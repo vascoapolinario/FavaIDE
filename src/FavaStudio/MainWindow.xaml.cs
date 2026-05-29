@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ICSharpCode.AvalonEdit.Document;
 using FavaStudio.Editor;
 using FavaStudio.Models;
@@ -295,6 +296,8 @@ public partial class MainWindow : Window
     {
         if (PresentationSource.FromVisual(this) is HwndSource source)
             source.AddHook(WindowProc);
+
+        Dispatcher.BeginInvoke(new Action(ClampWindowToCurrentWorkArea), DispatcherPriority.Loaded);
     }
 
     private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -329,6 +332,51 @@ public partial class MainWindow : Window
         minMaxInfo.MaxSize.Y = Math.Abs(workArea.Bottom - workArea.Top);
 
         Marshal.StructureToPtr(minMaxInfo, lParam, true);
+    }
+
+    private void ClampWindowToCurrentWorkArea()
+    {
+        if (WindowState != WindowState.Normal)
+            return;
+
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+        if (monitor == IntPtr.Zero)
+            return;
+
+        var monitorInfo = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+            return;
+
+        var workArea = ToDeviceIndependentRect(monitorInfo.Work);
+        const double margin = 12;
+        var availableWidth = Math.Max(720, workArea.Width - margin * 2);
+        var availableHeight = Math.Max(500, workArea.Height - margin * 2);
+
+        MinWidth = Math.Min(MinWidth, availableWidth);
+        MinHeight = Math.Min(MinHeight, availableHeight);
+        Width = Math.Min(Width, availableWidth);
+        Height = Math.Min(Height, availableHeight);
+
+        if (double.IsNaN(Left) || double.IsNaN(Top))
+        {
+            Left = workArea.Left + (workArea.Width - Width) / 2;
+            Top = workArea.Top + (workArea.Height - Height) / 2;
+        }
+
+        Left = Math.Clamp(Left, workArea.Left + margin, Math.Max(workArea.Left + margin, workArea.Right - Width - margin));
+        Top = Math.Clamp(Top, workArea.Top + margin, Math.Max(workArea.Top + margin, workArea.Bottom - Height - margin));
+    }
+
+    private Rect ToDeviceIndependentRect(NativeRect nativeRect)
+    {
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget is null)
+            return new Rect(nativeRect.Left, nativeRect.Top, nativeRect.Right - nativeRect.Left, nativeRect.Bottom - nativeRect.Top);
+
+        var topLeft = source.CompositionTarget.TransformFromDevice.Transform(new Point(nativeRect.Left, nativeRect.Top));
+        var bottomRight = source.CompositionTarget.TransformFromDevice.Transform(new Point(nativeRect.Right, nativeRect.Bottom));
+        return new Rect(topLeft, bottomRight);
     }
 
     private void Editor_OnMouseMove(object sender, MouseEventArgs e)

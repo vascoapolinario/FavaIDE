@@ -9,8 +9,11 @@
         Title="Fava Studio"
         Height="920"
         Width="1500"
+        MinHeight="560"
+        MinWidth="860"
         WindowStyle="None"
         ResizeMode="CanResize"
+        WindowState="Maximized"
         WindowStartupLocation="CenterScreen">
 
     <shell:WindowChrome.WindowChrome>
