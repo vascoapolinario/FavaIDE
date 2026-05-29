@@ -14,7 +14,7 @@ public class FavaDiagnostic
     public string Tooltip =>
         string.IsNullOrWhiteSpace(SourceLine)
             ? BuildTooltip(includeSource: false)
-            : BuildTooltip(includeSource: true);
+            : BuildTooltip(includeSource: true);    
 
     private string BuildTooltip(bool includeSource)
     {

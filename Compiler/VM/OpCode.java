@@ -71,7 +71,32 @@ public enum OpCode {
     dread  (58, 0),
     sread  (59, 0),
     bread  (60, 0),
-    slength(61, 0);
+    slength(61, 0),
+
+    fcreate(62, 0),
+    fread  (63, 0),
+    fwrite (64, 0),
+    fappend(65, 0),
+    fexists(66, 0),
+    fdelete(67, 0),
+
+    randint (68, 0),
+    randreal(69, 0),
+    nowutc  (70, 0),
+    sleepms (71, 0),
+
+    supper   (72, 0),
+    slower   (73, 0),
+    strim    (74, 0),
+    ssubstr  (75, 0),
+    scontains(76, 0),
+    sreplace (77, 0),
+    sget     (78, 0),
+
+    toint (79, 0),
+    toreal(80, 0),
+    tostr (81, 0),
+    tobool(82, 0);
 
     private final int code;
     private final int nArgs;

@@ -244,6 +244,121 @@ public static class VisualizerService
                     stack.Add(new VisualizerValue { Type = "boolean", Value = false });
                     note = $"Read bool input after prompt {FormatValue(boolPrompt)}. Visualizer uses false.";
                     return true;
+                case "fcreate":
+                    if (!TryPopString(stack, out var createPath, out note)) return false;
+                    note = $"Would create file {createPath}.";
+                    return true;
+                case "fread":
+                    if (!TryPopString(stack, out var readPath, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "string", Value = "" });
+                    note = $"Would read file {readPath}. Visualizer uses empty string.";
+                    return true;
+                case "fwrite":
+                    if (!TryPopString(stack, out var writeContent, out note)) return false;
+                    if (!TryPopString(stack, out var writePath, out note)) return false;
+                    note = $"Would write {writeContent.Length} character(s) to {writePath}.";
+                    return true;
+                case "fappend":
+                    if (!TryPopString(stack, out var appendContent, out note)) return false;
+                    if (!TryPopString(stack, out var appendPath, out note)) return false;
+                    note = $"Would append {appendContent.Length} character(s) to {appendPath}.";
+                    return true;
+                case "fexists":
+                    if (!TryPopString(stack, out var existsPath, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "boolean", Value = false });
+                    note = $"Would check whether {existsPath} exists. Visualizer uses false.";
+                    return true;
+                case "fdelete":
+                    if (!TryPopString(stack, out var deletePath, out note)) return false;
+                    note = $"Would delete file {deletePath}.";
+                    return true;
+                case "randint":
+                    if (!TryPopInt(stack, out var randomMax, out note)) return false;
+                    if (!TryPopInt(stack, out var randomMin, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "int", Value = randomMin });
+                    note = $"Generated random int from {randomMin} to {randomMax}. Visualizer uses {randomMin}.";
+                    return true;
+                case "randreal":
+                    stack.Add(new VisualizerValue { Type = "double", Value = 0.0 });
+                    note = "Generated random real. Visualizer uses 0.0.";
+                    return true;
+                case "nowutc":
+                    if (!TryPopString(stack, out var nowPart, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "string", Value = "1970-01-01 00:00:00.000 UTC" });
+                    note = $"Read UTC date/time part {nowPart}. Visualizer uses a placeholder.";
+                    return true;
+                case "sleepms":
+                    if (!TryPopInt(stack, out var sleepMs, out note)) return false;
+                    note = $"Would sleep for {sleepMs} millisecond(s).";
+                    return true;
+                case "supper":
+                    if (!TryPopString(stack, out var upperText, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "string", Value = upperText.ToUpperInvariant() });
+                    note = "Converted string to uppercase.";
+                    return true;
+                case "slower":
+                    if (!TryPopString(stack, out var lowerText, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "string", Value = lowerText.ToLowerInvariant() });
+                    note = "Converted string to lowercase.";
+                    return true;
+                case "strim":
+                    if (!TryPopString(stack, out var trimText, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "string", Value = trimText.Trim() });
+                    note = "Trimmed string whitespace.";
+                    return true;
+                case "ssubstr":
+                    if (!TryPopInt(stack, out var substringLength, out note)) return false;
+                    if (!TryPopInt(stack, out var substringStart, out note)) return false;
+                    if (!TryPopString(stack, out var substringText, out note)) return false;
+                    if (substringStart < 0 || substringLength < 0 || substringStart + substringLength > substringText.Length)
+                        return Fail("Substring range out of bounds.", out note);
+                    stack.Add(new VisualizerValue { Type = "string", Value = substringText.Substring(substringStart, substringLength) });
+                    note = "Extracted substring.";
+                    return true;
+                case "scontains":
+                    if (!TryPopString(stack, out var containsNeedle, out note)) return false;
+                    if (!TryPopString(stack, out var containsText, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "boolean", Value = containsText.Contains(containsNeedle) });
+                    note = "Checked whether string contains text.";
+                    return true;
+                case "sreplace":
+                    if (!TryPopString(stack, out var replacementText, out note)) return false;
+                    if (!TryPopString(stack, out var targetText, out note)) return false;
+                    if (!TryPopString(stack, out var replaceText, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "string", Value = replaceText.Replace(targetText, replacementText, StringComparison.Ordinal) });
+                    note = "Replaced text in string.";
+                    return true;
+                case "sget":
+                    if (!TryPopInt(stack, out var stringIndex, out note)) return false;
+                    if (!TryPopString(stack, out var indexedString, out note)) return false;
+                    if (stringIndex < 0 || stringIndex >= indexedString.Length)
+                        return Fail("String index out of bounds.", out note);
+                    stack.Add(new VisualizerValue { Type = "string", Value = indexedString.Substring(stringIndex, 1) });
+                    note = $"Loaded string[{stringIndex}].";
+                    return true;
+                case "toint":
+                    if (!TryPopAny(stack, out var intValue, out note)) return false;
+                    if (!TryConvertToInt(intValue, out var convertedInt, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "int", Value = convertedInt });
+                    note = $"Converted {FormatValue(intValue)} to integer.";
+                    return true;
+                case "toreal":
+                    if (!TryPopAny(stack, out var realValue, out note)) return false;
+                    if (!TryConvertToDouble(realValue, out var convertedReal, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "double", Value = convertedReal });
+                    note = $"Converted {FormatValue(realValue)} to real.";
+                    return true;
+                case "tostr":
+                    if (!TryPopAny(stack, out var stringValue, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "string", Value = Convert.ToString(stringValue.Value, CultureInfo.InvariantCulture) ?? "" });
+                    note = $"Converted {FormatValue(stringValue)} to string.";
+                    return true;
+                case "tobool":
+                    if (!TryPopAny(stack, out var boolValue, out note)) return false;
+                    if (!TryConvertToBool(boolValue, out var convertedBool, out note)) return false;
+                    stack.Add(new VisualizerValue { Type = "boolean", Value = convertedBool });
+                    note = $"Converted {FormatValue(boolValue)} to bool.";
+                    return true;
                 case "ieq":
                     return ApplyIntCompare(stack, (a, b) => a == b, out note);
                 case "ineq":
@@ -813,6 +928,89 @@ public static class VisualizerService
         return true;
     }
 
+    private static bool TryConvertToInt(VisualizerValue value, out int result, out string note)
+    {
+        result = 0;
+        note = "";
+        if (string.Equals(value.Type, "int", StringComparison.OrdinalIgnoreCase))
+        {
+            result = Convert.ToInt32(value.Value, CultureInfo.InvariantCulture);
+            return true;
+        }
+        if (string.Equals(value.Type, "double", StringComparison.OrdinalIgnoreCase))
+        {
+            result = (int)Convert.ToDouble(value.Value, CultureInfo.InvariantCulture);
+            return true;
+        }
+        if (string.Equals(value.Type, "boolean", StringComparison.OrdinalIgnoreCase))
+        {
+            result = Convert.ToBoolean(value.Value, CultureInfo.InvariantCulture) ? 1 : 0;
+            return true;
+        }
+        if (string.Equals(value.Type, "string", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(Convert.ToString(value.Value, CultureInfo.InvariantCulture)?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out result))
+        {
+            return true;
+        }
+
+        note = $"Cannot convert {FormatValue(value)} to integer.";
+        return false;
+    }
+
+    private static bool TryConvertToDouble(VisualizerValue value, out double result, out string note)
+    {
+        result = 0;
+        note = "";
+        if (string.Equals(value.Type, "int", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value.Type, "double", StringComparison.OrdinalIgnoreCase))
+        {
+            result = Convert.ToDouble(value.Value, CultureInfo.InvariantCulture);
+            return true;
+        }
+        if (string.Equals(value.Type, "boolean", StringComparison.OrdinalIgnoreCase))
+        {
+            result = Convert.ToBoolean(value.Value, CultureInfo.InvariantCulture) ? 1.0 : 0.0;
+            return true;
+        }
+        if (string.Equals(value.Type, "string", StringComparison.OrdinalIgnoreCase)
+            && double.TryParse(Convert.ToString(value.Value, CultureInfo.InvariantCulture)?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out result))
+        {
+            return true;
+        }
+
+        note = $"Cannot convert {FormatValue(value)} to real.";
+        return false;
+    }
+
+    private static bool TryConvertToBool(VisualizerValue value, out bool result, out string note)
+    {
+        result = false;
+        note = "";
+        if (string.Equals(value.Type, "boolean", StringComparison.OrdinalIgnoreCase))
+        {
+            result = Convert.ToBoolean(value.Value, CultureInfo.InvariantCulture);
+            return true;
+        }
+        if (string.Equals(value.Type, "int", StringComparison.OrdinalIgnoreCase))
+        {
+            result = Convert.ToInt32(value.Value, CultureInfo.InvariantCulture) != 0;
+            return true;
+        }
+        if (string.Equals(value.Type, "double", StringComparison.OrdinalIgnoreCase))
+        {
+            result = Convert.ToDouble(value.Value, CultureInfo.InvariantCulture) != 0.0;
+            return true;
+        }
+        if (string.Equals(value.Type, "string", StringComparison.OrdinalIgnoreCase)
+            && bool.TryParse(Convert.ToString(value.Value, CultureInfo.InvariantCulture)?.Trim(), out result))
+        {
+            return true;
+        }
+
+        note = $"Cannot convert {FormatValue(value)} to bool.";
+        return false;
+    }
+
     private static string Unquote(string value)
     {
         var trimmed = value.Trim();
@@ -902,6 +1100,27 @@ public static class VisualizerService
         { 58, ("dread", "Pops a prompt value, reads a line, parses it as real, and pushes it.") },
         { 59, ("sread", "Pops a prompt value, reads a line, and pushes it as string.") },
         { 60, ("bread", "Pops a prompt value, reads true or false, and pushes it as bool.") },
-        { 61, ("slength", "Pops a string and pushes its character length.") }
+        { 61, ("slength", "Pops a string and pushes its character length.") },
+        { 62, ("fcreate", "Pops a project-scoped path and creates an empty file if needed.") },
+        { 63, ("fread", "Pops a project-scoped path and pushes the UTF-8 file contents.") },
+        { 64, ("fwrite", "Pops path and text, then writes UTF-8 text to the file.") },
+        { 65, ("fappend", "Pops path and text, then appends UTF-8 text to the file.") },
+        { 66, ("fexists", "Pops a project-scoped path and pushes whether the file exists.") },
+        { 67, ("fdelete", "Pops a project-scoped path and deletes the file if it exists.") },
+        { 68, ("randint", "Pops min and max integers, then pushes a random integer in that inclusive range.") },
+        { 69, ("randreal", "Pushes a random real where 0.0 <= value < 1.0.") },
+        { 70, ("nowutc", "Pops a string part and pushes formatted UTC date/time text.") },
+        { 71, ("sleepms", "Pops an integer millisecond duration and pauses execution.") },
+        { 72, ("supper", "Pops a string and pushes its uppercase form.") },
+        { 73, ("slower", "Pops a string and pushes its lowercase form.") },
+        { 74, ("strim", "Pops a string and pushes it without surrounding whitespace.") },
+        { 75, ("ssubstr", "Pops string, start, and length, then pushes the substring.") },
+        { 76, ("scontains", "Pops string and search text, then pushes whether the string contains it.") },
+        { 77, ("sreplace", "Pops string, target, and replacement, then pushes the replaced string.") },
+        { 78, ("sget", "Pops string and index, then pushes the one-character string at that index.") },
+        { 79, ("toint", "Pops a scalar and converts it to integer.") },
+        { 80, ("toreal", "Pops a scalar and converts it to real.") },
+        { 81, ("tostr", "Pops a scalar and converts it to string.") },
+        { 82, ("tobool", "Pops a scalar and converts it to bool.") }
     };
 }

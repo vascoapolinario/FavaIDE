@@ -9,9 +9,21 @@ import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Stack;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class vm {
     private final boolean trace;
@@ -26,6 +38,7 @@ public class vm {
     private final List<Object> globals = new ArrayList<>();
     private final List<String> traceBuffer = new ArrayList<>();
     private final BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
+    private final Path fileRoot;
 
     private static final Object NULL_VALUE = new Object() {
         @Override
@@ -35,8 +48,13 @@ public class vm {
     };
 
     public vm(byte[] bytecodes, boolean trace) {
+        this(bytecodes, trace, Paths.get("").toAbsolutePath().normalize().toString());
+    }
+
+    public vm(byte[] bytecodes, boolean trace, String fileRoot) {
         this.trace = trace;
         this.bytecodes = bytecodes;
+        this.fileRoot = Paths.get(fileRoot).toAbsolutePath().normalize();
         decode(bytecodes);
         this.IP = 0;
     }
@@ -140,6 +158,14 @@ public class vm {
             runtime_error("expected array on stack");
         }
         return (Object[]) v;
+    }
+
+    private Object popScalar() {
+        Object value = stack.pop();
+        if (value instanceof Object[] || value == NULL_VALUE) {
+            runtime_error("expected scalar on stack");
+        }
+        return value;
     }
 
     private void checkArrayIndex(Object[] array, int index) {
@@ -506,6 +532,247 @@ public class vm {
         stack.push(value.length());
     }
 
+    private Path resolveFilePath(String pathText) {
+        try {
+            Path rawPath = Paths.get(pathText);
+            Path resolved = rawPath.isAbsolute()
+                    ? rawPath.toAbsolutePath().normalize()
+                    : fileRoot.resolve(rawPath).normalize();
+
+            if (!resolved.startsWith(fileRoot)) {
+                runtime_error("file path escapes project root: " + pathText);
+            }
+            return resolved;
+        } catch (InvalidPathException e) {
+            runtime_error("invalid file path: " + pathText);
+            return fileRoot;
+        }
+    }
+
+    private void ensureParentDirectory(Path path) {
+        Path parent = path.getParent();
+        if (parent == null) {
+            return;
+        }
+        try {
+            Files.createDirectories(parent);
+        } catch (IOException e) {
+            runtime_error("failed to create parent directory: " + e.getMessage());
+        }
+    }
+
+    private void exec_fcreate() {
+        Path path = resolveFilePath(popString());
+        ensureParentDirectory(path);
+        try {
+            if (!Files.exists(path)) {
+                Files.createFile(path);
+            }
+        } catch (IOException e) {
+            runtime_error("failed to create file: " + e.getMessage());
+        }
+    }
+
+    private void exec_fread() {
+        Path path = resolveFilePath(popString());
+        try {
+            stack.push(Files.readString(path, StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            runtime_error("failed to read file: " + e.getMessage());
+        }
+    }
+
+    private void exec_fwrite() {
+        String content = popString();
+        Path path = resolveFilePath(popString());
+        ensureParentDirectory(path);
+        try {
+            Files.writeString(path, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (IOException e) {
+            runtime_error("failed to write file: " + e.getMessage());
+        }
+    }
+
+    private void exec_fappend() {
+        String content = popString();
+        Path path = resolveFilePath(popString());
+        ensureParentDirectory(path);
+        try {
+            Files.writeString(path, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            runtime_error("failed to append file: " + e.getMessage());
+        }
+    }
+
+    private void exec_fexists() {
+        Path path = resolveFilePath(popString());
+        stack.push(Files.exists(path));
+    }
+
+    private void exec_fdelete() {
+        Path path = resolveFilePath(popString());
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            runtime_error("failed to delete file: " + e.getMessage());
+        }
+    }
+
+    private void exec_randint() {
+        int max = popInt();
+        int min = popInt();
+        if (min > max) {
+            runtime_error("RandomInt min cannot be greater than max");
+        }
+        stack.push((int) ThreadLocalRandom.current().nextLong(min, (long) max + 1L));
+    }
+
+    private void exec_randreal() {
+        stack.push(ThreadLocalRandom.current().nextDouble());
+    }
+
+    private void exec_nowutc() {
+        String part = popString().trim().toLowerCase(Locale.ROOT);
+        ZonedDateTime now = Instant.now().atZone(ZoneOffset.UTC);
+
+        switch (part) {
+            case "datetime", "date-time", "full" ->
+                    stack.push(now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS 'UTC'")));
+            case "date" -> stack.push(now.format(DateTimeFormatter.ISO_LOCAL_DATE));
+            case "time" -> stack.push(now.format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS")));
+            case "year" -> stack.push(String.valueOf(now.getYear()));
+            case "month" -> stack.push(String.format(Locale.ROOT, "%02d", now.getMonthValue()));
+            case "day" -> stack.push(String.format(Locale.ROOT, "%02d", now.getDayOfMonth()));
+            case "hour" -> stack.push(String.format(Locale.ROOT, "%02d", now.getHour()));
+            case "minute" -> stack.push(String.format(Locale.ROOT, "%02d", now.getMinute()));
+            case "second" -> stack.push(String.format(Locale.ROOT, "%02d", now.getSecond()));
+            case "millisecond", "millis", "ms" -> stack.push(String.format(Locale.ROOT, "%03d", now.getNano() / 1_000_000));
+            default -> runtime_error("unknown Now part: " + part);
+        }
+    }
+
+    private void exec_sleepms() {
+        int milliseconds = popInt();
+        if (milliseconds < 0) {
+            runtime_error("Sleep milliseconds cannot be negative");
+        }
+        try {
+            Thread.sleep(milliseconds);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            runtime_error("sleep interrupted");
+        }
+    }
+
+    private void exec_supper() {
+        stack.push(popString().toUpperCase(Locale.ROOT));
+    }
+
+    private void exec_slower() {
+        stack.push(popString().toLowerCase(Locale.ROOT));
+    }
+
+    private void exec_strim() {
+        stack.push(popString().trim());
+    }
+
+    private void exec_ssubstr() {
+        int length = popInt();
+        int start = popInt();
+        String source = popString();
+        if (start < 0 || length < 0 || start + length > source.length()) {
+            runtime_error("Substring range out of bounds");
+        }
+        stack.push(source.substring(start, start + length));
+    }
+
+    private void exec_scontains() {
+        String needle = popString();
+        String source = popString();
+        stack.push(source.contains(needle));
+    }
+
+    private void exec_sreplace() {
+        String replacement = popString();
+        String target = popString();
+        String source = popString();
+        stack.push(source.replace(target, replacement));
+    }
+
+    private void exec_sget() {
+        int index = popInt();
+        String source = popString();
+        if (index < 0 || index >= source.length()) {
+            runtime_error("string index out of bounds: " + index);
+        }
+        stack.push(source.substring(index, index + 1));
+    }
+
+    private void exec_toint() {
+        Object value = popScalar();
+        if (value instanceof Integer integer) {
+            stack.push(integer);
+        } else if (value instanceof Double real) {
+            stack.push(real.intValue());
+        } else if (value instanceof String text) {
+            try {
+                stack.push(Integer.parseInt(text.trim()));
+            } catch (NumberFormatException e) {
+                runtime_error("cannot convert string to integer: " + text);
+            }
+        } else if (value instanceof Boolean bool) {
+            stack.push(bool ? 1 : 0);
+        } else {
+            runtime_error("cannot convert value to integer");
+        }
+    }
+
+    private void exec_toreal() {
+        Object value = popScalar();
+        if (value instanceof Integer integer) {
+            stack.push((double) integer);
+        } else if (value instanceof Double real) {
+            stack.push(real);
+        } else if (value instanceof String text) {
+            try {
+                stack.push(Double.parseDouble(text.trim()));
+            } catch (NumberFormatException e) {
+                runtime_error("cannot convert string to real: " + text);
+            }
+        } else if (value instanceof Boolean bool) {
+            stack.push(bool ? 1.0 : 0.0);
+        } else {
+            runtime_error("cannot convert value to real");
+        }
+    }
+
+    private void exec_tostr() {
+        Object value = popScalar();
+        stack.push(String.valueOf(value));
+    }
+
+    private void exec_tobool() {
+        Object value = popScalar();
+        if (value instanceof Boolean bool) {
+            stack.push(bool);
+        } else if (value instanceof Integer integer) {
+            stack.push(integer != 0);
+        } else if (value instanceof Double real) {
+            stack.push(real != 0.0);
+        } else if (value instanceof String text) {
+            String normalized = text.trim();
+            if (normalized.equalsIgnoreCase("true")) {
+                stack.push(true);
+            } else if (normalized.equalsIgnoreCase("false")) {
+                stack.push(false);
+            } else {
+                runtime_error("cannot convert string to bool: " + text);
+            }
+        } else {
+            runtime_error("cannot convert value to bool");
+        }
+    }
+
     private String readLine(String typeName) {
         try {
             String line = input.readLine();
@@ -689,6 +956,31 @@ public class vm {
             case sread -> exec_sread();
             case bread -> exec_bread();
             case slength -> exec_slength();
+
+            case fcreate -> exec_fcreate();
+            case fread -> exec_fread();
+            case fwrite -> exec_fwrite();
+            case fappend -> exec_fappend();
+            case fexists -> exec_fexists();
+            case fdelete -> exec_fdelete();
+
+            case randint -> exec_randint();
+            case randreal -> exec_randreal();
+            case nowutc -> exec_nowutc();
+            case sleepms -> exec_sleepms();
+
+            case supper -> exec_supper();
+            case slower -> exec_slower();
+            case strim -> exec_strim();
+            case ssubstr -> exec_ssubstr();
+            case scontains -> exec_scontains();
+            case sreplace -> exec_sreplace();
+            case sget -> exec_sget();
+
+            case toint -> exec_toint();
+            case toreal -> exec_toreal();
+            case tostr -> exec_tostr();
+            case tobool -> exec_tobool();
         }
     }
 

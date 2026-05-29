@@ -146,6 +146,46 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         return ctx.ID().getText().equalsIgnoreCase("Length");
     }
 
+    private boolean isFileCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        return name.equalsIgnoreCase("CreateFile")
+                || name.equalsIgnoreCase("ReadFile")
+                || name.equalsIgnoreCase("WriteFile")
+                || name.equalsIgnoreCase("AppendFile")
+                || name.equalsIgnoreCase("FileExists")
+                || name.equalsIgnoreCase("DeleteFile");
+    }
+
+    private boolean isRandomCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        return name.equalsIgnoreCase("RandomInt")
+                || name.equalsIgnoreCase("RandomReal");
+    }
+
+    private boolean isTimeCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        return name.equalsIgnoreCase("Now")
+                || name.equalsIgnoreCase("Sleep");
+    }
+
+    private boolean isTextCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        return name.equalsIgnoreCase("Upper")
+                || name.equalsIgnoreCase("Lower")
+                || name.equalsIgnoreCase("Trim")
+                || name.equalsIgnoreCase("Substring")
+                || name.equalsIgnoreCase("Contains")
+                || name.equalsIgnoreCase("Replace");
+    }
+
+    private boolean isCastCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        return name.equalsIgnoreCase("ToInteger")
+                || name.equalsIgnoreCase("ToReal")
+                || name.equalsIgnoreCase("ToString")
+                || name.equalsIgnoreCase("ToBool");
+    }
+
     private void emitReadForType(FavaType type) {
         if (type.isInteger()) {
             emit(OpCode.iread);
@@ -167,6 +207,104 @@ public class CodeGen extends FavaBaseVisitor<Void> {
             emit(OpCode.slength);
         } else {
             throw new IllegalArgumentException("Unsupported length type: " + type.readableName());
+        }
+    }
+
+    private void emitFileCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        for (FavaParser.ExprContext argument : arguments) {
+            visit(argument);
+        }
+
+        if (name.equalsIgnoreCase("CreateFile")) {
+            emit(OpCode.fcreate);
+        } else if (name.equalsIgnoreCase("ReadFile")) {
+            emit(OpCode.fread);
+        } else if (name.equalsIgnoreCase("WriteFile")) {
+            emit(OpCode.fwrite);
+        } else if (name.equalsIgnoreCase("AppendFile")) {
+            emit(OpCode.fappend);
+        } else if (name.equalsIgnoreCase("FileExists")) {
+            emit(OpCode.fexists);
+        } else if (name.equalsIgnoreCase("DeleteFile")) {
+            emit(OpCode.fdelete);
+        } else {
+            throw new IllegalArgumentException("Unsupported file call: " + name);
+        }
+    }
+
+    private void emitRandomCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        for (FavaParser.ExprContext argument : arguments) {
+            visit(argument);
+        }
+
+        if (name.equalsIgnoreCase("RandomInt")) {
+            emit(OpCode.randint);
+        } else if (name.equalsIgnoreCase("RandomReal")) {
+            emit(OpCode.randreal);
+        } else {
+            throw new IllegalArgumentException("Unsupported random call: " + name);
+        }
+    }
+
+    private void emitTimeCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        for (FavaParser.ExprContext argument : arguments) {
+            visit(argument);
+        }
+
+        if (name.equalsIgnoreCase("Now")) {
+            emit(OpCode.nowutc);
+        } else if (name.equalsIgnoreCase("Sleep")) {
+            emit(OpCode.sleepms);
+        } else {
+            throw new IllegalArgumentException("Unsupported time call: " + name);
+        }
+    }
+
+    private void emitTextCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        for (FavaParser.ExprContext argument : arguments) {
+            visit(argument);
+        }
+
+        if (name.equalsIgnoreCase("Upper")) {
+            emit(OpCode.supper);
+        } else if (name.equalsIgnoreCase("Lower")) {
+            emit(OpCode.slower);
+        } else if (name.equalsIgnoreCase("Trim")) {
+            emit(OpCode.strim);
+        } else if (name.equalsIgnoreCase("Substring")) {
+            emit(OpCode.ssubstr);
+        } else if (name.equalsIgnoreCase("Contains")) {
+            emit(OpCode.scontains);
+        } else if (name.equalsIgnoreCase("Replace")) {
+            emit(OpCode.sreplace);
+        } else {
+            throw new IllegalArgumentException("Unsupported text call: " + name);
+        }
+    }
+
+    private void emitCastCall(FavaParser.CallContext ctx) {
+        String name = ctx.ID().getText();
+        FavaParser.ExprContext argument = ctx.argList().expr(0);
+        visit(argument);
+
+        if (name.equalsIgnoreCase("ToInteger")) {
+            emit(OpCode.toint);
+        } else if (name.equalsIgnoreCase("ToReal")) {
+            emit(OpCode.toreal);
+        } else if (name.equalsIgnoreCase("ToString")) {
+            emit(OpCode.tostr);
+        } else if (name.equalsIgnoreCase("ToBool")) {
+            emit(OpCode.tobool);
+        } else {
+            throw new IllegalArgumentException("Unsupported cast call: " + name);
         }
     }
 
@@ -300,6 +438,31 @@ public class CodeGen extends FavaBaseVisitor<Void> {
             return;
         }
 
+        if (isFileCall(ctx)) {
+            emitFileCall(ctx);
+            return;
+        }
+
+        if (isRandomCall(ctx)) {
+            emitRandomCall(ctx);
+            return;
+        }
+
+        if (isTimeCall(ctx)) {
+            emitTimeCall(ctx);
+            return;
+        }
+
+        if (isTextCall(ctx)) {
+            emitTextCall(ctx);
+            return;
+        }
+
+        if (isCastCall(ctx)) {
+            emitCastCall(ctx);
+            return;
+        }
+
         Symbol function = resolvedSymbols.get(ctx);
         List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
         for (int i = 0; i < arguments.size(); i++) {
@@ -312,10 +475,14 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         callPatches.add(new CallPatch(callInstruction, function));
     }
 
-    private void emitArrayLoad(FavaParser.ExprContext arrayExpr, FavaParser.ExprContext indexExpr) {
-        visit(arrayExpr);
+    private void emitIndexedLoad(FavaParser.ExprContext collectionExpr, FavaParser.ExprContext indexExpr) {
+        visit(collectionExpr);
         visit(indexExpr);
-        emit(OpCode.aload);
+        emitLoadElementForType(exprType(collectionExpr));
+    }
+
+    private void emitLoadElementForType(FavaType collectionType) {
+        emit(collectionType.isString() ? OpCode.sget : OpCode.aload);
     }
 
     private void emitArrayStore(FavaParser.LvalueContext ctx, FavaType targetType, FavaParser.ExprContext expr) {
@@ -525,29 +692,37 @@ public class CodeGen extends FavaBaseVisitor<Void> {
     @Override
     public Void visitForEachStmt(FavaParser.ForEachStmtContext ctx) {
         int previous = enterSource(ctx);
-        Symbol indexSymbol = resolvedSymbols.get(ctx.ID());
-        int arrayAddress = indexSymbol.getAddress() + 1;
-        Symbol arraySymbol = new Symbol("$" + indexSymbol.getName() + "_array", Symbol.Kind.LOCAL_VARIABLE, exprType(ctx.expr()), arrayAddress, ctx.start.getLine());
+        Symbol loopSymbol = resolvedSymbols.get(ctx.ID());
+        FavaType collectionType = exprType(ctx.expr());
+        int indexAddress = loopSymbol.getAddress() + 1;
+        int collectionAddress = loopSymbol.getAddress() + 2;
+        Symbol indexSymbol = new Symbol("$" + loopSymbol.getName() + "_index", Symbol.Kind.LOCAL_VARIABLE, FavaType.scalar(FavaLexer.INT), indexAddress, ctx.start.getLine());
+        Symbol collectionSymbol = new Symbol("$" + loopSymbol.getName() + "_collection", Symbol.Kind.LOCAL_VARIABLE, collectionType, collectionAddress, ctx.start.getLine());
 
-        emit(OpCode.lalloc, 2);
+        emit(OpCode.lalloc, 3);
         visit(ctx.expr());
-        emitStore(arraySymbol);
+        emitStore(collectionSymbol);
         emit(OpCode.iconst, 0);
         emitStore(indexSymbol);
 
         int loopStart = currentAddress();
         emitLoad(indexSymbol);
-        emitLoad(arraySymbol);
-        emit(OpCode.alength);
+        emitLoad(collectionSymbol);
+        emit(collectionType.isString() ? OpCode.slength : OpCode.alength);
         emit(OpCode.ilt);
         int jumpFalse = currentAddress();
         emit(OpCode.jumpf, -1);
+
+        emitLoad(collectionSymbol);
+        emitLoad(indexSymbol);
+        emitLoadElementForType(collectionType);
+        emitStore(loopSymbol);
 
         visit(ctx.stmt());
         emitIncrement(indexSymbol);
         emit(OpCode.jump, loopStart);
         patchJump(jumpFalse, currentAddress());
-        emit(OpCode.pop, 2);
+        emit(OpCode.pop, 3);
 
         exitSource(previous);
         return null;
@@ -575,7 +750,7 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         }
 
         if (ctx.expr().size() == 2 && ctx.LBRACK() != null) {
-            emitArrayLoad(ctx.expr(0), ctx.expr(1));
+            emitIndexedLoad(ctx.expr(0), ctx.expr(1));
             exitSource(previous);
             return null;
         }
@@ -794,7 +969,7 @@ public class CodeGen extends FavaBaseVisitor<Void> {
             if (ctx.ID() != null) {
                 kind = "variable";
             } else if (ctx.expr().size() == 2 && ctx.LBRACK() != null) {
-                kind = "array element";
+                kind = "indexed element";
             } else if (ctx.call() != null) {
                 kind = "call";
                 name = ctx.call().ID().getText();

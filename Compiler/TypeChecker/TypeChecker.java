@@ -126,6 +126,246 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
         return name.equalsIgnoreCase("Length");
     }
 
+    private boolean isFileCall(String name) {
+        return name.equalsIgnoreCase("CreateFile")
+                || name.equalsIgnoreCase("ReadFile")
+                || name.equalsIgnoreCase("WriteFile")
+                || name.equalsIgnoreCase("AppendFile")
+                || name.equalsIgnoreCase("FileExists")
+                || name.equalsIgnoreCase("DeleteFile");
+    }
+
+    private boolean isRandomCall(String name) {
+        return name.equalsIgnoreCase("RandomInt")
+                || name.equalsIgnoreCase("RandomReal");
+    }
+
+    private boolean isTimeCall(String name) {
+        return name.equalsIgnoreCase("Now")
+                || name.equalsIgnoreCase("Sleep");
+    }
+
+    private boolean isTextCall(String name) {
+        return name.equalsIgnoreCase("Upper")
+                || name.equalsIgnoreCase("Lower")
+                || name.equalsIgnoreCase("Trim")
+                || name.equalsIgnoreCase("Substring")
+                || name.equalsIgnoreCase("Contains")
+                || name.equalsIgnoreCase("Replace");
+    }
+
+    private boolean isCastCall(String name) {
+        return name.equalsIgnoreCase("ToInteger")
+                || name.equalsIgnoreCase("ToReal")
+                || name.equalsIgnoreCase("ToString")
+                || name.equalsIgnoreCase("ToBool");
+    }
+
+    private FavaType validateFileCall(FavaParser.CallContext ctx, boolean usedAsStatement) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        int expectedCount = name.equalsIgnoreCase("WriteFile") || name.equalsIgnoreCase("AppendFile") ? 2 : 1;
+        if (arguments.size() != expectedCount) {
+            addError(ctx, "function " + name + " expects " + expectedCount + " argument" + (expectedCount == 1 ? "" : "s"));
+            for (FavaParser.ExprContext expr : arguments) {
+                visit(expr);
+            }
+            return null;
+        }
+
+        boolean valid = true;
+        for (FavaParser.ExprContext argument : arguments) {
+            FavaType argumentType = visit(argument);
+            if (argumentType != null && !argumentType.isString()) {
+                addError(argument, "function " + name + " expects string arguments");
+                valid = false;
+            }
+        }
+
+        FavaType returnType;
+        if (name.equalsIgnoreCase("ReadFile")) {
+            returnType = FavaType.scalar(FavaLexer.STRING);
+        } else if (name.equalsIgnoreCase("FileExists")) {
+            returnType = FavaType.scalar(FavaLexer.BOOL);
+        } else {
+            returnType = null;
+        }
+
+        if (usedAsStatement) {
+            if (returnType != null) {
+                addError(ctx, "value of function " + name + " must be assigned to a variable");
+            }
+            return null;
+        }
+
+        if (returnType == null) {
+            addError(ctx, "function " + name + " does not return a value");
+            return null;
+        }
+
+        return valid ? returnType : null;
+    }
+
+    private FavaType validateRandomCall(FavaParser.CallContext ctx, boolean usedAsStatement) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        int expectedCount = name.equalsIgnoreCase("RandomInt") ? 2 : 0;
+        FavaType returnType = name.equalsIgnoreCase("RandomInt")
+                ? FavaType.scalar(FavaLexer.INT)
+                : FavaType.scalar(FavaLexer.REAL);
+
+        if (arguments.size() != expectedCount) {
+            addError(ctx, "function " + name + " expects " + expectedCount + " argument" + (expectedCount == 1 ? "" : "s"));
+            for (FavaParser.ExprContext expr : arguments) {
+                visit(expr);
+            }
+            return null;
+        }
+
+        boolean valid = true;
+        for (FavaParser.ExprContext argument : arguments) {
+            FavaType argumentType = visit(argument);
+            if (argumentType != null && !argumentType.isInteger()) {
+                addError(argument, "function " + name + " expects integer arguments");
+                valid = false;
+            }
+        }
+
+        if (usedAsStatement) {
+            addError(ctx, "value of function " + name + " must be assigned to a variable");
+            return null;
+        }
+
+        return valid ? returnType : null;
+    }
+
+    private FavaType validateTimeCall(FavaParser.CallContext ctx, boolean usedAsStatement) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        int expectedCount = 1;
+        FavaType returnType = name.equalsIgnoreCase("Now") ? FavaType.scalar(FavaLexer.STRING) : null;
+
+        if (arguments.size() != expectedCount) {
+            addError(ctx, "function " + name + " expects " + expectedCount + " argument" + (expectedCount == 1 ? "" : "s"));
+            for (FavaParser.ExprContext expr : arguments) {
+                visit(expr);
+            }
+            return null;
+        }
+
+        boolean valid = true;
+        for (FavaParser.ExprContext argument : arguments) {
+            FavaType argumentType = visit(argument);
+            boolean validArgument = name.equalsIgnoreCase("Now")
+                    ? argumentType != null && argumentType.isString()
+                    : argumentType != null && argumentType.isInteger();
+            if (argumentType != null && !validArgument) {
+                addError(argument, "function " + name + " expects " + (name.equalsIgnoreCase("Now") ? "a string argument" : "integer arguments"));
+                valid = false;
+            }
+        }
+
+        if (usedAsStatement) {
+            if (returnType != null) {
+                addError(ctx, "value of function " + name + " must be assigned to a variable");
+            }
+            return null;
+        }
+
+        if (returnType == null) {
+            addError(ctx, "function " + name + " does not return a value");
+            return null;
+        }
+
+        return valid ? returnType : null;
+    }
+
+    private FavaType validateTextCall(FavaParser.CallContext ctx, boolean usedAsStatement) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        int expectedCount;
+        if (name.equalsIgnoreCase("Substring") || name.equalsIgnoreCase("Replace")) {
+            expectedCount = 3;
+        } else if (name.equalsIgnoreCase("Contains")) {
+            expectedCount = 2;
+        } else {
+            expectedCount = 1;
+        }
+
+        if (arguments.size() != expectedCount) {
+            addError(ctx, "function " + name + " expects " + expectedCount + " argument" + (expectedCount == 1 ? "" : "s"));
+            for (FavaParser.ExprContext expr : arguments) {
+                visit(expr);
+            }
+            return null;
+        }
+
+        boolean valid = true;
+        for (int i = 0; i < arguments.size(); i++) {
+            FavaType argumentType = visit(arguments.get(i));
+            boolean expectsInt = name.equalsIgnoreCase("Substring") && (i == 1 || i == 2);
+            if (argumentType == null) {
+                continue;
+            }
+            if (expectsInt) {
+                if (!argumentType.isInteger()) {
+                    addError(arguments.get(i), "function " + name + " expects integer start and length arguments");
+                    valid = false;
+                }
+            } else if (!argumentType.isString()) {
+                addError(arguments.get(i), "function " + name + " expects string arguments");
+                valid = false;
+            }
+        }
+
+        if (usedAsStatement) {
+            addError(ctx, "value of function " + name + " must be assigned to a variable");
+            return null;
+        }
+
+        FavaType returnType = name.equalsIgnoreCase("Contains")
+                ? FavaType.scalar(FavaLexer.BOOL)
+                : FavaType.scalar(FavaLexer.STRING);
+
+        return valid ? returnType : null;
+    }
+
+    private FavaType validateCastCall(FavaParser.CallContext ctx, boolean usedAsStatement) {
+        String name = ctx.ID().getText();
+        List<FavaParser.ExprContext> arguments = ctx.argList() == null ? List.of() : ctx.argList().expr();
+        if (arguments.size() != 1) {
+            addError(ctx, "function " + name + " expects 1 argument");
+            for (FavaParser.ExprContext expr : arguments) {
+                visit(expr);
+            }
+            return null;
+        }
+
+        FavaType argumentType = visit(arguments.get(0));
+        if (argumentType == null) {
+            return null;
+        }
+        if (!argumentType.isScalar()) {
+            addError(ctx, "function " + name + " expects a scalar argument");
+            return null;
+        }
+        if (usedAsStatement) {
+            addError(ctx, "value of function " + name + " must be assigned to a variable");
+            return null;
+        }
+
+        if (name.equalsIgnoreCase("ToInteger")) {
+            return FavaType.scalar(FavaLexer.INT);
+        }
+        if (name.equalsIgnoreCase("ToReal")) {
+            return FavaType.scalar(FavaLexer.REAL);
+        }
+        if (name.equalsIgnoreCase("ToString")) {
+            return FavaType.scalar(FavaLexer.STRING);
+        }
+        return FavaType.scalar(FavaLexer.BOOL);
+    }
+
     private void collectGlobalDeclarations(List<FavaParser.DeclContext> declarations) {
         for (FavaParser.DeclContext decl : declarations) {
             FavaType declaredType = declaredTypeToExprType(decl.type());
@@ -317,6 +557,10 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
             if (indexType != null && !indexType.isInteger()) {
                 addError(ctx, "array index must be of type integer");
             }
+            if (targetType.isString()) {
+                addError(ctx, "cannot assign to a string character");
+                return null;
+            }
             if (!targetType.isArray()) {
                 addError(ctx, name + " is not an array");
                 return null;
@@ -390,6 +634,26 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
             }
 
             return FavaType.scalar(FavaLexer.INT);
+        }
+
+        if (isFileCall(name)) {
+            return validateFileCall(ctx, usedAsStatement);
+        }
+
+        if (isRandomCall(name)) {
+            return validateRandomCall(ctx, usedAsStatement);
+        }
+
+        if (isTimeCall(name)) {
+            return validateTimeCall(ctx, usedAsStatement);
+        }
+
+        if (isTextCall(name)) {
+            return validateTextCall(ctx, usedAsStatement);
+        }
+
+        if (isCastCall(name)) {
+            return validateCastCall(ctx, usedAsStatement);
         }
 
         Symbol function = resolveFunction(name);
@@ -593,16 +857,23 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
 
     @Override
     public FavaType visitForEachStmt(FavaParser.ForEachStmtContext ctx) {
-        FavaType arrayType = visit(ctx.expr());
-        if (arrayType != null && !arrayType.isArray()) {
-            addError(ctx, "for-in expects an array expression");
+        FavaType collectionType = visit(ctx.expr());
+        FavaType itemType = FavaType.scalar(FavaLexer.INT);
+        if (collectionType != null) {
+            if (collectionType.isArray()) {
+                itemType = collectionType.elementType();
+            } else if (collectionType.isString()) {
+                itemType = FavaType.scalar(FavaLexer.STRING);
+            } else {
+                addError(ctx, "for-in expects an array or string expression");
+            }
         }
 
         symbolTable.enterScope();
-        boolean declaredIndexVariable = addLoopVariable(ctx, ctx.ID(), ctx.ID().getText(), FavaType.scalar(FavaLexer.INT));
-        nextLocalAddress++;
+        boolean declaredLoopVariable = addLoopVariable(ctx, ctx.ID(), ctx.ID().getText(), itemType);
+        nextLocalAddress += 2;
         visit(ctx.stmt());
-        nextLocalAddress -= declaredIndexVariable ? 2 : 1;
+        nextLocalAddress -= declaredLoopVariable ? 3 : 2;
         symbolTable.exitScope();
         return null;
     }
@@ -661,6 +932,11 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
             }
             if (arrayType == null) {
                 return null;
+            }
+            if (arrayType.isString()) {
+                FavaType type = FavaType.scalar(FavaLexer.STRING);
+                saveType(ctx, type);
+                return type;
             }
             if (!arrayType.isArray()) {
                 addError(ctx, "cannot index expression of type " + readableType(arrayType));

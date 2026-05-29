@@ -10,6 +10,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class FavaCompileAndRun {
@@ -22,15 +23,23 @@ public class FavaCompileAndRun {
 
     public static void main(String[] args) {
         InputStream inputStream = null;
+        Path projectRoot = Paths.get("").toAbsolutePath().normalize();
 
         try {
             if (args.length > 0) {
                 inputStream = new FileInputStream(args[0]);
+                Path sourcePath = Paths.get(args[0]).toAbsolutePath().normalize();
+                Path parent = sourcePath.getParent();
+                if (parent != null) {
+                    projectRoot = parent;
+                }
                 for (int i = 1; i < args.length; i++) {
                     if (args[i].equals("-trace")) {
                         trace = true;
                     } else if (args[i].equals("-check") || args[i].equals("--check")) {
                         checkOnly = true;
+                    } else if ((args[i].equals("-root") || args[i].equals("--root")) && i + 1 < args.length) {
+                        projectRoot = Paths.get(args[++i]).toAbsolutePath().normalize();
                     }
                 }
             } else {
@@ -54,11 +63,17 @@ public class FavaCompileAndRun {
             ParseTree tree = parser.prog();
 
             if (errorListener.getLexerErrors() > 0) {
+                for (String message : errorListener.getMessages()) {
+                    System.out.println(message);
+                }
                 System.out.println("Input has lexical errors");
                 return;
             }
 
             if (errorListener.getParserErrors() > 0) {
+                for (String message : errorListener.getMessages()) {
+                    System.out.println(message);
+                }
                 System.out.println("Input has parsing errors");
                 return;
             }
@@ -90,7 +105,7 @@ public class FavaCompileAndRun {
             codeGen.saveBytecodes("bytecodes.bc");
 
             byte[] bytecodes = Files.readAllBytes(Paths.get("bytecodes.bc"));
-            vm machine = new vm(bytecodes, trace);
+            vm machine = new vm(bytecodes, trace, projectRoot.toString());
             machine.run();
 
         } catch (IOException e) {

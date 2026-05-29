@@ -32,7 +32,7 @@ public class JavaCompilerService
         var psi = new ProcessStartInfo
         {
             FileName = _settings.JavaPath,
-            Arguments = BuildRunArguments(classpath, filePath, includeTrace, checkOnly),
+            Arguments = BuildRunArguments(classpath, filePath, ResolveProjectRoot(filePath), includeTrace, checkOnly),
             WorkingDirectory = GetRuntimeWorkingDirectory(),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -86,9 +86,17 @@ public class JavaCompilerService
         return (proc.ExitCode == 0, outputBuilder.ToString());
     }
 
-    private static string BuildRunArguments(string classpath, string filePath, bool includeTrace, bool checkOnly)
+    private string ResolveProjectRoot(string filePath)
     {
-        var args = new StringBuilder($"-cp \"{classpath}\" FavaCompileAndRun \"{filePath}\"");
+        if (!string.IsNullOrWhiteSpace(_settings.ProjectRoot) && Directory.Exists(_settings.ProjectRoot))
+            return _settings.ProjectRoot;
+
+        return Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? Directory.GetCurrentDirectory();
+    }
+
+    private static string BuildRunArguments(string classpath, string filePath, string projectRoot, bool includeTrace, bool checkOnly)
+    {
+        var args = new StringBuilder($"-cp \"{classpath}\" FavaCompileAndRun \"{filePath}\" -root \"{projectRoot}\"");
         if (includeTrace)
             args.Append(" -trace");
         if (checkOnly)

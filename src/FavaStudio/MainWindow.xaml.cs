@@ -9,12 +9,14 @@ using System.Windows.Media;
 using ICSharpCode.AvalonEdit.Document;
 using FavaStudio.Editor;
 using FavaStudio.Models;
+using FavaStudio.Services;
 using FavaStudio.ViewModels;
 
 namespace FavaStudio;
 
 public partial class MainWindow : Window
 {
+    private const string DiscordClientId = "1509859214221381662";
     private readonly DiagnosticUnderlineRenderer _diagnosticUnderlineRenderer;
     private readonly BreakpointMargin _breakpointMargin;
     private readonly BreakpointLineHighlighter _breakpointHighlighter;
@@ -28,6 +30,7 @@ public partial class MainWindow : Window
     private Point? _tabDragStartPoint;
     private EditorTab? _draggedTab;
     private readonly ToolTip _diagnosticToolTip = new();
+    private readonly DiscordRichPresenceService _discordPresence = new();
     private string _activeTooltipText = "";
     private int _terminalInputStart;
 
@@ -81,6 +84,13 @@ public partial class MainWindow : Window
 
         var vm = new MainViewModel(Editor);
         DataContext = vm;
+        vm.StyleSettingsChanged += () => Dispatcher.BeginInvoke(new Action(() => ApplyStyleSettings(vm.Settings)));
+        ApplyStyleSettings(vm.Settings);
+        Closing += async (_, _) =>
+        {
+            await _discordPresence.ClearAsync();
+            _discordPresence.Dispose();
+        };
 
         // Auto-scroll VM output when it updates
         vm.PropertyChanged += (_, e) =>
@@ -100,6 +110,8 @@ public partial class MainWindow : Window
                 if (vm.DebugCurrentSourceLine is int line)
                     Editor.ScrollToLine(line);
             }
+            if (ShouldRefreshDiscordPresence(e.PropertyName))
+                _ = Dispatcher.BeginInvoke(new Action(() => _ = UpdateDiscordPresenceAsync(vm)));
         };
 
         vm.Diagnostics.CollectionChanged += (_, _) => _diagnosticUnderlineRenderer.SetDiagnostics(vm.Diagnostics.ToList());
@@ -115,7 +127,169 @@ public partial class MainWindow : Window
             RefreshBreakpointRenderers(vm);
         };
         vm.BreakpointsChanged += () => RefreshBreakpointRenderers(vm);
+        _ = UpdateDiscordPresenceAsync(vm);
     }
+
+    private static bool ShouldRefreshDiscordPresence(string? propertyName) =>
+        propertyName is nameof(MainViewModel.SelectedEditorTab)
+            or nameof(MainViewModel.CurrentFileName)
+            or nameof(MainViewModel.SettingsProjectName)
+            or nameof(MainViewModel.SettingsProjectPath)
+            or nameof(MainViewModel.LastRunStatus)
+            or nameof(MainViewModel.IsSettingsViewVisible)
+            or nameof(MainViewModel.IsToolsViewVisible)
+            or nameof(MainViewModel.IsVisualizerViewVisible)
+            or nameof(MainViewModel.IsWelcomeViewVisible)
+            or nameof(MainViewModel.DiscordPresenceEnabled)
+            or nameof(MainViewModel.DiscordDetailsMode)
+            or nameof(MainViewModel.DiscordStateMode)
+            or nameof(MainViewModel.DiscordCustomDetails)
+            or nameof(MainViewModel.DiscordCustomState);
+
+    private async Task UpdateDiscordPresenceAsync(MainViewModel vm)
+    {
+        if (!vm.DiscordPresenceEnabled)
+        {
+            await _discordPresence.ClearAsync();
+            return;
+        }
+
+        var file = vm.SelectedEditorTab is null ? "No file open" : vm.SelectedEditorTab.Header;
+        var project = string.IsNullOrWhiteSpace(vm.Settings.ProjectRoot) ? "No project loaded" : vm.SettingsProjectName;
+        var view = GetCurrentViewName(vm);
+        var details = BuildDiscordPresenceLine(vm.DiscordDetailsMode, vm.DiscordCustomDetails, file, project, vm.LastRunStatus, view);
+        var state = BuildDiscordPresenceLine(vm.DiscordStateMode, vm.DiscordCustomState, file, project, vm.LastRunStatus, view);
+
+        await _discordPresence.SetPresenceAsync(DiscordClientId, details, state);
+    }
+
+    private static string GetCurrentViewName(MainViewModel vm)
+    {
+        if (vm.IsSettingsViewVisible) return "Settings";
+        if (vm.IsToolsViewVisible) return "Test tools";
+        if (vm.IsVisualizerViewVisible) return "VM visualizer";
+        if (vm.IsWelcomeViewVisible) return "Welcome";
+        return "Editor";
+    }
+
+    private static string BuildDiscordPresenceLine(string mode, string customText, string file, string project, string status, string view)
+    {
+        return mode switch
+        {
+            "project" => project,
+            "projectStatus" => $"{project} - {status}",
+            "status" => status,
+            "view" => view,
+            "custom" => ApplyDiscordPresenceTemplate(customText, file, project, status, view),
+            "hidden" => "",
+            _ => $"Editing {file}"
+        };
+    }
+
+    private static string ApplyDiscordPresenceTemplate(string template, string file, string project, string status, string view)
+    {
+        if (string.IsNullOrWhiteSpace(template))
+            return "Fava Studio";
+
+        return template
+            .Replace("{file}", file, StringComparison.OrdinalIgnoreCase)
+            .Replace("{project}", project, StringComparison.OrdinalIgnoreCase)
+            .Replace("{status}", status, StringComparison.OrdinalIgnoreCase)
+            .Replace("{view}", view, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ApplyStyleSettings(SettingsService settings)
+    {
+        var background = ParseColor(settings.UiBackgroundColor, Color.FromRgb(0x1E, 0x1F, 0x22));
+        var panel = ParseColor(settings.UiPanelColor, Color.FromRgb(0x2B, 0x2D, 0x30));
+        var panelAlt = ParseColor(settings.UiPanelAltColor, Color.FromRgb(0x25, 0x26, 0x2A));
+        var text = ParseColor(settings.UiTextColor, Color.FromRgb(0xE6, 0xEA, 0xF0));
+        var muted = ParseColor(settings.UiMutedTextColor, Color.FromRgb(0x9A, 0xA4, 0xB2));
+        var accent = ParseColor(settings.UiAccentColor, Color.FromRgb(0x4D, 0x8D, 0xFF));
+        var border = ParseColor(settings.UiBorderColor, Color.FromRgb(0x3C, 0x3F, 0x41));
+        var editorBackground = ParseColor(settings.EditorBackgroundColor, background);
+        var consoleBackground = ParseColor(settings.ConsoleBackgroundColor, Color.FromRgb(0x18, 0x1A, 0x1F));
+
+        SetBrush("BgMainBrush", background);
+        SetBrush("BgPanelBrush", panel);
+        SetBrush("BgPanelAltBrush", panelAlt);
+        SetBrush("ControlDarkerBrush", panelAlt);
+        SetBrush("TabActiveBrush", background);
+        SetBrush("TextMainBrush", text);
+        SetBrush("TextMutedBrush", muted);
+        SetBrush("AccentBrush", accent);
+        SetBrush("AccentSoftBrush", Lighten(accent, 0.18));
+        SetBrush("BorderBrush", border);
+        SetBrush("HoverBrush", Lighten(panel, 0.12));
+        SetBrush("SelectionBrush", Blend(accent, background, 0.28));
+        SetBrush("SelectionBorderBrush", accent);
+
+        Background = BrushOf(background);
+        Editor.Background = BrushOf(editorBackground);
+        Editor.Foreground = BrushOf(text);
+        Editor.LineNumbersForeground = BrushOf(muted);
+        Editor.TextArea.SelectionBrush = BrushOf(Color.FromArgb(105, accent.R, accent.G, accent.B));
+        Editor.FontFamily = new FontFamily(string.IsNullOrWhiteSpace(settings.EditorFontFamily) ? "Consolas" : settings.EditorFontFamily);
+        Editor.FontSize = Math.Clamp(settings.EditorFontSize, 10, 24);
+
+        TerminalSurface.Background = BrushOf(consoleBackground);
+        VmOutputBox.Background = BrushOf(consoleBackground);
+        VmOutputBox.Foreground = BrushOf(text);
+        VmOutputBox.CaretBrush = BrushOf(text);
+        VmOutputBox.FontSize = Math.Clamp(settings.ConsoleFontSize, 10, 24);
+        ConstantPoolOutputBox.Background = BrushOf(consoleBackground);
+        ConstantPoolOutputBox.Foreground = BrushOf(text);
+        InstructionsOutputBox.Background = BrushOf(consoleBackground);
+        InstructionsOutputBox.Foreground = BrushOf(text);
+
+        _diagnosticToolTip.Background = BrushOf(panel);
+        _diagnosticToolTip.Foreground = BrushOf(text);
+    }
+
+    private static Color ParseColor(string value, Color fallback)
+    {
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(value.Trim());
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private static SolidColorBrush BrushOf(Color color) => new(color);
+
+    private static void SetBrush(string key, Color color)
+    {
+        if (Application.Current.Resources[key] is SolidColorBrush brush)
+        {
+            if (brush.IsFrozen)
+            {
+                Application.Current.Resources[key] = BrushOf(color);
+            }
+            else
+            {
+                brush.Color = color;
+            }
+        }
+        else
+        {
+            Application.Current.Resources[key] = BrushOf(color);
+        }
+    }
+
+    private static Color Lighten(Color color, double amount) =>
+        Color.FromRgb(
+            (byte)Math.Clamp(color.R + (255 - color.R) * amount, 0, 255),
+            (byte)Math.Clamp(color.G + (255 - color.G) * amount, 0, 255),
+            (byte)Math.Clamp(color.B + (255 - color.B) * amount, 0, 255));
+
+    private static Color Blend(Color foreground, Color background, double foregroundAmount) =>
+        Color.FromRgb(
+            (byte)Math.Clamp(foreground.R * foregroundAmount + background.R * (1 - foregroundAmount), 0, 255),
+            (byte)Math.Clamp(foreground.G * foregroundAmount + background.G * (1 - foregroundAmount), 0, 255),
+            (byte)Math.Clamp(foreground.B * foregroundAmount + background.B * (1 - foregroundAmount), 0, 255));
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {

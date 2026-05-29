@@ -3,11 +3,15 @@ import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class FavaErrorListener extends BaseErrorListener {
     private int lexerErrors = 0;
     private int parserErrors = 0;
     private final boolean showLexerErrors;
     private final boolean showParserErrors;
+    private final List<String> messages = new ArrayList<>();
 
     public FavaErrorListener(boolean showLexerErrors, boolean showParserErrors) {
         this.showLexerErrors = showLexerErrors;
@@ -22,6 +26,10 @@ public class FavaErrorListener extends BaseErrorListener {
         return parserErrors;
     }
 
+    public List<String> getMessages() {
+        return messages;
+    }
+
     @Override
     public void syntaxError(Recognizer<?, ?> recognizer,
                             Object offendingSymbol,
@@ -33,12 +41,12 @@ public class FavaErrorListener extends BaseErrorListener {
         if (recognizer instanceof FavaLexer) {
             lexerErrors++;
             if (showLexerErrors) {
-                System.err.printf("line %d:%d error: %s%n", line, charPositionInLine, msg);
+                messages.add(String.format("line %d:%d error: %s", line, charPositionInLine, msg));
             }
         } else {
             parserErrors++;
             if (showParserErrors) {
-                System.err.printf("line %d:%d error: %s%n", line, charPositionInLine, msg);
+                messages.add(String.format("line %d:%d error: %s", line, charPositionInLine, msg));
             }
         }
     }

@@ -24,9 +24,10 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
+        <conv:HexColorBrushConverter x:Key="HexColorBrushConverter"/>
 
         <Style x:Key="WindowControlButton" TargetType="Button">
-            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -110,8 +111,8 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0"
-                Background="{StaticResource BgPanelBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
+                Background="{DynamicResource BgPanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="10,7">
             <DockPanel LastChildFill="False">
@@ -123,8 +124,8 @@
                         Padding="0"
                         Margin="0,0,14,0"
                         Cursor="Hand">
-                    <Border Background="{StaticResource ControlDarkerBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
+                    <Border Background="{DynamicResource ControlDarkerBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="5"
                             Padding="9,4">
@@ -225,7 +226,7 @@
                             Margin="0,0,4,0">
                         <StackPanel Orientation="Horizontal">
                             <Viewbox Width="13" Height="13" Margin="0,0,7,0">
-                                <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 11 V 4 H 14 V 8 H 16 V 11 H 14 V 15 H 11 V 17 H 5 V 15 H 2 V 11 H 0 V 8 H 2 V 4 H 5 Z M 5 6 H 11 V 4 H 5 Z M 5 12 V 15 H 11 V 12 Z"/>
+                                <Path Fill="{DynamicResource TextMainBrush}" Data="M 5 1 H 11 V 4 H 14 V 8 H 16 V 11 H 14 V 15 H 11 V 17 H 5 V 15 H 2 V 11 H 0 V 8 H 2 V 4 H 5 Z M 5 6 H 11 V 4 H 5 Z M 5 12 V 15 H 11 V 12 Z"/>
                             </Viewbox>
                             <TextBlock Text="Debug"/>
                         </StackPanel>
@@ -236,7 +237,7 @@
                             Margin="0,0,4,0">
                         <StackPanel Orientation="Horizontal">
                             <Viewbox Width="12" Height="12" Margin="0,0,7,0">
-                                <Path Fill="{StaticResource DangerBrush}" Data="M 2 2 H 14 V 14 H 2 Z"/>
+                                <Path Fill="{DynamicResource DangerBrush}" Data="M 2 2 H 14 V 14 H 2 Z"/>
                             </Viewbox>
                             <TextBlock Text="Stop"/>
                         </StackPanel>
@@ -247,7 +248,7 @@
                             Margin="0,0,4,0">
                         <StackPanel Orientation="Horizontal">
                             <Viewbox Width="13" Height="13" Margin="0,0,7,0">
-                                <Path Fill="{StaticResource TextMainBrush}" Data="M 2 1 H 14 L 17 4 V 17 H 2 Z M 5 2 V 7 H 13 V 2 Z M 5 12 V 16 H 14 V 12 Z"/>
+                                <Path Fill="{DynamicResource TextMainBrush}" Data="M 2 1 H 14 L 17 4 V 17 H 2 Z M 5 2 V 7 H 13 V 2 Z M 5 12 V 16 H 14 V 12 Z"/>
                             </Viewbox>
                             <TextBlock Text="Save"/>
                         </StackPanel>
@@ -258,7 +259,7 @@
                             Margin="0,0,4,0">
                         <StackPanel Orientation="Horizontal">
                             <Viewbox Width="13" Height="13" Margin="0,0,7,0">
-                                <Path Fill="{StaticResource TextMainBrush}" Data="M 8 1 L 16 15 H 0 Z M 7 6 H 9 V 10 H 7 Z M 7 12 H 9 V 14 H 7 Z"/>
+                                <Path Fill="{DynamicResource TextMainBrush}" Data="M 8 1 L 16 15 H 0 Z M 7 6 H 9 V 10 H 7 Z M 7 12 H 9 V 14 H 7 Z"/>
                             </Viewbox>
                             <TextBlock Text="Errors"/>
                         </StackPanel>
@@ -269,7 +270,7 @@
                             Margin="0,0,4,0">
                         <StackPanel Orientation="Horizontal">
                             <Viewbox Width="13" Height="13" Margin="0,0,7,0">
-                                <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 13 V 3 H 10 V 15 H 13 V 17 H 5 V 15 H 8 V 3 H 5 Z M 1 4 H 5 V 6 H 3 V 12 H 5 V 14 H 1 Z M 13 4 H 17 V 14 H 13 V 12 H 15 V 6 H 13 Z"/>
+                                <Path Fill="{DynamicResource TextMainBrush}" Data="M 5 1 H 13 V 3 H 10 V 15 H 13 V 17 H 5 V 15 H 8 V 3 H 5 Z M 1 4 H 5 V 6 H 3 V 12 H 5 V 14 H 1 Z M 13 4 H 17 V 14 H 13 V 12 H 15 V 6 H 13 Z"/>
                             </Viewbox>
                             <TextBlock Text="Tests"/>
                         </StackPanel>
@@ -280,7 +281,7 @@
                             Margin="0">
                         <StackPanel Orientation="Horizontal">
                             <Viewbox Width="13" Height="13" Margin="0,0,7,0">
-                                <Path Fill="{StaticResource TextMainBrush}" Data="M 2 2 H 16 V 13 H 10 V 15 H 13 V 17 H 5 V 15 H 8 V 13 H 2 Z M 4 4 V 11 H 14 V 4 Z M 5 5 H 7 V 7 H 5 Z M 8 5 H 10 V 7 H 8 Z M 11 5 H 13 V 7 H 11 Z"/>
+                                <Path Fill="{DynamicResource TextMainBrush}" Data="M 2 2 H 16 V 13 H 10 V 15 H 13 V 17 H 5 V 15 H 8 V 13 H 2 Z M 4 4 V 11 H 14 V 4 Z M 5 5 H 7 V 7 H 5 Z M 8 5 H 10 V 7 H 8 Z M 11 5 H 13 V 7 H 11 Z"/>
                             </Viewbox>
                             <TextBlock Text="VM"/>
                         </StackPanel>
@@ -332,8 +333,8 @@
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
-                        Background="{StaticResource BgPanelBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
+                        Background="{DynamicResource BgPanelBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="0,0,1,0">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -347,9 +348,9 @@
                         <DockPanel Grid.Row="0">
                             <Border DockPanel.Dock="Top"
                                     Padding="10,7"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1"
-                                    Background="{StaticResource BgPanelAltBrush}">
+                                    Background="{DynamicResource BgPanelAltBrush}">
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                         <Button Content="Close"
@@ -368,19 +369,19 @@
                                     <TextBlock Text="PROJECT"
                                                FontSize="10"
                                                FontWeight="Bold"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                VerticalAlignment="Center"/>
                                 </DockPanel>
                             </Border>
 
                             <Border DockPanel.Dock="Top"
                                     Padding="10,6"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1">
                                 <TextBlock Text="{Binding CurrentProjectDirectory}"
                                            FontFamily="Consolas"
                                            FontSize="11"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            TextWrapping="Wrap"/>
                             </Border>
 
@@ -405,7 +406,7 @@
                                                        HorizontalAlignment="Center"/>
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Name}"
-                                                       Foreground="{StaticResource TextMainBrush}"
+                                                       Foreground="{DynamicResource TextMainBrush}"
                                                        FontSize="13"
                                                        VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"/>
@@ -427,7 +428,7 @@
                                 <TreeView.ItemContainerStyle>
                                     <Style TargetType="TreeViewItem">
                                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}"/>
                                         <Setter Property="Tag"
                                                 Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         <Setter Property="ContextMenu">
@@ -460,18 +461,18 @@
                                       HorizontalAlignment="Stretch"
                                       VerticalAlignment="Stretch"
                                       ResizeDirection="Rows"
-                                      Background="{StaticResource BorderBrush}"/>
+                                      Background="{DynamicResource BorderBrush}"/>
 
                         <DockPanel Grid.Row="2">
                             <Border DockPanel.Dock="Top"
                                     Padding="10,7"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,1,0,1"
-                                    Background="{StaticResource BgPanelAltBrush}">
+                                    Background="{DynamicResource BgPanelAltBrush}">
                                 <TextBlock Text="OUTLINE"
                                            FontSize="12"
                                            FontWeight="Bold"
-                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                           Foreground="{DynamicResource TextMutedBrush}"/>
                             </Border>
                             <ListBox x:Name="OutlineList"
                                      ItemsSource="{Binding OutlineItems}"
@@ -486,12 +487,12 @@
                                                     Width="30"
                                                     Height="20"
                                                     CornerRadius="4"
-                                                    Background="{StaticResource ControlDarkerBrush}"
-                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    Background="{DynamicResource ControlDarkerBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="1"
                                                     Margin="0,0,8,0">
                                                 <TextBlock Text="{Binding Badge}"
-                                                           Foreground="{StaticResource AccentSoftBrush}"
+                                                           Foreground="{DynamicResource AccentSoftBrush}"
                                                            FontSize="10"
                                                            FontWeight="Bold"
                                                            HorizontalAlignment="Center"
@@ -500,11 +501,11 @@
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Name}"
                                                            FontWeight="SemiBold"
-                                                           Foreground="{StaticResource TextMainBrush}"
+                                                           Foreground="{DynamicResource TextMainBrush}"
                                                            TextTrimming="CharacterEllipsis"/>
                                                 <TextBlock Text="{Binding Detail}"
                                                            FontSize="11"
-                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
                                                            TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
                                         </DockPanel>
@@ -518,20 +519,20 @@
                                       HorizontalAlignment="Stretch"
                                       VerticalAlignment="Stretch"
                                       ResizeDirection="Rows"
-                                      Background="{StaticResource BorderBrush}"/>
+                                      Background="{DynamicResource BorderBrush}"/>
 
                         <DockPanel Grid.Row="4">
                             <Border DockPanel.Dock="Top"
                                     Padding="10,7"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,1,0,1"
-                                    Background="{StaticResource BgPanelAltBrush}">
+                                    Background="{DynamicResource BgPanelAltBrush}">
                                 <DockPanel LastChildFill="False">
                                      <TextBlock DockPanel.Dock="Left"
                                                 Text="TEST SUITE"
                                                 FontSize="12"
                                                 FontWeight="Bold"
-                                                Foreground="{StaticResource TextMutedBrush}"
+                                                Foreground="{DynamicResource TextMutedBrush}"
                                                 VerticalAlignment="Center"/>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                         <Button Content="New Test"
@@ -555,7 +556,7 @@
 
                             <Border DockPanel.Dock="Top"
                                     Padding="10,6"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1">
                                 <StackPanel>
                                     <DockPanel LastChildFill="True">
@@ -569,7 +570,7 @@
                                         <TextBlock Text="{Binding TestSummary}"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
-                                                   Foreground="{StaticResource TextMainBrush}"
+                                                   Foreground="{DynamicResource TextMainBrush}"
                                                    TextWrapping="Wrap"
                                                    VerticalAlignment="Center"/>
                                     </DockPanel>
@@ -583,17 +584,17 @@
                                             <ColumnDefinition Width="8"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Background="{StaticResource ControlDarkerBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                        <Border Background="{DynamicResource ControlDarkerBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
                                             <TextBlock Text="{Binding TestTotalCount, StringFormat=Total {0}}" FontWeight="SemiBold"/>
                                         </Border>
                                         <Border Grid.Column="2" Background="#172B1D" BorderBrush="#2C663A" BorderThickness="1" CornerRadius="4" Padding="8,5">
-                                            <TextBlock Text="{Binding TestPassedCount, StringFormat=Passed {0}}" Foreground="{StaticResource SuccessBrush}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding TestPassedCount, StringFormat=Passed {0}}" Foreground="{DynamicResource SuccessBrush}" FontWeight="SemiBold"/>
                                         </Border>
                                         <Border Grid.Column="4" Background="#351A1A" BorderBrush="#6A2A2A" BorderThickness="1" CornerRadius="4" Padding="8,5">
-                                            <TextBlock Text="{Binding TestFailedCount, StringFormat=Failed {0}}" Foreground="{StaticResource DangerBrush}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding TestFailedCount, StringFormat=Failed {0}}" Foreground="{DynamicResource DangerBrush}" FontWeight="SemiBold"/>
                                         </Border>
-                                        <Border Grid.Column="6" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
-                                            <TextBlock Text="{Binding TestPassPercentText}" Foreground="{StaticResource AccentSoftBrush}" FontWeight="SemiBold"/>
+                                        <Border Grid.Column="6" Background="{DynamicResource ControlDarkerBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding TestPassPercentText}" Foreground="{DynamicResource AccentSoftBrush}" FontWeight="SemiBold"/>
                                         </Border>
                                     </Grid>
                                     <ProgressBar Minimum="0"
@@ -601,8 +602,8 @@
                                                  Height="5"
                                                  Value="{Binding TestPassPercent, Mode=OneWay}"
                                                  Margin="0,8,0,0"
-                                                 Foreground="{StaticResource SuccessBrush}"
-                                                 Background="{StaticResource ControlDarkerBrush}"/>
+                                                 Foreground="{DynamicResource SuccessBrush}"
+                                                 Background="{DynamicResource ControlDarkerBrush}"/>
                                 </StackPanel>
                             </Border>
 
@@ -613,7 +614,7 @@
                                               Margin="4"
                                               Background="Transparent"
                                               BorderThickness="0"
-                                              Foreground="{StaticResource TextMainBrush}"
+                                              Foreground="{DynamicResource TextMainBrush}"
                                               FontSize="13">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
@@ -625,10 +626,10 @@
                                                                 Margin="8,0,0,0">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
-                                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding HasRun}" Value="False">
-                                                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                                                     </DataTrigger>
                                                                     <DataTrigger Binding="{Binding Passed}" Value="True">
                                                                         <Setter Property="Foreground" Value="#5AD18A"/>
@@ -646,7 +647,7 @@
                                                     </TextBlock>
                                                     <TextBlock DockPanel.Dock="Right"
                                                                Text="{Binding DurationText}"
-                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                FontFamily="Consolas"
                                                                FontSize="11"
                                                                Margin="0,0,8,0"/>
@@ -655,13 +656,13 @@
                                                                    TextTrimming="CharacterEllipsis"
                                                                    FontSize="14"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="{StaticResource TextMainBrush}"/>
+                                                                   Foreground="{DynamicResource TextMainBrush}"/>
                                                         <TextBlock Text="{Binding Message}"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    FontSize="11"
-                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                                   Foreground="{DynamicResource TextMutedBrush}"/>
                                                         <TextBlock Text="{Binding InputFileName}"
-                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                                    FontFamily="Consolas"
                                                                    FontSize="10"
                                                                    TextTrimming="CharacterEllipsis"/>
@@ -675,7 +676,7 @@
                                                Margin="12,10,12,0"
                                                FontStyle="Italic"
                                                FontSize="13"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                IsHitTestVisible="False">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
@@ -699,7 +700,7 @@
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
                               ResizeDirection="Columns"
-                              Background="{StaticResource BorderBrush}"/>
+                              Background="{DynamicResource BorderBrush}"/>
 
                 <Grid Grid.Column="2">
                     <Grid.RowDefinitions>
@@ -711,8 +712,8 @@
                     </Grid.RowDefinitions>
 
                     <Border Grid.Row="0"
-                            Background="{StaticResource BgPanelAltBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
+                            Background="{DynamicResource BgPanelAltBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="0,0,0,1"
                             Padding="10,6">
                         <DockPanel LastChildFill="True">
@@ -761,13 +762,13 @@
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding CurrentFileName}"
-                                           Foreground="{StaticResource TextMainBrush}"
+                                           Foreground="{DynamicResource TextMainBrush}"
                                            FontSize="13"
                                            FontWeight="SemiBold"
                                            TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center"/>
-                                <Border Background="{StaticResource ControlDarkerBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                <Border Background="{DynamicResource ControlDarkerBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="4"
                                         Padding="7,2"
@@ -782,15 +783,15 @@
                     </Border>
 
                     <Border Grid.Row="1"
-                            Background="{StaticResource BgPanelAltBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
+                            Background="{DynamicResource BgPanelAltBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="0,0,0,1">
                         <TabControl x:Name="EditorTabs"
                                     ItemsSource="{Binding OpenEditorTabs}"
                                     SelectedItem="{Binding SelectedEditorTab}"
                                     Margin="0"
                                     FontSize="13"
-                                    Background="{StaticResource TabStripBrush}"
+                                    Background="{DynamicResource TabStripBrush}"
                                     BorderThickness="0"
                                     AllowDrop="True"
                                     PreviewMouseLeftButtonDown="EditorTabs_OnPreviewMouseLeftButtonDown"
@@ -824,7 +825,7 @@
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"/>
                                             <TextBlock Text="*"
-                                                       Foreground="{StaticResource AccentSoftBrush}"
+                                                       Foreground="{DynamicResource AccentSoftBrush}"
                                                        FontWeight="Bold"
                                                        Margin="4,0,0,0"
                                                        Visibility="{Binding IsDirty, Converter={StaticResource BoolToVisibility}}"/>
@@ -873,8 +874,8 @@
                             <Border x:Name="EditorFindBar"
                                     Grid.Row="0"
                                     Visibility="Collapsed"
-                                    Background="{StaticResource BgPanelAltBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                                    Background="{DynamicResource BgPanelAltBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1"
                                     Padding="8,6">
                                 <DockPanel LastChildFill="True">
@@ -925,7 +926,7 @@
                                                   Checked="SearchOption_OnChanged"
                                                   Unchecked="SearchOption_OnChanged"/>
                                         <TextBlock x:Name="SearchStatus"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    FontFamily="Consolas"
                                                    FontSize="12"
                                                    VerticalAlignment="Center"/>
@@ -950,9 +951,9 @@
                                                    FontFamily="Consolas"
                                                    FontSize="15"
                                                    ShowLineNumbers="True"
-                                                   LineNumbersForeground="{StaticResource TextMutedBrush}"
-                                                   Background="{StaticResource BgMainBrush}"
-                                                   Foreground="{StaticResource TextMainBrush}">
+                                                   LineNumbersForeground="{DynamicResource TextMutedBrush}"
+                                                   Background="{DynamicResource BgMainBrush}"
+                                                   Foreground="{DynamicResource TextMainBrush}">
                                 <avalonedit:TextEditor.ContextMenu>
                                     <ContextMenu Opened="EditorContextMenu_OnOpened">
                                         <MenuItem x:Name="EditorContextCut" Header="Cut" Click="EditorContextCut_OnClick"/>
@@ -989,36 +990,36 @@
                                       HorizontalAlignment="Stretch"
                                       VerticalAlignment="Stretch"
                                       ResizeDirection="Columns"
-                                      Background="{StaticResource BorderBrush}"/>
+                                      Background="{DynamicResource BorderBrush}"/>
 
                         <Border Grid.Column="2"
-                                Background="{StaticResource BgPanelBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
+                                Background="{DynamicResource BgPanelBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1,0,0,0"
                                 Visibility="{Binding ShowDiagnosticsPanel, Converter={StaticResource BoolToVisibility}}">
                             <DockPanel>
                                 <Border DockPanel.Dock="Top"
                                         Padding="10,6"
-                                        Background="{StaticResource BgPanelAltBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                        Background="{DynamicResource BgPanelAltBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1">
                                     <TextBlock Text="{Binding DiagnosticsHeader}"
                                                FontSize="12"
                                                FontWeight="Bold"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
                                 </Border>
                                 <DockPanel DockPanel.Dock="Bottom"
                                            Height="230"
                                            Visibility="{Binding HasReferenceResults, Converter={StaticResource BoolToVisibility}}">
                                     <Border DockPanel.Dock="Top"
-                                            Background="{StaticResource BgPanelAltBrush}"
-                                            BorderBrush="{StaticResource BorderBrush}"
+                                            Background="{DynamicResource BgPanelAltBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="0,1,0,1"
                                             Padding="10,6">
                                         <TextBlock Text="{Binding ReferenceResultsHeader}"
                                                    FontSize="12"
                                                    FontWeight="Bold"
-                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                   Foreground="{DynamicResource TextMutedBrush}"/>
                                     </Border>
                                     <ListBox x:Name="ReferencesList"
                                              ItemsSource="{Binding ReferenceResults}"
@@ -1030,7 +1031,7 @@
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Padding="6,5"
-                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="0,0,0,1">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -1039,8 +1040,8 @@
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
                                                         <Border Grid.Column="0"
-                                                                Background="{StaticResource ControlDarkerBrush}"
-                                                                BorderBrush="{StaticResource BorderBrush}"
+                                                                Background="{DynamicResource ControlDarkerBrush}"
+                                                                BorderBrush="{DynamicResource BorderBrush}"
                                                                 BorderThickness="1"
                                                                 CornerRadius="3"
                                                                 Padding="3,1"
@@ -1049,22 +1050,22 @@
                                                             <TextBlock Text="{Binding Badge}"
                                                                        FontSize="10"
                                                                        FontWeight="Bold"
-                                                                       Foreground="{StaticResource AccentBrush}"/>
+                                                                       Foreground="{DynamicResource AccentBrush}"/>
                                                         </Border>
                                                         <StackPanel Grid.Column="1" Margin="4,0,8,0">
                                                             <TextBlock Text="{Binding Preview}"
                                                                        FontFamily="Consolas"
-                                                                       Foreground="{StaticResource TextMainBrush}"
+                                                                       Foreground="{DynamicResource TextMainBrush}"
                                                                        TextTrimming="CharacterEllipsis"/>
                                                             <TextBlock Text="{Binding Detail}"
-                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                                        FontSize="11"
                                                                        TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="2"
                                                                    Text="{Binding Location}"
                                                                    FontFamily="Consolas"
-                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                                    VerticalAlignment="Top"/>
                                                     </Grid>
                                                 </Border>
@@ -1084,11 +1085,11 @@
                                                 <Run Text="⚠ " Foreground="Orange"/>
                                                 <Run Text="{Binding Severity}" Foreground="Orange"/>
                                                 <Run Text="  "/>
-                                                <Run Text="{Binding Line}" Foreground="{StaticResource TextMainBrush}"/>
+                                                <Run Text="{Binding Line}" Foreground="{DynamicResource TextMainBrush}"/>
                                                 <Run Text=":"/>
-                                                <Run Text="{Binding Column}" Foreground="{StaticResource TextMainBrush}"/>
+                                                <Run Text="{Binding Column}" Foreground="{DynamicResource TextMainBrush}"/>
                                                 <Run Text="  "/>
-                                                <Run Text="{Binding Message}" Foreground="{StaticResource TextMainBrush}"/>
+                                                <Run Text="{Binding Message}" Foreground="{DynamicResource TextMainBrush}"/>
                                             </TextBlock>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
@@ -1098,8 +1099,8 @@
 
                         <!-- ── Debug Panel ─────────────────────────────────── -->
                         <Border Grid.Column="2"
-                                Background="{StaticResource BgPanelBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
+                                Background="{DynamicResource BgPanelBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1,0,0,0"
                                 Visibility="{Binding IsDebugging, Converter={StaticResource BoolToVisibility}}">
                             <DockPanel>
@@ -1116,33 +1117,33 @@
                                                    Foreground="IndianRed"/>
                                         <TextBlock Text="   • Click red gutter lane or press F9 to toggle breakpoint"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                   Foreground="{DynamicResource TextMutedBrush}"/>
                                     </DockPanel>
                                 </Border>
 
                                 <!-- Step status -->
                                 <Border DockPanel.Dock="Top"
                                         Padding="10,5"
-                                        Background="{StaticResource BgPanelAltBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                        Background="{DynamicResource BgPanelAltBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1">
                                     <TextBlock Text="{Binding DebugStepStatus}"
                                                FontFamily="Consolas"
                                                FontSize="12"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
                                 </Border>
 
                                 <!-- Current instruction -->
                                 <Border DockPanel.Dock="Top"
                                         Padding="10,8"
-                                        Background="{StaticResource BgPanelBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                        Background="{DynamicResource BgPanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1">
                                     <StackPanel>
                                         <TextBlock Text="CURRENT INSTRUCTION"
                                                    FontSize="10"
                                                    FontWeight="Bold"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    Margin="0,0,0,5"/>
                                         <TextBlock Text="{Binding DebugCurrentInstruction}"
                                                    FontFamily="Consolas"
@@ -1153,7 +1154,7 @@
                                         <TextBlock Text="{Binding DebugCurrentNote}"
                                                    FontFamily="Consolas"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,4,0,0"/>
                                     </StackPanel>
@@ -1162,19 +1163,19 @@
                                 <!-- Stack heading -->
                                 <Border DockPanel.Dock="Top"
                                         Padding="10,5"
-                                        Background="{StaticResource BgPanelAltBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                        Background="{DynamicResource BgPanelAltBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1">
                                     <TextBlock Text="STACK  (top → bottom)"
                                                FontSize="10"
                                                FontWeight="Bold"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
                                 </Border>
 
                                 <!-- Empty stack hint -->
                                 <TextBlock DockPanel.Dock="Top"
                                            Text="(stack is empty)"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            FontSize="12"
                                            FontStyle="Italic"
                                            Margin="12,8"
@@ -1261,7 +1262,7 @@
                                   Height="5"
                                   HorizontalAlignment="Stretch"
                                   ResizeDirection="Rows"
-                                  Background="{StaticResource BorderBrush}"/>
+                                  Background="{DynamicResource BorderBrush}"/>
 
                     <Border Grid.Row="4"
                             Background="#181A1F"
@@ -1271,30 +1272,30 @@
                         <DockPanel>
                             <Border DockPanel.Dock="Top"
                                     Background="#202226"
-                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1"
                                     Padding="10,7">
                                 <DockPanel LastChildFill="True">
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Border Background="{StaticResource ControlDarkerBrush}"
-                                                BorderBrush="{StaticResource BorderBrush}"
+                                        <Border Background="{DynamicResource ControlDarkerBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 CornerRadius="4"
                                                 Padding="7,2"
                                                 Margin="0,0,6,0">
                                             <TextBlock Text="{Binding LastRunDurationText}"
-                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        FontFamily="Consolas"
                                                        FontSize="11"/>
                                         </Border>
-                                        <Border Background="{StaticResource ControlDarkerBrush}"
-                                                BorderBrush="{StaticResource BorderBrush}"
+                                        <Border Background="{DynamicResource ControlDarkerBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 CornerRadius="4"
                                                 Padding="7,2"
                                                 Margin="0,0,8,0">
                                             <TextBlock Text="{Binding ConsoleLineCountText}"
-                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        FontFamily="Consolas"
                                                        FontSize="11"/>
                                         </Border>
@@ -1310,7 +1311,7 @@
                                                 ToolTip="Copy console output">
                                             <StackPanel Orientation="Horizontal">
                                                 <Viewbox Width="11" Height="11" Margin="0,0,6,0">
-                                                    <Path Fill="{StaticResource TextMainBrush}" Data="M 5 1 H 15 V 11 H 13 V 3 H 5 Z M 2 4 H 12 V 16 H 2 Z M 4 6 V 14 H 10 V 6 Z"/>
+                                                    <Path Fill="{DynamicResource TextMainBrush}" Data="M 5 1 H 15 V 11 H 13 V 3 H 5 Z M 2 4 H 12 V 16 H 2 Z M 4 6 V 14 H 10 V 6 Z"/>
                                                 </Viewbox>
                                                 <TextBlock Text="Copy"/>
                                             </StackPanel>
@@ -1322,7 +1323,7 @@
                                                 ToolTip="Clear console output">
                                             <StackPanel Orientation="Horizontal">
                                                 <Viewbox Width="11" Height="11" Margin="0,0,6,0">
-                                                    <Path Fill="{StaticResource TextMainBrush}" Data="M 2 4 H 14 V 6 H 2 Z M 5 7 H 7 V 15 H 5 Z M 9 7 H 11 V 15 H 9 Z M 4 1 H 12 V 3 H 4 Z M 3 6 H 13 L 12 17 H 4 Z"/>
+                                                    <Path Fill="{DynamicResource TextMainBrush}" Data="M 2 4 H 14 V 6 H 2 Z M 5 7 H 7 V 15 H 5 Z M 9 7 H 11 V 15 H 9 Z M 4 1 H 12 V 3 H 4 Z M 3 6 H 13 L 12 17 H 4 Z"/>
                                                 </Viewbox>
                                                 <TextBlock Text="Clear"/>
                                             </StackPanel>
@@ -1330,11 +1331,11 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <Viewbox Width="14" Height="14" Margin="0,0,8,0">
-                                            <Path Fill="{StaticResource AccentSoftBrush}" Data="M 1 3 H 17 V 15 H 1 Z M 3 5 V 13 H 15 V 5 Z M 4 6 L 8 9 L 4 12 V 10 L 6 9 L 4 8 Z M 9 11 H 13 V 12 H 9 Z"/>
+                                            <Path Fill="{DynamicResource AccentSoftBrush}" Data="M 1 3 H 17 V 15 H 1 Z M 3 5 V 13 H 15 V 5 Z M 4 6 L 8 9 L 4 12 V 10 L 6 9 L 4 8 Z M 9 11 H 13 V 12 H 9 Z"/>
                                         </Viewbox>
                                         <StackPanel>
                                             <TextBlock Text="{Binding OutputHeaderTitle}"
-                                                       Foreground="{StaticResource TextMainBrush}"
+                                                       Foreground="{DynamicResource TextMainBrush}"
                                                        FontSize="13"
                                                        FontWeight="SemiBold"/>
                                             <TextBlock Text="{Binding LastRunStatus}"
@@ -1352,7 +1353,7 @@
                                         <Setter Property="MinWidth" Value="126"/>
                                         <Setter Property="Padding" Value="14,8"/>
                                         <Setter Property="Margin" Value="0"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                         <Setter Property="Background" Value="#22252B"/>
                                         <Setter Property="BorderBrush" Value="#30343B"/>
                                         <Setter Property="BorderThickness" Value="0,0,1,1"/>
@@ -1376,17 +1377,17 @@
                                                         <Border x:Name="ActiveRail"
                                                                 Height="2"
                                                                 VerticalAlignment="Bottom"
-                                                                Background="{StaticResource AccentSoftBrush}"
+                                                                Background="{DynamicResource AccentSoftBrush}"
                                                                 Opacity="0"/>
                                                     </Grid>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
                                                             <Setter TargetName="TabSurface" Property="Background" Value="#2A2E35"/>
-                                                            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}"/>
                                                         </Trigger>
                                                         <Trigger Property="IsSelected" Value="True">
                                                             <Setter Property="Background" Value="#181A1F"/>
-                                                            <Setter Property="Foreground" Value="{StaticResource TextMainBrush}"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}"/>
                                                             <Setter Property="BorderBrush" Value="#181A1F"/>
                                                             <Setter TargetName="ActiveRail" Property="Opacity" Value="1"/>
                                                         </Trigger>
@@ -1411,11 +1412,11 @@
                                                  FontFamily="Consolas"
                                                  FontSize="15"
                                                  Background="#181A1F"
-                                                 Foreground="{StaticResource TextMainBrush}"
+                                                 Foreground="{DynamicResource TextMainBrush}"
                                                  BorderThickness="0"
                                                  Padding="18,16,18,22"
                                                  Cursor="IBeam"
-                                                 CaretBrush="{StaticResource TextMainBrush}"
+                                                 CaretBrush="{DynamicResource TextMainBrush}"
                                                  HorizontalScrollBarVisibility="Disabled"
                                                  VerticalScrollBarVisibility="Auto"
                                                  PreviewKeyDown="VmOutputBox_OnPreviewKeyDown"
@@ -1423,26 +1424,28 @@
                                     </Border>
                                 </TabItem>
                                 <TabItem Header="Constant Pool">
-                                    <TextBox Text="{Binding ConstantPoolOutput, Mode=OneWay}"
+                                    <TextBox x:Name="ConstantPoolOutputBox"
+                                             Text="{Binding ConstantPoolOutput, Mode=OneWay}"
                                              IsReadOnly="True"
                                              TextWrapping="NoWrap"
                                              FontFamily="Consolas"
                                              FontSize="12"
                                              Background="#181A1F"
-                                             Foreground="{StaticResource TextMainBrush}"
+                                             Foreground="{DynamicResource TextMainBrush}"
                                              BorderThickness="0"
                                              Padding="14,12"
                                              HorizontalScrollBarVisibility="Auto"
                                              VerticalScrollBarVisibility="Auto"/>
                                 </TabItem>
                                 <TabItem Header="Instructions">
-                                    <TextBox Text="{Binding InstructionsOutput, Mode=OneWay}"
+                                    <TextBox x:Name="InstructionsOutputBox"
+                                             Text="{Binding InstructionsOutput, Mode=OneWay}"
                                              IsReadOnly="True"
                                              TextWrapping="NoWrap"
                                              FontFamily="Consolas"
                                              FontSize="12"
                                              Background="#181A1F"
-                                             Foreground="{StaticResource TextMainBrush}"
+                                             Foreground="{DynamicResource TextMainBrush}"
                                              BorderThickness="0"
                                              Padding="14,12"
                                              HorizontalScrollBarVisibility="Auto"
@@ -1455,7 +1458,7 @@
             </Grid>
 
             <Grid Visibility="{Binding IsWelcomeViewVisible, Converter={StaticResource BoolToVisibility}}">
-                <Border Background="{StaticResource BgMainBrush}" Padding="34,30">
+                <Border Background="{DynamicResource BgMainBrush}" Padding="34,30">
                     <Grid MaxWidth="1180" HorizontalAlignment="Center">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="1.1*"/>
@@ -1485,11 +1488,11 @@
                             <TextBlock Text="Project workspace"
                                        FontSize="18"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextMainBrush}"
+                                       Foreground="{DynamicResource TextMainBrush}"
                                        Margin="0,0,0,8"/>
                             <TextBlock Text="Create, open, close, and clean up Fava projects from one place."
                                        TextWrapping="Wrap"
-                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
                                        FontSize="14"
                                        LineHeight="21"
                                        Margin="0,0,0,22"/>
@@ -1509,8 +1512,8 @@
                         </StackPanel>
 
                         <Border Grid.Column="2"
-                                Background="{StaticResource BgPanelBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
+                                Background="{DynamicResource BgPanelBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
                                 Padding="0">
@@ -1520,21 +1523,21 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
                                 <Border Padding="16,12"
-                                        Background="{StaticResource BgPanelAltBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
+                                        Background="{DynamicResource BgPanelAltBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         CornerRadius="6,6,0,0">
                                     <DockPanel>
                                         <TextBlock Text="{Binding WelcomeRecentProjects.Count}"
                                                    DockPanel.Dock="Right"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    FontFamily="Consolas"
                                                    FontSize="12"
                                                    VerticalAlignment="Center"/>
                                         <TextBlock Text="Recent Projects"
                                                    FontWeight="SemiBold"
                                                    FontSize="18"
-                                                   Foreground="{StaticResource TextMainBrush}"/>
+                                                   Foreground="{DynamicResource TextMainBrush}"/>
                                     </DockPanel>
                                 </Border>
 
@@ -1562,8 +1565,8 @@
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <Border Margin="0,0,0,6"
-                                                    Background="{StaticResource ControlDarkerBrush}"
-                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    Background="{DynamicResource ControlDarkerBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="1"
                                                     CornerRadius="6"
                                                     Padding="10">
@@ -1587,17 +1590,17 @@
                                                     </Border>
                                                     <StackPanel Grid.Column="2">
                                                         <TextBlock Text="{Binding Name}"
-                                                                   Foreground="{StaticResource TextMainBrush}"
+                                                                   Foreground="{DynamicResource TextMainBrush}"
                                                                    FontSize="15"
                                                                    FontWeight="SemiBold"
                                                                    TextTrimming="CharacterEllipsis"/>
                                                         <TextBlock Text="{Binding Location}"
-                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                                    FontSize="12"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    Margin="0,2,0,0"/>
                                                         <TextBlock Text="{Binding Details}"
-                                                                   Foreground="{StaticResource AccentSoftBrush}"
+                                                                   Foreground="{DynamicResource AccentSoftBrush}"
                                                                    FontSize="11"
                                                                    Margin="0,4,0,0"/>
                                                     </StackPanel>
@@ -1624,7 +1627,7 @@
                                                                 Margin="0">
                                                             <TextBlock Text="&#xE74D;"
                                                                        FontFamily="Segoe MDL2 Assets"
-                                                                       Foreground="{StaticResource DangerBrush}"
+                                                                       Foreground="{DynamicResource DangerBrush}"
                                                                        FontSize="12"
                                                                        HorizontalAlignment="Center"
                                                                        VerticalAlignment="Center"/>
@@ -1641,18 +1644,18 @@
                 </Border>
             </Grid>
             <Grid Visibility="{Binding IsSettingsViewVisible, Converter={StaticResource BoolToVisibility}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{StaticResource BgMainBrush}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{DynamicResource BgMainBrush}">
                     <StackPanel MaxWidth="980">
                         <DockPanel Margin="0,0,0,20">
                             <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" Padding="14,7" Margin="0"/>
                             <StackPanel>
-                                <TextBlock Text="Settings" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}"/>
-                                <TextBlock Text="Workspace, compiler, editor output, and test runner preferences." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                <TextBlock Text="Settings" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}"/>
+                                <TextBlock Text="Workspace, compiler, editor output, and test runner preferences." Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                         </DockPanel>
 
-                        <Border Background="{StaticResource BgPanelBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
+                        <Border Background="{DynamicResource BgPanelBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
                                 Padding="16,14"
@@ -1662,18 +1665,18 @@
                                     <TextBlock Text="{Binding CompilerStatusText}" Foreground="{Binding CompilerStatusBrush}" FontWeight="SemiBold"/>
                                 </Border>
                                 <StackPanel>
-                                    <TextBlock Text="{Binding SettingsProjectName}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}"/>
-                                    <TextBlock Text="{Binding SettingsProjectPath}" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding SettingsProjectName}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
+                                    <TextBlock Text="{Binding SettingsProjectPath}" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
                                 </StackPanel>
                             </DockPanel>
                         </Border>
 
-                        <Border BorderBrush="{StaticResource BorderBrush}"
+                        <Border BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
                                 Padding="16,14"
                                 Margin="0,0,0,14"
-                                Background="{StaticResource BgPanelBrush}">
+                                Background="{DynamicResource BgPanelBrush}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="170"/>
@@ -1690,29 +1693,275 @@
                                     <RowDefinition Height="10"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Compiler" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Compiler" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Java executable" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Java executable" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"/>
                                 <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding JavaPath, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
-                                <Border Grid.Row="2" Grid.Column="2" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{Binding JavaStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
+                                <Border Grid.Row="2" Grid.Column="2" Background="{DynamicResource ControlDarkerBrush}" BorderBrush="{Binding JavaStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
                                     <TextBlock Text="{Binding JavaStatusText}" Foreground="{Binding JavaStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
                                 </Border>
                                 <Button Grid.Row="2" Grid.Column="3" Content="Browse" Command="{Binding BrowseJavaPathCommand}" Margin="8,0,0,0" Padding="12,5"/>
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Compiler root" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Compiler root" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"/>
                                 <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding CompilerRoot, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
-                                <Border Grid.Row="4" Grid.Column="2" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{Binding CompilerRootStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
+                                <Border Grid.Row="4" Grid.Column="2" Background="{DynamicResource ControlDarkerBrush}" BorderBrush="{Binding CompilerRootStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
                                     <TextBlock Text="{Binding CompilerRootStatusText}" Foreground="{Binding CompilerRootStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
                                 </Border>
                                 <Button Grid.Row="4" Grid.Column="3" Content="Browse" Command="{Binding BrowseCompilerRootCommand}" Margin="8,0,0,0" Padding="12,5"/>
 
-                                <TextBlock Grid.Row="6" Grid.Column="0" Text="ANTLR jar" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="ANTLR jar" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"/>
                                 <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding AntlrJar, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
-                                <Border Grid.Row="6" Grid.Column="2" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{Binding AntlrStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
+                                <Border Grid.Row="6" Grid.Column="2" Background="{DynamicResource ControlDarkerBrush}" BorderBrush="{Binding AntlrStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="8,0,0,0">
                                     <TextBlock Text="{Binding AntlrStatusText}" Foreground="{Binding AntlrStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
                                 </Border>
                                 <Button Grid.Row="6" Grid.Column="3" Content="Browse" Command="{Binding BrowseAntlrJarCommand}" Margin="8,0,0,0" Padding="12,5"/>
                             </Grid>
+                        </Border>
+
+                        <Border BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="16,14"
+                                Margin="0,0,0,14"
+                                Background="{DynamicResource BgPanelBrush}">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,14">
+                                    <Border DockPanel.Dock="Right"
+                                            Width="164"
+                                            Height="54"
+                                            Background="{DynamicResource BgMainBrush}"
+                                            BorderBrush="{DynamicResource AccentBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            Padding="8">
+                                        <StackPanel>
+                                            <TextBlock Text="Aa Fava"
+                                                       Foreground="{DynamicResource TextMainBrush}"
+                                                       FontFamily="{Binding EditorFontFamily}"
+                                                       FontSize="{Binding EditorFontSize}"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="live preview"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       FontSize="11"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <StackPanel>
+                                        <TextBlock Text="Style" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
+                                        <TextBlock Text="Colors accept hex values like #1E1F22 or #FF9A3D. Changes preview immediately and save with settings."
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                            <Button Content="Default" Command="{Binding ApplyStylePresetCommand}" CommandParameter="default" Padding="10,4" Margin="0,0,6,0"/>
+                                            <Button Content="Graphite" Command="{Binding ApplyStylePresetCommand}" CommandParameter="graphite" Padding="10,4" Margin="0,0,6,0"/>
+                                            <Button Content="Ember" Command="{Binding ApplyStylePresetCommand}" CommandParameter="ember" Padding="10,4" Margin="0,0,6,0"/>
+                                            <Button Content="Mint" Command="{Binding ApplyStylePresetCommand}" CommandParameter="mint" Padding="10,4" Margin="0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="8"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="8"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="8"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="App background" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="2" Grid.Column="0">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiBackgroundColor" Background="{Binding UiBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding UiBackgroundColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Panel" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="6" Grid.Column="0">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiPanelColor" Background="{Binding UiPanelColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding UiPanelColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Panel alt" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="2" Grid.Column="2">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiPanelAltColor" Background="{Binding UiPanelAltColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding UiPanelAltColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+                                    <TextBlock Grid.Row="4" Grid.Column="2" Text="Border" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="6" Grid.Column="2">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiBorderColor" Background="{Binding UiBorderColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding UiBorderColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="4" Text="Accent" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="2" Grid.Column="4">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiAccentColor" Background="{Binding UiAccentColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding UiAccentColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+                                    <TextBlock Grid.Row="4" Grid.Column="4" Text="Text" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="6" Grid.Column="4">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiTextColor" Background="{Binding UiTextColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding UiTextColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+                                </Grid>
+
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="8"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="8"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Muted text" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="2" Grid.Column="0">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiMutedTextColor" Background="{Binding UiMutedTextColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding UiMutedTextColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Editor background" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="2" Grid.Column="2">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="EditorBackgroundColor" Background="{Binding EditorBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding EditorBackgroundColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="4" Text="Console background" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                    <DockPanel Grid.Row="2" Grid.Column="4">
+                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="ConsoleBackgroundColor" Background="{Binding ConsoleBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <TextBox Text="{Binding ConsoleBackgroundColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </DockPanel>
+
+                                    <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2">
+                                        <TextBlock Text="Editor font" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding EditorFontFamily, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="4" Grid.Column="2">
+                                        <DockPanel Margin="0,0,0,4">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding EditorFontSize, StringFormat={}{0:0}}" Foreground="{DynamicResource TextMainBrush}" FontFamily="Consolas"/>
+                                            <TextBlock Text="Editor size" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                        </DockPanel>
+                                        <Slider Minimum="10" Maximum="24" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding EditorFontSize, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="4" Grid.Column="4">
+                                        <DockPanel Margin="0,0,0,4">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding ConsoleFontSize, StringFormat={}{0:0}}" Foreground="{DynamicResource TextMainBrush}" FontFamily="Consolas"/>
+                                            <TextBlock Text="Console size" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
+                                        </DockPanel>
+                                        <Slider Minimum="10" Maximum="24" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding ConsoleFontSize, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{DynamicResource BgPanelBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="16,14"
+                                Margin="0,0,0,14">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,12">
+                                    <CheckBox DockPanel.Dock="Right"
+                                              Content="Enabled"
+                                              IsChecked="{Binding DiscordPresenceEnabled}"
+                                              VerticalAlignment="Center"/>
+                                    <StackPanel>
+                                        <TextBlock Text="Discord Rich Presence"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextMainBrush}"/>
+                                        <TextBlock Text="Shows your current Fava Studio context in Discord when enabled."
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="170"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="0"
+                                               Text="Top line"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
+                                    <ComboBox Grid.Row="0"
+                                              Grid.Column="1"
+                                              ItemsSource="{Binding DiscordPresenceOptions}"
+                                              DisplayMemberPath="Label"
+                                              SelectedValuePath="Key"
+                                              SelectedValue="{Binding DiscordDetailsMode, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                    <TextBlock Grid.Row="2"
+                                               Grid.Column="0"
+                                               Text="Bottom line"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
+                                    <ComboBox Grid.Row="2"
+                                              Grid.Column="1"
+                                              ItemsSource="{Binding DiscordPresenceOptions}"
+                                              DisplayMemberPath="Label"
+                                              SelectedValuePath="Key"
+                                              SelectedValue="{Binding DiscordStateMode, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                    <TextBlock Grid.Row="4"
+                                               Grid.Column="0"
+                                               Text="Custom top"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
+                                    <TextBox Grid.Row="4"
+                                             Grid.Column="1"
+                                             Text="{Binding DiscordCustomDetails, UpdateSourceTrigger=PropertyChanged}"
+                                             FontFamily="Consolas"/>
+
+                                    <TextBlock Grid.Row="4"
+                                               Grid.Column="3"
+                                               Text="Custom bottom"
+                                               Margin="0,0,0,4"
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
+                                    <TextBox Grid.Row="6"
+                                             Grid.Column="3"
+                                             Text="{Binding DiscordCustomState, UpdateSourceTrigger=PropertyChanged}"
+                                             FontFamily="Consolas"/>
+
+                                    <TextBlock Grid.Row="6"
+                                               Grid.Column="1"
+                                               Text="Custom text supports {file}, {project}, {status}, {view}."
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               FontSize="12"/>
+                                </Grid>
+                            </StackPanel>
                         </Border>
 
                         <Grid Margin="0,0,0,14">
@@ -1722,28 +1971,28 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <Border Background="{StaticResource BgPanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14">
+                            <Border Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14">
                                 <StackPanel>
-                                    <TextBlock Text="Output" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" Margin="0,0,0,12"/>
+                                    <TextBlock Text="Output" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" Margin="0,0,0,12"/>
                                     <CheckBox Content="Show VM output only" IsChecked="{Binding ShowOutputOnly}" Margin="0,0,0,8"/>
-                                    <TextBlock Text="Keeps the main run output focused by hiding constant pool and instruction sections." Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Keeps the main run output focused by hiding constant pool and instruction sections." Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
 
-                            <Border Grid.Column="2" Background="{StaticResource BgPanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14">
+                            <Border Grid.Column="2" Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14">
                                 <StackPanel>
                                     <DockPanel Margin="0,0,0,12">
-                                        <Border DockPanel.Dock="Right" Background="{StaticResource ControlDarkerBrush}" BorderBrush="{Binding TestFoldersStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4">
+                                        <Border DockPanel.Dock="Right" Background="{DynamicResource ControlDarkerBrush}" BorderBrush="{Binding TestFoldersStatusBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4">
                                             <TextBlock Text="{Binding TestFoldersStatusText}" Foreground="{Binding TestFoldersStatusBrush}" FontSize="12" FontWeight="SemiBold"/>
                                         </Border>
-                                        <TextBlock Text="Test Folders" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}"/>
+                                        <TextBlock Text="Test Folders" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
                                     </DockPanel>
-                                    <TextBlock Text="Inputs" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                                    <TextBlock Text="Inputs" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Margin="0,4,0,10">
                                         <Button DockPanel.Dock="Right" Content="Browse" Command="{Binding BrowseToolInputsFolderCommand}" Margin="8,0,0,0" Padding="12,5"/>
                                         <TextBox Text="{Binding ToolInputsFolder, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
-                                    <TextBlock Text="Expected outputs" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                                    <TextBlock Text="Expected outputs" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Margin="0,4,0,0">
                                         <Button DockPanel.Dock="Right" Content="Browse" Command="{Binding BrowseToolOutputsFolderCommand}" Margin="8,0,0,0" Padding="12,5"/>
                                         <TextBox Text="{Binding ToolOutputsFolder, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
@@ -1752,15 +2001,15 @@
                             </Border>
                         </Grid>
 
-                        <Border Background="{StaticResource BgPanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14" Margin="0,0,0,16">
+                        <Border Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16,14" Margin="0,0,0,16">
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                     <Button Content="Clear Projects" Command="{Binding ClearRecentProjectsCommand}" Padding="12,5" Margin="0,0,8,0"/>
                                     <Button Content="Clear Files" Command="{Binding ClearRecentFilesCommand}" Padding="12,5" Margin="0"/>
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Text="Recent History" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}"/>
-                                    <TextBlock Text="{Binding RecentSummary}" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                    <TextBlock Text="Recent History" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
+                                    <TextBlock Text="{Binding RecentSummary}" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                 </StackPanel>
                             </DockPanel>
                         </Border>
@@ -1776,19 +2025,19 @@
             </Grid>
 
             <Grid Visibility="{Binding IsToolsViewVisible, Converter={StaticResource BoolToVisibility}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{StaticResource BgMainBrush}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{DynamicResource BgMainBrush}">
                     <StackPanel MaxWidth="900">
                         <DockPanel Margin="0,0,0,18">
                             <TextBlock DockPanel.Dock="Left" Text="Tools • Test Compare" FontSize="24" FontWeight="Bold"/>
                             <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" />
                         </DockPanel>
 
-                        <Border BorderBrush="{StaticResource BorderBrush}"
+                        <Border BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
                                 Padding="14,12"
                                 Margin="0,0,0,16"
-                                Background="{StaticResource BgPanelBrush}">
+                                Background="{DynamicResource BgPanelBrush}">
                             <StackPanel>
                                 <TextBlock Text="Auto Pair by Folder (name-based)"
                                            FontSize="16"
@@ -1830,12 +2079,12 @@
                             </StackPanel>
                         </Border>
 
-                        <Border BorderBrush="{StaticResource BorderBrush}"
+                        <Border BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
                                 Padding="12,9"
                                 Margin="0,0,0,12"
-                                Background="{StaticResource BgPanelBrush}">
+                                Background="{DynamicResource BgPanelBrush}">
                             <TextBlock Text="{Binding ToolRunSummary}" FontSize="15" FontWeight="SemiBold"/>
                         </Border>
 
@@ -1928,14 +2177,14 @@
             </Grid>
 
             <Grid Visibility="{Binding IsVisualizerViewVisible, Converter={StaticResource BoolToVisibility}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{StaticResource BgMainBrush}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20" Background="{DynamicResource BgMainBrush}">
                     <StackPanel MaxWidth="1180">
                         <DockPanel Margin="0,0,0,18">
                             <TextBlock DockPanel.Dock="Left" Text="Visualizer • Stack Explorer" FontSize="24" FontWeight="Bold"/>
                             <Button DockPanel.Dock="Right" Content="Back to Editor" Command="{Binding BackToEditorCommand}" />
                         </DockPanel>
 
-                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,12" Background="{StaticResource BgPanelBrush}">
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,12" Background="{DynamicResource BgPanelBrush}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -1943,7 +2192,7 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="{Binding VisualizerInfo}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                                    <TextBlock Text="Stack visualization follows your current file output (constant pool + instructions)." Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="Stack visualization follows your current file output (constant pool + instructions)." Foreground="{DynamicResource TextMutedBrush}"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" VerticalAlignment="Top">
                                     <Button Content="Load Current File" Command="{Binding VisualizerLoadCurrentCommand}" Padding="12,6" Margin="0,0,8,0"/>
@@ -2113,7 +2362,7 @@
 
             <Border Visibility="{Binding IsQuickOpenVisible, Converter={StaticResource BoolToVisibility}}"
                     Background="#AA111218"
-                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="10"
                     Margin="140,60,140,90"
@@ -2147,14 +2396,14 @@
         </Grid>
 
         <Border Grid.Row="2"
-                Background="{StaticResource BgPanelBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
+                Background="{DynamicResource BgPanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="12,5">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Right"
                            Text="{Binding FooterText}"
-                           Foreground="{StaticResource TextMutedBrush}"
+                           Foreground="{DynamicResource TextMutedBrush}"
                            FontSize="11"
                            VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding StatusText}"

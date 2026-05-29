@@ -7,14 +7,18 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using ICSharpCode.AvalonEdit;
 using FavaStudio.Models;
 using FavaStudio.Services;
 using Microsoft.Win32;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace FavaStudio.ViewModels;
+
+public sealed record DiscordPresenceOption(string Key, string Label);
 
 public class MainViewModel : INotifyPropertyChanged
 {
@@ -115,8 +119,19 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<string> QuickOpenResults { get; } = new();
     public ObservableCollection<DebugStackEntry> DebugStack { get; } = new();
+    public IReadOnlyList<DiscordPresenceOption> DiscordPresenceOptions { get; } =
+    [
+        new("file", "Current file"),
+        new("project", "Project name"),
+        new("projectStatus", "Project + run status"),
+        new("status", "Run status"),
+        new("view", "Current IDE view"),
+        new("custom", "Custom text"),
+        new("hidden", "Do not show")
+    ];
 
     public SettingsService Settings { get; } = SettingsService.Load();
+    public event Action? StyleSettingsChanged;
 
     public string FooterText => "Fava Studio • built for your Fava compiler";
     public string CurrentFileName
@@ -297,6 +312,48 @@ public class MainViewModel : INotifyPropertyChanged
     }
     public string SelectedTestDurationText => SelectedTestResult?.DurationText ?? "--";
     public bool ShowTestOutput { get => Settings.ShowTestOutput; set { Settings.ShowTestOutput = value; OnPropertyChanged(); } }
+    public string UiBackgroundColor { get => Settings.UiBackgroundColor; set => SetStyleSetting(Settings.UiBackgroundColor, value, v => Settings.UiBackgroundColor = v); }
+    public string UiPanelColor { get => Settings.UiPanelColor; set => SetStyleSetting(Settings.UiPanelColor, value, v => Settings.UiPanelColor = v); }
+    public string UiPanelAltColor { get => Settings.UiPanelAltColor; set => SetStyleSetting(Settings.UiPanelAltColor, value, v => Settings.UiPanelAltColor = v); }
+    public string UiTextColor { get => Settings.UiTextColor; set => SetStyleSetting(Settings.UiTextColor, value, v => Settings.UiTextColor = v); }
+    public string UiMutedTextColor { get => Settings.UiMutedTextColor; set => SetStyleSetting(Settings.UiMutedTextColor, value, v => Settings.UiMutedTextColor = v); }
+    public string UiAccentColor { get => Settings.UiAccentColor; set => SetStyleSetting(Settings.UiAccentColor, value, v => Settings.UiAccentColor = v); }
+    public string UiBorderColor { get => Settings.UiBorderColor; set => SetStyleSetting(Settings.UiBorderColor, value, v => Settings.UiBorderColor = v); }
+    public string EditorBackgroundColor { get => Settings.EditorBackgroundColor; set => SetStyleSetting(Settings.EditorBackgroundColor, value, v => Settings.EditorBackgroundColor = v); }
+    public string ConsoleBackgroundColor { get => Settings.ConsoleBackgroundColor; set => SetStyleSetting(Settings.ConsoleBackgroundColor, value, v => Settings.ConsoleBackgroundColor = v); }
+    public string EditorFontFamily { get => Settings.EditorFontFamily; set => SetStyleSetting(Settings.EditorFontFamily, value, v => Settings.EditorFontFamily = v); }
+    public double EditorFontSize { get => Settings.EditorFontSize; set => SetStyleNumber(Settings.EditorFontSize, value, v => Settings.EditorFontSize = v); }
+    public double ConsoleFontSize { get => Settings.ConsoleFontSize; set => SetStyleNumber(Settings.ConsoleFontSize, value, v => Settings.ConsoleFontSize = v); }
+    public bool DiscordPresenceEnabled
+    {
+        get => Settings.DiscordPresenceEnabled;
+        set
+        {
+            if (Settings.DiscordPresenceEnabled == value) return;
+            Settings.DiscordPresenceEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+    public string DiscordDetailsMode
+    {
+        get => Settings.DiscordDetailsMode;
+        set => SetPlainSetting(Settings.DiscordDetailsMode, value, v => Settings.DiscordDetailsMode = v);
+    }
+    public string DiscordStateMode
+    {
+        get => Settings.DiscordStateMode;
+        set => SetPlainSetting(Settings.DiscordStateMode, value, v => Settings.DiscordStateMode = v);
+    }
+    public string DiscordCustomDetails
+    {
+        get => Settings.DiscordCustomDetails;
+        set => SetPlainSetting(Settings.DiscordCustomDetails, value, v => Settings.DiscordCustomDetails = v);
+    }
+    public string DiscordCustomState
+    {
+        get => Settings.DiscordCustomState;
+        set => SetPlainSetting(Settings.DiscordCustomState, value, v => Settings.DiscordCustomState = v);
+    }
     public string LastRunStatus { get => _lastRunStatus; set { _lastRunStatus = value; OnPropertyChanged(); } }
     public string LastRunDurationText { get => _lastRunDurationText; set { _lastRunDurationText = value; OnPropertyChanged(); } }
     public Brush LastRunStatusBrush { get => _lastRunStatusBrush; set { _lastRunStatusBrush = value; OnPropertyChanged(); } }
@@ -480,6 +537,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BrowseCompilerRootCommand { get; }
     public RelayCommand BrowseAntlrJarCommand { get; }
     public RelayCommand SaveSettingsCommand { get; }
+    public RelayCommand ApplyStylePresetCommand { get; }
+    public RelayCommand ChooseStyleColorCommand { get; }
     public RelayCommand ClearRecentProjectsCommand { get; }
     public RelayCommand ClearRecentFilesCommand { get; }
     public RelayCommand OpenToolsCommand { get; }
@@ -580,6 +639,8 @@ public class MainViewModel : INotifyPropertyChanged
         BrowseCompilerRootCommand = new RelayCommand(_ => BrowseFolder(v => CompilerRoot = v, "Compiler Root Folder"));
         BrowseAntlrJarCommand = new RelayCommand(_ => BrowseAntlrJar());
         SaveSettingsCommand = new RelayCommand(_ => SaveSettings());
+        ApplyStylePresetCommand = new RelayCommand(p => ApplyStylePreset(p as string));
+        ChooseStyleColorCommand = new RelayCommand(p => ChooseStyleColor(p as string), p => !string.IsNullOrWhiteSpace(p as string));
         ClearRecentProjectsCommand = new RelayCommand(_ =>
         {
             Settings.RecentProjects.Clear();
@@ -1462,9 +1523,43 @@ public class MainViewModel : INotifyPropertyChanged
             _consoleInputWriter = null;
             IsConsoleAcceptingInput = false;
             IsExecutionRunning = false;
+            SyncProjectFilesAfterRun();
             _executionCancellationSource?.Dispose();
             _executionCancellationSource = null;
         }
+    }
+
+    private void SyncProjectFilesAfterRun()
+    {
+        if (string.IsNullOrWhiteSpace(Settings.ProjectRoot) || !Directory.Exists(Settings.ProjectRoot))
+            return;
+
+        if (_selectedEditorTab is not null)
+        {
+            _selectedEditorTab.Content = _editor.Text;
+            _selectedEditorTab.IsDirty = _hasUnsavedChanges;
+        }
+
+        var selectedPath = SelectedProjectNode?.FullPath;
+        var parentPath = !string.IsNullOrWhiteSpace(_currentFile)
+            ? Path.GetDirectoryName(_currentFile)
+            : null;
+
+        var vanishedCleanTabs = OpenEditorTabs
+            .Where(tab => !tab.IsDirty && !File.Exists(tab.FilePath))
+            .ToList();
+
+        foreach (var tab in vanishedCleanTabs)
+            RemoveEditorTabWithoutPrompt(tab);
+
+        if (!string.IsNullOrWhiteSpace(selectedPath)
+            && !File.Exists(selectedPath)
+            && !Directory.Exists(selectedPath))
+        {
+            selectedPath = null;
+        }
+
+        RefreshProjectTree(selectedPath, parentPath);
     }
 
     private async void SendConsoleInput()
@@ -2755,10 +2850,262 @@ public class MainViewModel : INotifyPropertyChanged
     private void SaveSettings()
     {
         Settings.Save();
+        StyleSettingsChanged?.Invoke();
         StatusText = "Settings saved.";
         StatusColor = Brushes.LightGreen;
         RaiseSettingsValidationChanged();
     }
+
+    private void SetPlainSetting(string currentValue, string newValue, Action<string> assign, [CallerMemberName] string? propertyName = null)
+    {
+        if (currentValue == newValue) return;
+        assign(newValue);
+        OnPropertyChanged(propertyName);
+    }
+
+    private void SetStyleSetting(string currentValue, string newValue, Action<string> assign, [CallerMemberName] string? propertyName = null)
+    {
+        if (currentValue == newValue) return;
+        assign(newValue);
+        OnPropertyChanged(propertyName);
+        StyleSettingsChanged?.Invoke();
+    }
+
+    private void SetStyleNumber(double currentValue, double newValue, Action<double> assign, [CallerMemberName] string? propertyName = null)
+    {
+        var clamped = Math.Clamp(newValue, 10, 24);
+        if (Math.Abs(currentValue - clamped) < 0.01) return;
+        assign(clamped);
+        OnPropertyChanged(propertyName);
+        StyleSettingsChanged?.Invoke();
+    }
+
+    private void ApplyStylePreset(string? preset)
+    {
+        switch ((preset ?? "default").ToLowerInvariant())
+        {
+            case "graphite":
+                SetStyleValues("#17191D", "#24272D", "#1E2127", "#ECEFF4", "#A8B0BE", "#8AB4FF", "#3A404A", "#16181C", "#14161A", "Cascadia Mono", 15, 15);
+                break;
+            case "ember":
+                SetStyleValues("#201B19", "#2D2622", "#261F1C", "#F2ECE6", "#B8AAA0", "#FF9A3D", "#4B3B34", "#1B1715", "#181412", "Consolas", 15, 15);
+                break;
+            case "mint":
+                SetStyleValues("#141C1B", "#20302D", "#1A2927", "#E7F5F1", "#9DB8B0", "#56D6A3", "#314B46", "#111817", "#101615", "Cascadia Mono", 15, 15);
+                break;
+            default:
+                SetStyleValues("#1E1F22", "#2B2D30", "#25262A", "#E6EAF0", "#9AA4B2", "#4D8DFF", "#3C3F41", "#1E1F22", "#181A1F", "Consolas", 15, 15);
+                break;
+        }
+    }
+
+    private void SetStyleValues(
+        string background,
+        string panel,
+        string panelAlt,
+        string text,
+        string muted,
+        string accent,
+        string border,
+        string editorBackground,
+        string consoleBackground,
+        string editorFont,
+        double editorSize,
+        double consoleSize)
+    {
+        Settings.UiBackgroundColor = background;
+        Settings.UiPanelColor = panel;
+        Settings.UiPanelAltColor = panelAlt;
+        Settings.UiTextColor = text;
+        Settings.UiMutedTextColor = muted;
+        Settings.UiAccentColor = accent;
+        Settings.UiBorderColor = border;
+        Settings.EditorBackgroundColor = editorBackground;
+        Settings.ConsoleBackgroundColor = consoleBackground;
+        Settings.EditorFontFamily = editorFont;
+        Settings.EditorFontSize = editorSize;
+        Settings.ConsoleFontSize = consoleSize;
+
+        OnPropertyChanged(nameof(UiBackgroundColor));
+        OnPropertyChanged(nameof(UiPanelColor));
+        OnPropertyChanged(nameof(UiPanelAltColor));
+        OnPropertyChanged(nameof(UiTextColor));
+        OnPropertyChanged(nameof(UiMutedTextColor));
+        OnPropertyChanged(nameof(UiAccentColor));
+        OnPropertyChanged(nameof(UiBorderColor));
+        OnPropertyChanged(nameof(EditorBackgroundColor));
+        OnPropertyChanged(nameof(ConsoleBackgroundColor));
+        OnPropertyChanged(nameof(EditorFontFamily));
+        OnPropertyChanged(nameof(EditorFontSize));
+        OnPropertyChanged(nameof(ConsoleFontSize));
+        StyleSettingsChanged?.Invoke();
+    }
+
+    private void ChooseStyleColor(string? propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(propertyName))
+            return;
+
+        var current = GetStyleColorValue(propertyName);
+        var initial = ParseMediaColor(current);
+        var selected = ShowColorPicker(initial, propertyName);
+        if (selected is not Color color)
+            return;
+
+        SetStyleColorValue(propertyName, $"#{color.R:X2}{color.G:X2}{color.B:X2}");
+    }
+
+    private string GetStyleColorValue(string propertyName) => propertyName switch
+    {
+        nameof(UiBackgroundColor) => UiBackgroundColor,
+        nameof(UiPanelColor) => UiPanelColor,
+        nameof(UiPanelAltColor) => UiPanelAltColor,
+        nameof(UiTextColor) => UiTextColor,
+        nameof(UiMutedTextColor) => UiMutedTextColor,
+        nameof(UiAccentColor) => UiAccentColor,
+        nameof(UiBorderColor) => UiBorderColor,
+        nameof(EditorBackgroundColor) => EditorBackgroundColor,
+        nameof(ConsoleBackgroundColor) => ConsoleBackgroundColor,
+        _ => "#1E1F22"
+    };
+
+    private void SetStyleColorValue(string propertyName, string value)
+    {
+        switch (propertyName)
+        {
+            case nameof(UiBackgroundColor): UiBackgroundColor = value; break;
+            case nameof(UiPanelColor): UiPanelColor = value; break;
+            case nameof(UiPanelAltColor): UiPanelAltColor = value; break;
+            case nameof(UiTextColor): UiTextColor = value; break;
+            case nameof(UiMutedTextColor): UiMutedTextColor = value; break;
+            case nameof(UiAccentColor): UiAccentColor = value; break;
+            case nameof(UiBorderColor): UiBorderColor = value; break;
+            case nameof(EditorBackgroundColor): EditorBackgroundColor = value; break;
+            case nameof(ConsoleBackgroundColor): ConsoleBackgroundColor = value; break;
+        }
+    }
+
+    private static Color ParseMediaColor(string value)
+    {
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(value.Trim());
+        }
+        catch
+        {
+            return Color.FromRgb(30, 31, 34);
+        }
+    }
+
+    private static Color? ShowColorPicker(Color initial, string title)
+    {
+        var color = initial;
+        var swatch = new Rectangle
+        {
+            Height = 58,
+            RadiusX = 5,
+            RadiusY = 5,
+            Stroke = new SolidColorBrush(Color.FromRgb(60, 63, 65)),
+            StrokeThickness = 1,
+            Fill = new SolidColorBrush(color)
+        };
+        var hexText = new TextBlock
+        {
+            Text = ToHex(color),
+            Foreground = Brushes.White,
+            FontFamily = new FontFamily("Consolas"),
+            FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 12)
+        };
+
+        Slider CreateSlider(byte value)
+        {
+            return new Slider
+            {
+                Minimum = 0,
+                Maximum = 255,
+                TickFrequency = 1,
+                IsSnapToTickEnabled = true,
+                Value = value,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+        }
+
+        var red = CreateSlider(color.R);
+        var green = CreateSlider(color.G);
+        var blue = CreateSlider(color.B);
+
+        void Refresh()
+        {
+            color = Color.FromRgb((byte)red.Value, (byte)green.Value, (byte)blue.Value);
+            swatch.Fill = new SolidColorBrush(color);
+            hexText.Text = ToHex(color);
+        }
+
+        red.ValueChanged += (_, _) => Refresh();
+        green.ValueChanged += (_, _) => Refresh();
+        blue.ValueChanged += (_, _) => Refresh();
+
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        panel.Children.Add(swatch);
+        panel.Children.Add(hexText);
+        panel.Children.Add(BuildColorSliderRow("R", red));
+        panel.Children.Add(BuildColorSliderRow("G", green));
+        panel.Children.Add(BuildColorSliderRow("B", blue));
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 14, 0, 0)
+        };
+        var ok = new Button { Content = "Apply", Padding = new Thickness(14, 6, 14, 6), MinWidth = 78, Margin = new Thickness(0, 0, 8, 0) };
+        var cancel = new Button { Content = "Cancel", Padding = new Thickness(14, 6, 14, 6), MinWidth = 78 };
+        buttons.Children.Add(ok);
+        buttons.Children.Add(cancel);
+        panel.Children.Add(buttons);
+
+        var dialog = new Window
+        {
+            Title = $"Choose {title}",
+            Content = panel,
+            Width = 360,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Background = new SolidColorBrush(Color.FromRgb(30, 31, 34)),
+            Foreground = Brushes.White,
+            Owner = Application.Current.MainWindow
+        };
+
+        ok.Click += (_, _) => dialog.DialogResult = true;
+        cancel.Click += (_, _) => dialog.DialogResult = false;
+
+        return dialog.ShowDialog() == true ? color : null;
+    }
+
+    private static Grid BuildColorSliderRow(string label, Slider slider)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42) });
+
+        var name = new TextBlock { Text = label, Foreground = Brushes.LightGray, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold };
+        var value = new TextBlock { Foreground = Brushes.LightGray, FontFamily = new FontFamily("Consolas"), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+        value.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Value") { Source = slider, StringFormat = "{0:0}" });
+
+        Grid.SetColumn(name, 0);
+        Grid.SetColumn(slider, 1);
+        Grid.SetColumn(value, 2);
+        grid.Children.Add(name);
+        grid.Children.Add(slider);
+        grid.Children.Add(value);
+        return grid;
+    }
+
+    private static string ToHex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 
     public void SetSelectedProjectNode(ProjectNode? node) => SelectedProjectNode = node;
 

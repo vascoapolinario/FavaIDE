@@ -14,6 +14,23 @@ public class SettingsService
     public bool ShowTestOutput { get; set; } = false;
     public List<string> RecentProjects { get; set; } = [];
     public List<string> RecentFiles { get; set; } = [];
+    public string UiBackgroundColor { get; set; } = "#1E1F22";
+    public string UiPanelColor { get; set; } = "#2B2D30";
+    public string UiPanelAltColor { get; set; } = "#25262A";
+    public string UiTextColor { get; set; } = "#E6EAF0";
+    public string UiMutedTextColor { get; set; } = "#9AA4B2";
+    public string UiAccentColor { get; set; } = "#4D8DFF";
+    public string UiBorderColor { get; set; } = "#3C3F41";
+    public string EditorBackgroundColor { get; set; } = "#1E1F22";
+    public string ConsoleBackgroundColor { get; set; } = "#181A1F";
+    public string EditorFontFamily { get; set; } = "Consolas";
+    public double EditorFontSize { get; set; } = 15;
+    public double ConsoleFontSize { get; set; } = 15;
+    public bool DiscordPresenceEnabled { get; set; } = false;
+    public string DiscordDetailsMode { get; set; } = "file";
+    public string DiscordStateMode { get; set; } = "projectStatus";
+    public string DiscordCustomDetails { get; set; } = "Editing {file}";
+    public string DiscordCustomState { get; set; } = "{project} - {status}";
 
     private static string SettingsPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
