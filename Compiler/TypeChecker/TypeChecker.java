@@ -508,6 +508,9 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
         if (stmt instanceof FavaParser.IfElseStmtContext ifElseStmt) {
             return alwaysReturns(ifElseStmt.stmt(0)) && alwaysReturns(ifElseStmt.stmt(1));
         }
+        if (stmt instanceof FavaParser.TryCatchStmtContext tryCatchStmt) {
+            return alwaysReturns(tryCatchStmt.stmt(0)) && alwaysReturns(tryCatchStmt.stmt(1));
+        }
         return false;
     }
 
@@ -714,7 +717,7 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
         collectGlobalDeclarations(ctx.decl());
         collectFunctionDeclarations(ctx.funcDecl());
 
-        if (resolveFunction("main") == null) {
+        if (ctx.moduleDecl() == null && resolveFunction("main") == null) {
             addError(ctx, "missing main()");
         }
 
@@ -895,6 +898,38 @@ public class TypeChecker extends FavaBaseVisitor<FavaType> {
             addError(ctx, "if expression must be of type bool");
         }
         visit(ctx.stmt(0));
+        visit(ctx.stmt(1));
+        return null;
+    }
+
+    @Override
+    public FavaType visitTryCatchStmt(FavaParser.TryCatchStmtContext ctx) {
+        visit(ctx.stmt(0));
+
+        if (ctx.ID() != null) {
+            symbolTable.enterScope();
+            String name = ctx.ID().getText();
+            boolean declaredCatchVariable = false;
+            if (symbolTable.containsInCurrentScope(name)) {
+                addError(ctx.ID().getSymbol().getLine(), ctx.ID().getSymbol().getCharPositionInLine() + 1, name + " already declared");
+            } else {
+                Symbol symbol = symbolTable.declareScopedVariable(
+                        name,
+                        FavaType.scalar(FavaLexer.STRING),
+                        Symbol.Kind.LOCAL_VARIABLE,
+                        nextLocalAddress++,
+                        ctx.ID().getSymbol().getLine());
+                remember(ctx.ID(), symbol);
+                declaredCatchVariable = true;
+            }
+            visit(ctx.stmt(1));
+            if (declaredCatchVariable) {
+                nextLocalAddress--;
+            }
+            symbolTable.exitScope();
+            return null;
+        }
+
         visit(ctx.stmt(1));
         return null;
     }

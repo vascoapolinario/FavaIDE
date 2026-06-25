@@ -12,6 +12,7 @@ public class SettingsService
     public string InputsDir { get; set; } = "";
     public string OutputsDir { get; set; } = "";
     public string ProjectRoot { get; set; } = "";
+    public string InterpreterEntryFile { get; set; } = "";
     public bool ShowTestOutput { get; set; } = false;
     public List<string> RecentProjects { get; set; } = [];
     public List<string> RecentFiles { get; set; } = [];
@@ -83,6 +84,7 @@ public class SettingsService
         InputsDir = "";
         OutputsDir = "";
         ProjectRoot = "";
+        InterpreterEntryFile = "";
         ShowTestOutput = defaults.ShowTestOutput;
         RecentProjects.Clear();
         RecentFiles.Clear();

@@ -1,146 +1,175 @@
-# Fava Studio
+# FavaStudio
 
-A modern Windows IDE for the Fava language, built with WPF (.NET 8), focused on productivity, diagnostics, and compiler workflow.
+FavaStudio is a Windows IDE and compiler workspace for the Fava programming language. It combines a themed code editor, project explorer, diagnostics, compiler integration, runtime output, debugging tools, tests, and a VM stack visualizer in one desktop app.
 
-## ✨ IDE Highlights
+![FavaStudio editor showcase](docs/images/IDEShowcase1.png)
 
-### Core IDE Experience
-- Dark, professional UI optimized for coding sessions.
-- Fast project explorer with file/folder management.
-- AvalonEdit-powered code editor for `.fava` and text files.
-- Live diagnostics panel with inline underline rendering.
-- Integrated run pipeline for the current file.
+The project is built around two parts:
 
-### New Productivity Features (this branch)
-1. **Welcome Start Screen**
-   - On startup (when no project is loaded), users now see a start experience with:
-     - **Create New Project**
-     - **Open Project**
-     - **Recent Projects**
-2. **Recent Projects (MRU)**
-   - Automatically tracks recently opened projects.
-   - Accessible from the welcome screen and **Project → Recent Projects**.
-3. **Recent Files (MRU)**
-   - Tracks opened/saved files.
-   - Accessible from **Project → Recent Files**.
-4. **Quick Open Palette**
-   - **Ctrl+P** (or **Project → Quick Open**) to quickly filter/open project files.
-   - Supports `.fava` and `.txt` file lookup.
-5. **Unsaved Changes Guard + File Dirty State**
-   - Current file name shows `*` when modified.
-   - Save/discard/cancel prompt when switching file/project with unsaved changes.
+- `src/FavaStudio`: the WPF/.NET IDE.
+- `Compiler`: the Java/ANTLR compiler, bytecode generator, and virtual machine used by the IDE.
 
-### Existing Tooling
-- **Tools → Open Test Tool** for pair-based compare workflows.
-- **Tools → Open Visualizer** for VM/stack execution analysis.
-- Click **Fava Studio** in header to return to editor quickly.
+## What Is Fava?
 
----
+Fava is a small typed programming language designed for learning, experimenting with compiler behavior, and building approachable programs with visible execution feedback.
 
-## 📸 Screenshots
+Fava supports:
 
-### Welcome Screen + Recent Projects
-![Welcome Screen](https://github.com/user-attachments/assets/aed53368-21d2-41d2-b402-7ea5a36284f7)
+- typed variables such as `integer`, `string`, `boolean`, and numeric values
+- functions with typed parameters and return values
+- conditionals, loops, recursion, and expression evaluation
+- strings, arrays, casts, input/output helpers, time/random/file helpers
+- modules and imports
+- runtime errors and `try` / `catch` blocks, including `catch (exception as ex)`
+- bytecode compilation to a custom VM instruction stream
 
-### Header + Tools Navigation (Open Test Tool + Open Visualizer)
-![Header Tools Menu](https://github.com/user-attachments/assets/10286fa4-6942-45bc-a699-0c7d85b9645f)
+Example:
 
----
+```fava
+function describeScore(integer score) -> string {
+    if (score >= 90) {
+        return "excellent";
+    } else {
+        if (score >= 70) {
+            return "solid";
+        }
+        return "practice";
+    }
+}
 
-## 🧰 Requirements
-
-- Windows 10/11
-- .NET 8 SDK (for building from source)
-- Java (on PATH, or configured in Settings)
-- FavaCompiler repository
-- `antlr-4.13.2-complete.jar`
-
----
-
-## 🚀 Run From Source
-
-1. Open `FavaStudio.sln` in Visual Studio 2022.
-2. Restore NuGet packages.
-3. Build and run (`F5`).
-
-CLI build (Linux/macOS/CI compatibility mode for WPF targeting metadata):
-
-```bash
-dotnet build FavaStudio.sln -p:EnableWindowsTargeting=true
+function main() {
+    string name := Read("Type your name: ");
+    integer score := ToInteger(Read("Score: "));
+    print("Hello " || name || ", result: " || describeScore(score));
+}
 ```
 
----
+## IDE Features
 
-## 📦 Release-Ready Packaging
+- project tree with in-IDE file, folder, rename, and delete workflows
+- tabbed editor for `.fava`, `.txt`, `.md`, and related project files
+- Markdown preview mode for `.md` files
+- syntax highlighting with customizable theme colors
+- live diagnostics, warnings, underline rendering, and an errors panel
+- integrated compiler/run pipeline with console output
+- stronger runtime error reporting and visible failed-run states
+- run button state skins that reflect idle, running, success, failure, and stopped states
+- debug mode with breakpoints, stepping, call navigation, and stack inspection
+- bytecode, constant pool, VM output, and instruction views
+- VM stack visualizer with step timeline and simulated output
+- test suite tooling for input/output test pairs
+- project metadata, recent projects, recent files, and quick open
+- configurable Java/compiler paths and UI themes
+- Discord Rich Presence integration
+- self-contained Windows publish script
 
-This repository now includes release automation and local publish scripts.
+## Screenshots
 
-### Local publish (Windows x64 self-contained)
+### Editor, Diagnostics, And Program Output
 
-PowerShell:
+![Editor with diagnostics and output](docs/images/IDEShowcase1.png)
+
+### Debug Mode
+
+Breakpoints, current instruction details, stack values, output, and stepping controls live in the same debugging workspace.
+
+![FavaStudio debug mode](docs/images/IDEDebugModeShowcase.png)
+
+### VM Stack Visualizer
+
+The visualizer loads compiler output and lets you inspect instruction flow, constants, stack changes, globals, and simulated VM output.
+
+![FavaStudio stack visualizer](docs/images/IDEStackVisualizerShowcase.png)
+
+### Theme And Syntax Settings
+
+FavaStudio includes multiple themes, custom UI colors, richer syntax color modes, and live preview controls.
+
+![FavaStudio theme settings](docs/images/IDEThemesShowcaseSettings.png)
+
+### Discord Rich Presence
+
+The IDE can publish project, file, run status, and activity details to Discord.
+
+![FavaStudio Discord Rich Presence](docs/images/DiscordRichPresenceShowcase.png)
+
+## Requirements
+
+- Windows 10 or Windows 11
+- .NET 8 SDK for building the IDE from source
+- Java available on PATH, or configured in FavaStudio settings
+- `Compiler/antlr-4.13.2-complete.jar` for regenerating parser sources
+
+The IDE is a WPF desktop app, so running it is Windows-focused. The compiler itself lives in the `Compiler` folder and is Java-based.
+
+## Run From Source
+
+Open the solution in Visual Studio 2022:
+
+```text
+FavaStudio.sln
+```
+
+Or build from PowerShell:
+
+```powershell
+dotnet build src\FavaStudio\FavaStudio.csproj
+```
+
+Then run the app from Visual Studio or from the built output.
+
+## Publish A Windows Build
+
+Use the included publish script:
 
 ```powershell
 ./scripts/publish-win-x64.ps1
 ```
 
-Bash:
+The self-contained output is written to:
 
-```bash
-./scripts/publish-win-x64.sh
+```text
+publish/win-x64
 ```
 
-Outputs are placed in `publish/win-x64`.
+## Compiler Notes
 
-### GitHub Release workflow
+The compiler pipeline is included in this repo:
 
-- Workflow file: `.github/workflows/release.yml`
-- Triggers:
-  - Push tags like `v1.0.0`
-  - Manual `workflow_dispatch`
-- Produces:
-  - `FavaStudio-win-x64.zip` artifact
-  - Automatic GitHub Release asset upload on tag builds
+- `Fava.g4` defines the language grammar.
+- ANTLR generates the parser and visitor classes.
+- the type checker validates symbols, types, returns, modules, and control flow.
+- the code generator emits VM bytecode.
+- the VM executes bytecode and reports runtime output or runtime errors.
 
----
+To rebuild Java compiler classes manually:
 
-## ⚙️ Settings
-
-Settings are stored in:
-
-- `%AppData%\FavaStudio\settings.json`
-
-Key options:
-
-| Setting | Description |
-|---------|-------------|
-| Java Path | Path to `java.exe` (or `java` on PATH) |
-| Compiler Root | Path to your FavaCompiler folder |
-| ANTLR Jar | Path to `antlr-4.13.2-complete.jar` |
-| RecentProjects | Most recently used project folders |
-| RecentFiles | Most recently used files |
-
----
-
-## 📁 Project Structure
-
+```powershell
+javac -cp Compiler\antlr-4.13.2-complete.jar -d Compiler\build\classes Compiler\Fava\*.java Compiler\SymbolTable\*.java Compiler\TypeChecker\*.java Compiler\CodeGenerator\*.java Compiler\VM\Instruction\*.java Compiler\VM\*.java Compiler\FavaErrorListener.java Compiler\FavaCompileAndRun.java
 ```
-FavaStudio/
-  FavaStudio.sln
-  README.md
-  .github/
-    workflows/
-      release.yml
+
+## Project Structure
+
+```text
+FavaIDE/
+  Compiler/
+    Fava.g4
+    CodeGenerator/
+    SymbolTable/
+    TypeChecker/
+    VM/
+  docs/
+    images/
   scripts/
     publish-win-x64.ps1
-    publish-win-x64.sh
   src/
     FavaStudio/
-      App.xaml / App.xaml.cs
-      MainWindow.xaml / MainWindow.xaml.cs
-      FavaStudio.csproj
-      Themes/
-        Theme.xaml
+      Editor/
       Models/
       Services/
+      Themes/
       ViewModels/
+      MainWindow.xaml
+  FavaStudio.sln
+  README.md
 ```

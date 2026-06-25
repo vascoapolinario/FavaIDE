@@ -224,6 +224,7 @@ public partial class MainWindow : Window
         SetBrush("TextMutedBrush", muted);
         SetBrush("AccentBrush", accent);
         SetBrush("AccentSoftBrush", Lighten(accent, 0.18));
+        SetBrush("BrandBrush", IsProfessionalTheme(settings) ? Color.FromRgb(0xFF, 0x9A, 0x3D) : accent);
         SetBrush("BorderBrush", border);
         SetBrush("HoverBrush", Lighten(panel, 0.12));
         SetBrush("SelectionBrush", Blend(accent, background, 0.28));
@@ -264,9 +265,9 @@ public partial class MainWindow : Window
 
         if (string.Equals(settings.SyntaxColorMode, "simple", StringComparison.OrdinalIgnoreCase))
         {
-            var simpleAccent = Blend(accent, text, 0.72);
+            var simpleAccent = Blend(accent, text, 0.74);
             return new FavaSyntaxPalette(
-                Blend(accent, text, 0.45),
+                Blend(Color.FromRgb(0xF8, 0xD8, 0x86), text, 0.72),
                 muted,
                 simpleAccent,
                 simpleAccent,
@@ -275,12 +276,12 @@ public partial class MainWindow : Window
         }
 
         return new FavaSyntaxPalette(
-            Blend(text, accent, 0.42),
-            muted,
-            Lighten(accent, 0.16),
-            accent,
-            Blend(accent, text, 0.52),
-            Blend(accent, background, 0.78));
+            Blend(Color.FromRgb(0xFF, 0xC8, 0x6E), accent, 0.72),
+            Blend(muted, background, 0.82),
+            Blend(Color.FromRgb(0x65, 0xE4, 0xC7), text, 0.86),
+            Blend(accent, Color.FromRgb(0xB8, 0x8C, 0xFF), 0.68),
+            Blend(Color.FromRgb(0xFF, 0x8A, 0xE2), accent, 0.74),
+            Blend(Color.FromRgb(0x8E, 0xB7, 0xFF), text, 0.78));
     }
 
     private static Color ParseColor(string value, Color fallback)
@@ -294,6 +295,11 @@ public partial class MainWindow : Window
             return fallback;
         }
     }
+
+    private static bool IsProfessionalTheme(SettingsService settings) =>
+        string.Equals(settings.UiBackgroundColor, "#1E1F22", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(settings.UiPanelColor, "#2B2D30", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(settings.UiAccentColor, "#4D8DFF", StringComparison.OrdinalIgnoreCase);
 
     private static SolidColorBrush BrushOf(Color color) => new(color);
 
@@ -667,17 +673,28 @@ public partial class MainWindow : Window
         var afterCaret = Editor.Document.GetText(caretOffset, afterLength);
         var indent = GetIndentation(beforeCaret);
         var innerIndent = indent;
-        var shouldExpandBlock = beforeCaret.TrimEnd().EndsWith("{", StringComparison.Ordinal) &&
-                                (string.IsNullOrWhiteSpace(afterCaret) || afterCaret.TrimStart().StartsWith("}", StringComparison.Ordinal));
-        if (beforeCaret.TrimEnd().EndsWith("{", StringComparison.Ordinal))
+        var opensBlock = beforeCaret.TrimEnd().EndsWith("{", StringComparison.Ordinal);
+        var nextNonWhitespaceOffset = FindNextNonWhitespaceOffset(caretOffset);
+        var nextNonWhitespace = nextNonWhitespaceOffset is int offset ? Editor.Document.GetCharAt(offset) : (char?)null;
+        var nextLineStartsExistingBody = nextNonWhitespaceOffset is int nextOffset &&
+                                         nextNonWhitespace != '}' &&
+                                         GetLineIndentationAtOffset(nextOffset).Length > indent.Length;
+        var shouldExpandBlock = opensBlock && !nextLineStartsExistingBody && (nextNonWhitespace is null or '}' || nextNonWhitespaceOffset.HasValue);
+        if (opensBlock)
             innerIndent += new string(' ', Editor.Options.IndentationSize);
 
         e.Handled = true;
         if (shouldExpandBlock)
         {
-            var hasExistingCloseBrace = afterCaret.TrimStart().StartsWith("}", StringComparison.Ordinal);
-            var text = Environment.NewLine + innerIndent + Environment.NewLine + indent + (hasExistingCloseBrace ? "" : "}");
-            Editor.Document.Insert(caretOffset, text);
+            var text = Environment.NewLine + innerIndent + Environment.NewLine + indent;
+            if (nextNonWhitespace == '}' && nextNonWhitespaceOffset is int closeBraceOffset)
+            {
+                Editor.Document.Replace(caretOffset, closeBraceOffset - caretOffset, text);
+            }
+            else
+            {
+                Editor.Document.Insert(caretOffset, text + "}");
+            }
             Editor.CaretOffset = caretOffset + Environment.NewLine.Length + innerIndent.Length;
         }
         else
@@ -689,6 +706,34 @@ public partial class MainWindow : Window
 
         _currentLineHighlighter.Refresh();
         _bracketHighlightRenderer.Refresh();
+    }
+
+    private int? FindNextNonWhitespaceOffset(int caretOffset)
+    {
+        if (Editor.Document is null)
+            return null;
+
+        var offset = Math.Clamp(caretOffset, 0, Editor.Document.TextLength);
+        while (offset < Editor.Document.TextLength)
+        {
+            var ch = Editor.Document.GetCharAt(offset);
+            if (!char.IsWhiteSpace(ch))
+                return offset;
+
+            offset++;
+        }
+
+        return null;
+    }
+
+    private string GetLineIndentationAtOffset(int offset)
+    {
+        if (Editor.Document is null)
+            return "";
+
+        var line = Editor.Document.GetLineByOffset(Math.Clamp(offset, 0, Editor.Document.TextLength));
+        var text = Editor.Document.GetText(line);
+        return GetIndentation(text);
     }
 
     private void Editor_OnTextEntered(object? sender, TextCompositionEventArgs e)
@@ -1114,8 +1159,8 @@ public partial class MainWindow : Window
 
     private void EditorContextRunCurrentFile_OnClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is MainViewModel vm && vm.RunCurrentCommand.CanExecute(null))
-            vm.RunCurrentCommand.Execute(null);
+        if (DataContext is MainViewModel vm && vm.RunThisFileCommand.CanExecute(null))
+            vm.RunThisFileCommand.Execute(null);
         Editor.Focus();
     }
 

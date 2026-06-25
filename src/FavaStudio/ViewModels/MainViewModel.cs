@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
 using ICSharpCode.AvalonEdit;
@@ -20,6 +21,44 @@ using Rectangle = System.Windows.Shapes.Rectangle;
 namespace FavaStudio.ViewModels;
 
 public sealed record DiscordPresenceOption(string Key, string Label);
+public sealed class SyntaxColorModeOption : INotifyPropertyChanged
+{
+    private string _stringColor;
+    private string _typeColor;
+    private string _keywordColor;
+    private string _functionColor;
+    private string _identifierColor;
+
+    public SyntaxColorModeOption(string key, string label, string stringColor, string typeColor, string keywordColor, string functionColor, string identifierColor)
+    {
+        Key = key;
+        Label = label;
+        _stringColor = stringColor;
+        _typeColor = typeColor;
+        _keywordColor = keywordColor;
+        _functionColor = functionColor;
+        _identifierColor = identifierColor;
+    }
+
+    public string Key { get; }
+    public string Label { get; }
+    public string StringColor { get => _stringColor; set => SetPreviewColor(ref _stringColor, value); }
+    public string TypeColor { get => _typeColor; set => SetPreviewColor(ref _typeColor, value); }
+    public string KeywordColor { get => _keywordColor; set => SetPreviewColor(ref _keywordColor, value); }
+    public string FunctionColor { get => _functionColor; set => SetPreviewColor(ref _functionColor, value); }
+    public string IdentifierColor { get => _identifierColor; set => SetPreviewColor(ref _identifierColor, value); }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void SetPreviewColor(ref string field, string value, [CallerMemberName] string? propertyName = null)
+    {
+        if (field == value)
+            return;
+
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
 internal sealed record ProjectTemplateOption(string Key, string Label, string Description);
 internal sealed record ProjectCreationRequest(string ParentFolder, string FolderName, string Title, string Description, string TemplateKey);
 
@@ -39,6 +78,9 @@ public class MainViewModel : INotifyPropertyChanged
     private Brush _statusColor = Brushes.LightGray;
     private string _statusText = "Ready.";
     private string _vmOutput = "";
+    private bool _hasRuntimeError;
+    private string _runtimeErrorMessage = "";
+    private FlowDocument _markdownPreviewDocument = new();
     private string _constantPoolOutput = "";
     private string _instructionsOutput = "";
     private string _consoleInput = "";
@@ -63,6 +105,14 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _isProjectDeleteDialogVisible;
     private string _pendingDeleteProjectPath = "";
     private string _pendingDeleteProjectName = "";
+    private bool _isFileCreateDialogVisible;
+    private string _pendingCreateFileDirectory = "";
+    private string _pendingCreateFileName = "";
+    private string _pendingCreateFileExtension = ".fava";
+    private string _pendingCreateFileKind = "Fava file";
+    private string _pendingCreateOriginalPath = "";
+    private bool _pendingCreateIsDirectory;
+    private bool _pendingCreateIsRename;
     private bool _showOutputOnly = true;
     private bool _toolCompareFullOutput;
     private TestFilePair? _selectedToolTestPair;
@@ -135,11 +185,11 @@ public class MainViewModel : INotifyPropertyChanged
         new("custom", "Custom text"),
         new("hidden", "Do not show")
     ];
-    public IReadOnlyList<DiscordPresenceOption> SyntaxColorModeOptions { get; } =
+    public IReadOnlyList<SyntaxColorModeOption> SyntaxColorModeOptions { get; } =
     [
-        new("default", "Default Fava syntax"),
-        new("theme", "Theme colors"),
-        new("simple", "Theme colors simplified")
+        new("default", "Default Fava syntax", "#E3C75F", "#5AD18A", "#7BC1FF", "#FF9A3D", "#C59BFF"),
+        new("theme", "Theme colors", "#FFC86E", "#65E4C7", "#7C9CFF", "#FF8AE2", "#A78BFA"),
+        new("simple", "Theme colors simplified", "#B9F0DC", "#8BE8CA", "#8BE8CA", "#8BE8CA", "#8BE8CA")
     ];
     private static readonly IReadOnlyList<ProjectTemplateOption> ProjectTemplateOptions =
     [
@@ -166,6 +216,10 @@ public class MainViewModel : INotifyPropertyChanged
         get => _selectedEditorTab;
         set => SelectEditorTab(value);
     }
+    public bool IsCurrentMarkdownFile => IsMarkdownFile(_currentFile);
+    public bool IsMarkdownPreviewVisible => IsCurrentMarkdownFile && (_selectedEditorTab?.IsMarkdownPreview ?? false);
+    public string MarkdownPreviewButtonText => IsMarkdownPreviewVisible ? "Edit" : "Preview";
+    public FlowDocument MarkdownPreviewDocument { get => _markdownPreviewDocument; private set { _markdownPreviewDocument = value; OnPropertyChanged(); } }
     public string CurrentProjectDirectory => string.IsNullOrWhiteSpace(Settings.ProjectRoot) ? "Project directory: (not set)" : Settings.ProjectRoot;
     public string SettingsProjectName => string.IsNullOrWhiteSpace(Settings.ProjectRoot)
         ? "No project loaded"
@@ -207,6 +261,23 @@ public class MainViewModel : INotifyPropertyChanged
             RaiseSettingsValidationChanged();
         }
     }
+    public string InterpreterEntryFile
+    {
+        get => Settings.InterpreterEntryFile;
+        set
+        {
+            if (Settings.InterpreterEntryFile == value) return;
+            Settings.InterpreterEntryFile = value;
+            Settings.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(InterpreterEntryFileDisplay));
+            RunCurrentCommand.RaiseCanExecuteChanged();
+            ClearRunTargetCommand.RaiseCanExecuteChanged();
+        }
+    }
+    public string InterpreterEntryFileDisplay => string.IsNullOrWhiteSpace(Settings.InterpreterEntryFile)
+        ? "Current editor file"
+        : Settings.InterpreterEntryFile;
     public string CompilerStatusText => IsCompilerConfigured ? "Ready to run" : "Needs configuration";
     public Brush CompilerStatusBrush => IsCompilerConfigured ? Brushes.LightGreen : Brushes.Orange;
     public string JavaStatusText => string.IsNullOrWhiteSpace(Settings.JavaPath) ? "Required" : "Configured";
@@ -231,6 +302,8 @@ public class MainViewModel : INotifyPropertyChanged
     public Brush StatusColor { get => _statusColor; set { _statusColor = value; OnPropertyChanged(); } }
     public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
     public string VmOutput { get => _vmOutput; set { _vmOutput = value; OnPropertyChanged(); OnPropertyChanged(nameof(ConsoleLineCountText)); } }
+    public bool HasRuntimeError { get => _hasRuntimeError; private set { _hasRuntimeError = value; OnPropertyChanged(); } }
+    public string RuntimeErrorMessage { get => _runtimeErrorMessage; private set { _runtimeErrorMessage = value; OnPropertyChanged(); } }
     public string ConstantPoolOutput { get => _constantPoolOutput; set { _constantPoolOutput = value; OnPropertyChanged(); } }
     public string InstructionsOutput { get => _instructionsOutput; set { _instructionsOutput = value; OnPropertyChanged(); } }
     public string ConsoleInput { get => _consoleInput; set { _consoleInput = value; OnPropertyChanged(); SendConsoleInputCommand.RaiseCanExecuteChanged(); } }
@@ -267,6 +340,47 @@ public class MainViewModel : INotifyPropertyChanged
     public bool IsProjectDeleteDialogVisible { get => _isProjectDeleteDialogVisible; set { _isProjectDeleteDialogVisible = value; OnPropertyChanged(); } }
     public string PendingDeleteProjectPath { get => _pendingDeleteProjectPath; set { _pendingDeleteProjectPath = value; OnPropertyChanged(); } }
     public string PendingDeleteProjectName { get => _pendingDeleteProjectName; set { _pendingDeleteProjectName = value; OnPropertyChanged(); } }
+    public bool IsFileCreateDialogVisible { get => _isFileCreateDialogVisible; set { _isFileCreateDialogVisible = value; OnPropertyChanged(); } }
+    public string PendingCreateFileDirectory { get => _pendingCreateFileDirectory; set { _pendingCreateFileDirectory = value; OnPropertyChanged(); RaiseItemDialogComputedChanged(); } }
+    public string PendingCreateFileName
+    {
+        get => _pendingCreateFileName;
+        set
+        {
+            _pendingCreateFileName = value;
+            OnPropertyChanged();
+            RaiseItemDialogComputedChanged();
+            CreateFileConfirmCommand?.RaiseCanExecuteChanged();
+        }
+    }
+    public string PendingCreateFileExtension { get => _pendingCreateFileExtension; set { _pendingCreateFileExtension = value; OnPropertyChanged(); RaiseItemDialogComputedChanged(); } }
+    public string PendingCreateFileKind { get => _pendingCreateFileKind; set { _pendingCreateFileKind = value; OnPropertyChanged(); RaiseItemDialogComputedChanged(); } }
+    public string ItemDialogTitle => _pendingCreateIsRename ? $"Rename {PendingCreateFileKind}" : $"Create {PendingCreateFileKind}";
+    public string ItemDialogNameLabel => _pendingCreateIsDirectory ? "Folder name" : "File name";
+    public string ItemDialogPrimaryAction => _pendingCreateIsRename ? "Rename" : "Create";
+    public string PendingCreateFilePathPreview => string.IsNullOrWhiteSpace(PendingCreateFileDirectory)
+        ? ""
+        : Path.Combine(PendingCreateFileDirectory, NormalizePendingCreateFileName());
+    public string PendingCreateFileValidationText
+    {
+        get
+        {
+            var name = NormalizePendingCreateFileName();
+            if (string.IsNullOrWhiteSpace(PendingCreateFileName))
+                return _pendingCreateIsDirectory ? "Enter a folder name." : "Enter a file name.";
+            if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.Contains(Path.DirectorySeparatorChar) || name.Contains(Path.AltDirectorySeparatorChar))
+                return "Use a simple name without slashes or reserved characters.";
+
+            var path = Path.Combine(PendingCreateFileDirectory, name);
+            if (_pendingCreateIsRename && string.Equals(path, _pendingCreateOriginalPath, StringComparison.OrdinalIgnoreCase))
+                return "";
+            if (_pendingCreateIsDirectory && Directory.Exists(path))
+                return "A folder with this name already exists.";
+            if (!_pendingCreateIsDirectory && File.Exists(path))
+                return "A file with this name already exists.";
+            return "";
+        }
+    }
     public string QuickOpenQuery
     {
         get => _quickOpenQuery;
@@ -377,10 +491,57 @@ public class MainViewModel : INotifyPropertyChanged
         get => Settings.DiscordCustomState;
         set => SetPlainSetting(Settings.DiscordCustomState, value, v => Settings.DiscordCustomState = v);
     }
-    public string LastRunStatus { get => _lastRunStatus; set { _lastRunStatus = value; OnPropertyChanged(); } }
+    public string LastRunStatus
+    {
+        get => _lastRunStatus;
+        set
+        {
+            _lastRunStatus = value;
+            OnPropertyChanged();
+            RaiseRunButtonSkinChanged();
+        }
+    }
     public string LastRunDurationText { get => _lastRunDurationText; set { _lastRunDurationText = value; OnPropertyChanged(); } }
-    public Brush LastRunStatusBrush { get => _lastRunStatusBrush; set { _lastRunStatusBrush = value; OnPropertyChanged(); } }
+    public Brush LastRunStatusBrush
+    {
+        get => _lastRunStatusBrush;
+        set
+        {
+            _lastRunStatusBrush = value;
+            OnPropertyChanged();
+            RaiseRunButtonSkinChanged();
+        }
+    }
+    public string RunButtonState
+    {
+        get
+        {
+            if (IsExecutionRunning)
+                return "Running";
+            if (LastRunStatus.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                LastRunStatus.Contains("runtime error", StringComparison.OrdinalIgnoreCase))
+                return "Failed";
+            if (LastRunStatus.Contains("stopped", StringComparison.OrdinalIgnoreCase) || LastRunStatus.Contains("module", StringComparison.OrdinalIgnoreCase))
+                return "Stopped";
+            if (LastRunStatus.Contains("completed", StringComparison.OrdinalIgnoreCase) || LastRunStatus.Contains("passed", StringComparison.OrdinalIgnoreCase))
+                return "Succeeded";
+            return "Idle";
+        }
+    }
+    public string RunButtonLabel => RunButtonState switch
+    {
+        "Running" => "Running",
+        "Succeeded" => "Run",
+        "Failed" => "Retry",
+        "Stopped" => "Run",
+        _ => "Run"
+    };
+    public Brush RunButtonBackgroundBrush => BuildRunButtonBrush(background: true);
+    public Brush RunButtonBorderBrush => BuildRunButtonBrush(background: false);
+    public Brush RunButtonGlowBrush => BuildRunButtonBrush(background: false, soft: true);
+    public Brush RunButtonForegroundBrush => Brushes.White;
     public bool IsCurrentFavaFile => IsFavaFile(_currentFile);
+    public bool IsCurrentModuleFile => IsModuleFile(_currentFile);
     public bool IsExecutionRunning
     {
         get => _isExecutionRunning;
@@ -391,7 +552,9 @@ public class MainViewModel : INotifyPropertyChanged
             _isExecutionRunning = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanStopExecution));
+            RaiseRunButtonSkinChanged();
             RunCurrentCommand.RaiseCanExecuteChanged();
+            RunThisFileCommand.RaiseCanExecuteChanged();
             StartDebugCommand.RaiseCanExecuteChanged();
             StopExecutionCommand.RaiseCanExecuteChanged();
             SendConsoleInputCommand.RaiseCanExecuteChanged();
@@ -534,6 +697,7 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 OpenFileInEditorTab(_selectedProjectNode.FullPath, focus: true);
             }
+            RenameNodeCommand?.RaiseCanExecuteChanged();
         }
     }
 
@@ -545,12 +709,19 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand DeleteRecentProjectCommand { get; }
     public RelayCommand NewFavaFileCommand { get; }
     public RelayCommand NewTextFileCommand { get; }
+    public RelayCommand NewMarkdownFileCommand { get; }
     public RelayCommand NewDirectoryCommand { get; }
+    public RelayCommand RenameNodeCommand { get; }
     public RelayCommand DeleteNodeCommand { get; }
     public RelayCommand OpenNodeInExplorerCommand { get; }
     public RelayCommand SaveFileCommand { get; }
     public RelayCommand RunCurrentCommand { get; }
+    public RelayCommand RunThisFileCommand { get; }
+    public RelayCommand UseCurrentFileAsRunTargetCommand { get; }
+    public RelayCommand ClearRunTargetCommand { get; }
+    public RelayCommand BrowseRunTargetCommand { get; }
     public RelayCommand StopExecutionCommand { get; }
+    public RelayCommand ToggleMarkdownPreviewCommand { get; }
     public RelayCommand SendConsoleInputCommand { get; }
     public RelayCommand CopyOutputCommand { get; }
     public RelayCommand ClearOutputCommand { get; }
@@ -568,6 +739,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand CancelProjectDeleteCommand { get; }
     public RelayCommand RemoveProjectReferenceConfirmCommand { get; }
     public RelayCommand DeleteProjectFolderConfirmCommand { get; }
+    public RelayCommand CreateFileConfirmCommand { get; }
+    public RelayCommand CancelFileCreateCommand { get; }
     public RelayCommand OpenToolsCommand { get; }
     public RelayCommand OpenVisualizerCommand { get; }
     public RelayCommand OpenRecentProjectCommand { get; }
@@ -608,6 +781,7 @@ public class MainViewModel : INotifyPropertyChanged
     public MainViewModel(TextEditor editor)
     {
         _editor = editor;
+        RefreshSyntaxColorPreviews();
         ReferenceResults.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(ReferenceResultsHeader));
@@ -632,6 +806,12 @@ public class MainViewModel : INotifyPropertyChanged
                 _currentFile = _selectedEditorTab.FilePath;
                 _hasUnsavedChanges = true;
                 OnPropertyChanged(nameof(CurrentFileName));
+                OnPropertyChanged(nameof(IsCurrentModuleFile));
+                RunCurrentCommand?.RaiseCanExecuteChanged();
+                RunThisFileCommand?.RaiseCanExecuteChanged();
+                UseCurrentFileAsRunTargetCommand?.RaiseCanExecuteChanged();
+                if (IsMarkdownPreviewVisible)
+                    RefreshMarkdownPreview();
             }
 
             _liveCheckRevision++;
@@ -646,12 +826,19 @@ public class MainViewModel : INotifyPropertyChanged
         DeleteRecentProjectCommand = new RelayCommand(p => DeleteProject(p as string), p => !string.IsNullOrWhiteSpace(p as string));
         NewFavaFileCommand = new RelayCommand(node => NewFile(".fava", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         NewTextFileCommand = new RelayCommand(node => NewFile(".txt", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        NewMarkdownFileCommand = new RelayCommand(node => NewFile(".md", node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         NewDirectoryCommand = new RelayCommand(node => NewDirectory(node as ProjectNode), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
+        RenameNodeCommand = new RelayCommand(n => RenameNode(n as ProjectNode), n => n is ProjectNode node && !node.IsRoot);
         DeleteNodeCommand = new RelayCommand(n => DeleteNode(n as ProjectNode), n => n is ProjectNode);
         OpenNodeInExplorerCommand = new RelayCommand(n => OpenNodeInExplorer(n as ProjectNode), n => n is ProjectNode);
         SaveFileCommand = new RelayCommand(_ => SaveFile());
-        RunCurrentCommand = new RelayCommand(_ => RunCurrentFile(), _ => IsCurrentFavaFile && !IsExecutionRunning);
+        RunCurrentCommand = new RelayCommand(_ => RunConfiguredFile(), _ => CanRunConfiguredFile());
+        RunThisFileCommand = new RelayCommand(_ => RunCurrentFile(), _ => IsCurrentFavaFile && !IsCurrentModuleFile && !IsExecutionRunning);
+        UseCurrentFileAsRunTargetCommand = new RelayCommand(_ => UseCurrentFileAsRunTarget(), _ => IsCurrentFavaFile && !IsCurrentModuleFile);
+        ClearRunTargetCommand = new RelayCommand(_ => InterpreterEntryFile = "", _ => !string.IsNullOrWhiteSpace(Settings.InterpreterEntryFile));
+        BrowseRunTargetCommand = new RelayCommand(_ => BrowseRunTarget(), _ => !string.IsNullOrWhiteSpace(Settings.ProjectRoot));
         StopExecutionCommand = new RelayCommand(_ => StopExecution(), _ => CanStopExecution);
+        ToggleMarkdownPreviewCommand = new RelayCommand(_ => ToggleMarkdownPreview(), _ => IsCurrentMarkdownFile);
         SendConsoleInputCommand = new RelayCommand(_ => SendConsoleInput(), _ => IsExecutionRunning && _consoleInputWriter != null);
         CopyOutputCommand = new RelayCommand(_ => CopyConsoleOutput(), _ => !string.IsNullOrWhiteSpace(VmOutput));
         ClearOutputCommand = new RelayCommand(_ => ClearConsoleOutput(), _ => HasConsoleOutput());
@@ -690,6 +877,8 @@ public class MainViewModel : INotifyPropertyChanged
         CancelProjectDeleteCommand = new RelayCommand(_ => HideProjectDeleteDialog());
         RemoveProjectReferenceConfirmCommand = new RelayCommand(_ => ConfirmRemoveProjectReference(), _ => IsProjectDeleteDialogVisible);
         DeleteProjectFolderConfirmCommand = new RelayCommand(_ => ConfirmDeleteProjectFolder(), _ => IsProjectDeleteDialogVisible);
+        CreateFileConfirmCommand = new RelayCommand(_ => ConfirmCreateFile(), _ => IsFileCreateDialogVisible && string.IsNullOrWhiteSpace(PendingCreateFileValidationText));
+        CancelFileCreateCommand = new RelayCommand(_ => HideFileCreateDialog());
 
         OpenToolsCommand = new RelayCommand(_ =>
         {
@@ -759,6 +948,259 @@ public class MainViewModel : INotifyPropertyChanged
     }
 
     public void ClearReferenceResults() => ReferenceResults.Clear();
+
+    private void ToggleMarkdownPreview()
+    {
+        if (_selectedEditorTab is null || !IsCurrentMarkdownFile)
+            return;
+
+        _selectedEditorTab.IsMarkdownPreview = !_selectedEditorTab.IsMarkdownPreview;
+        RefreshMarkdownPreview();
+        OnPropertyChanged(nameof(IsMarkdownPreviewVisible));
+        OnPropertyChanged(nameof(MarkdownPreviewButtonText));
+    }
+
+    private void RefreshMarkdownPreview()
+    {
+        MarkdownPreviewDocument = BuildMarkdownPreviewDocument(_selectedEditorTab?.Content ?? "");
+    }
+
+    private static FlowDocument BuildMarkdownPreviewDocument(string markdown)
+    {
+        var document = new FlowDocument
+        {
+            Background = Brushes.Transparent,
+            Foreground = new SolidColorBrush(Color.FromRgb(230, 234, 240)),
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 14,
+            PagePadding = new Thickness(28, 24, 34, 30),
+            LineHeight = 21
+        };
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var paragraphLines = new List<string>();
+        var codeLines = new List<string>();
+        var inCodeBlock = false;
+        string? codeLanguage = null;
+
+        void FlushParagraph()
+        {
+            if (paragraphLines.Count == 0)
+                return;
+
+            var paragraph = new Paragraph
+            {
+                Margin = new Thickness(0, 0, 0, 12),
+                Foreground = new SolidColorBrush(Color.FromRgb(224, 230, 238))
+            };
+            AddInlineMarkdown(paragraph.Inlines, string.Join(" ", paragraphLines));
+            document.Blocks.Add(paragraph);
+            paragraphLines.Clear();
+        }
+
+        void FlushCodeBlock()
+        {
+            var codeText = string.Join("\n", codeLines);
+            var paragraph = new Paragraph
+            {
+                Margin = new Thickness(0, 4, 0, 14),
+                Padding = new Thickness(14, 12, 14, 12),
+                Background = new SolidColorBrush(Color.FromRgb(20, 23, 29)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(67, 74, 86)),
+                BorderThickness = new Thickness(1),
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 13,
+                Foreground = new SolidColorBrush(Color.FromRgb(210, 232, 255))
+            };
+
+            if (!string.IsNullOrWhiteSpace(codeLanguage))
+            {
+                paragraph.Inlines.Add(new Run($"{codeLanguage.Trim()}\n")
+                {
+                    Foreground = new SolidColorBrush(Color.FromRgb(123, 193, 255)),
+                    FontWeight = FontWeights.Bold
+                });
+            }
+
+            paragraph.Inlines.Add(new Run(codeText));
+            document.Blocks.Add(paragraph);
+            codeLines.Clear();
+            codeLanguage = null;
+        }
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd();
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            {
+                if (inCodeBlock)
+                {
+                    FlushCodeBlock();
+                    inCodeBlock = false;
+                }
+                else
+                {
+                    FlushParagraph();
+                    inCodeBlock = true;
+                    codeLanguage = trimmed.Length > 3 ? trimmed[3..] : null;
+                }
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                codeLines.Add(rawLine);
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                FlushParagraph();
+                continue;
+            }
+
+            var headingMatch = Regex.Match(line, @"^(#{1,6})\s+(.+)$");
+            if (headingMatch.Success)
+            {
+                FlushParagraph();
+                var level = headingMatch.Groups[1].Value.Length;
+                var paragraph = new Paragraph
+                {
+                    Margin = new Thickness(0, level == 1 ? 0 : 8, 0, 10),
+                    FontSize = level switch { 1 => 30, 2 => 24, 3 => 19, _ => 16 },
+                    FontWeight = FontWeights.Black,
+                    Foreground = new SolidColorBrush(level <= 2
+                        ? Color.FromRgb(123, 193, 255)
+                        : Color.FromRgb(255, 192, 126))
+                };
+                AddInlineMarkdown(paragraph.Inlines, headingMatch.Groups[2].Value.Trim());
+                document.Blocks.Add(paragraph);
+                continue;
+            }
+
+            if (Regex.IsMatch(trimmed, @"^(-{3,}|\*{3,}|_{3,})$"))
+            {
+                FlushParagraph();
+                document.Blocks.Add(new BlockUIContainer(new Border
+                {
+                    Height = 1,
+                    Margin = new Thickness(0, 8, 0, 16),
+                    Background = new SolidColorBrush(Color.FromRgb(67, 74, 86))
+                }));
+                continue;
+            }
+
+            var quoteMatch = Regex.Match(line, @"^\s*>\s?(.*)$");
+            if (quoteMatch.Success)
+            {
+                FlushParagraph();
+                var paragraph = new Paragraph
+                {
+                    Margin = new Thickness(6, 0, 0, 12),
+                    Padding = new Thickness(12, 6, 0, 6),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(123, 193, 255)),
+                    BorderThickness = new Thickness(3, 0, 0, 0),
+                    Foreground = new SolidColorBrush(Color.FromRgb(186, 199, 214))
+                };
+                AddInlineMarkdown(paragraph.Inlines, quoteMatch.Groups[1].Value);
+                document.Blocks.Add(paragraph);
+                continue;
+            }
+
+            var bulletMatch = Regex.Match(line, @"^\s*[-*+]\s+(.+)$");
+            if (bulletMatch.Success)
+            {
+                FlushParagraph();
+                var paragraph = new Paragraph
+                {
+                    Margin = new Thickness(18, 0, 0, 8),
+                    Foreground = new SolidColorBrush(Color.FromRgb(224, 230, 238))
+                };
+                paragraph.Inlines.Add(new Run("• ")
+                {
+                    Foreground = new SolidColorBrush(Color.FromRgb(123, 193, 255)),
+                    FontWeight = FontWeights.Bold
+                });
+                AddInlineMarkdown(paragraph.Inlines, bulletMatch.Groups[1].Value);
+                document.Blocks.Add(paragraph);
+                continue;
+            }
+
+            paragraphLines.Add(trimmed);
+        }
+
+        if (inCodeBlock)
+            FlushCodeBlock();
+        FlushParagraph();
+
+        if (document.Blocks.Count == 0)
+        {
+            document.Blocks.Add(new Paragraph(new Run("Nothing to preview yet."))
+            {
+                Foreground = new SolidColorBrush(Color.FromRgb(154, 164, 178)),
+                FontStyle = FontStyles.Italic
+            });
+        }
+
+        return document;
+    }
+
+    private static void AddInlineMarkdown(InlineCollection inlines, string text)
+    {
+        var pattern = @"(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\[[^\]]+\]\([^)]+\)|\*[^*]+\*|_[^_]+_)";
+        var cursor = 0;
+        foreach (Match match in Regex.Matches(text, pattern))
+        {
+            if (match.Index > cursor)
+                inlines.Add(new Run(text[cursor..match.Index]));
+
+            var value = match.Value;
+            if ((value.StartsWith("**", StringComparison.Ordinal) && value.EndsWith("**", StringComparison.Ordinal)) ||
+                (value.StartsWith("__", StringComparison.Ordinal) && value.EndsWith("__", StringComparison.Ordinal)))
+            {
+                inlines.Add(new Bold(new Run(value[2..^2])));
+            }
+            else if (value.StartsWith("`", StringComparison.Ordinal) && value.EndsWith("`", StringComparison.Ordinal))
+            {
+                inlines.Add(new Run(value[1..^1])
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(35, 40, 48)),
+                    Foreground = new SolidColorBrush(Color.FromRgb(255, 192, 126)),
+                    FontFamily = new FontFamily("Consolas")
+                });
+            }
+            else if (value.StartsWith("[", StringComparison.Ordinal))
+            {
+                var linkMatch = Regex.Match(value, @"^\[([^\]]+)\]\(([^)]+)\)$");
+                if (linkMatch.Success)
+                {
+                    var hyperlink = new Hyperlink(new Run(linkMatch.Groups[1].Value))
+                    {
+                        Foreground = new SolidColorBrush(Color.FromRgb(123, 193, 255)),
+                        TextDecorations = TextDecorations.Underline
+                    };
+                    if (Uri.TryCreate(linkMatch.Groups[2].Value, UriKind.RelativeOrAbsolute, out var uri))
+                        hyperlink.NavigateUri = uri;
+                    inlines.Add(hyperlink);
+                }
+                else
+                {
+                    inlines.Add(new Run(value));
+                }
+            }
+            else
+            {
+                inlines.Add(new Italic(new Run(value[1..^1])));
+            }
+
+            cursor = match.Index + match.Length;
+        }
+
+        if (cursor < text.Length)
+            inlines.Add(new Run(text[cursor..]));
+    }
 
     private void OpenFileInEditorTab(string filePath, bool focus)
     {
@@ -933,12 +1375,20 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SelectedEditorTab));
         OnPropertyChanged(nameof(CurrentFileName));
         OnPropertyChanged(nameof(IsCurrentFavaFile));
+        OnPropertyChanged(nameof(IsCurrentModuleFile));
+        OnPropertyChanged(nameof(IsCurrentMarkdownFile));
+        OnPropertyChanged(nameof(IsMarkdownPreviewVisible));
+        OnPropertyChanged(nameof(MarkdownPreviewButtonText));
+        RefreshMarkdownPreview();
         if (!IsCurrentFavaFile)
         {
             Diagnostics.Clear();
             OnPropertyChanged(nameof(DiagnosticsHeader));
         }
         RunCurrentCommand.RaiseCanExecuteChanged();
+        RunThisFileCommand.RaiseCanExecuteChanged();
+        UseCurrentFileAsRunTargetCommand.RaiseCanExecuteChanged();
+        ToggleMarkdownPreviewCommand.RaiseCanExecuteChanged();
         StartDebugCommand.RaiseCanExecuteChanged();
         CloseProjectCommand.RaiseCanExecuteChanged();
         DeleteProjectCommand.RaiseCanExecuteChanged();
@@ -1403,6 +1853,11 @@ function main() {
 
     private void NewFile(string extension, ProjectNode? node)
     {
+        ShowFileCreateDialog(extension, node);
+    }
+
+    private void ShowFileCreateDialog(string extension, ProjectNode? node)
+    {
         var basePath = Settings.ProjectRoot;
         var targetNode = node ?? SelectedProjectNode;
         if (targetNode is not null)
@@ -1413,23 +1868,135 @@ function main() {
         if (string.IsNullOrWhiteSpace(basePath) || !Directory.Exists(basePath))
             return;
 
-        var dialog = new SaveFileDialog
+        PendingCreateFileDirectory = basePath;
+        PendingCreateFileExtension = extension;
+        PendingCreateFileKind = GetCreateFileKind(extension);
+        _pendingCreateIsDirectory = false;
+        _pendingCreateIsRename = false;
+        _pendingCreateOriginalPath = "";
+        PendingCreateFileName = GetAvailableFileName(basePath, GetDefaultCreateFileName(extension));
+        IsFileCreateDialogVisible = true;
+        RaiseItemDialogComputedChanged();
+        CreateFileConfirmCommand.RaiseCanExecuteChanged();
+    }
+
+    private static string GetCreateFileKind(string extension) => extension.ToLowerInvariant() switch
+    {
+        ".fava" => "Fava file",
+        ".md" => "Markdown file",
+        ".txt" => "Text file",
+        _ => "File"
+    };
+
+    private static string GetDefaultCreateFileName(string extension) => extension.ToLowerInvariant() switch
+    {
+        ".fava" => "new-file.fava",
+        ".md" => "README.md",
+        ".txt" => "new-file.txt",
+        _ => $"new-file{extension}"
+    };
+
+    private void ConfirmCreateFile()
+    {
+        if (!IsFileCreateDialogVisible || !string.IsNullOrWhiteSpace(PendingCreateFileValidationText))
+            return;
+
+        if (_pendingCreateIsRename)
         {
-            InitialDirectory = basePath,
-            Filter = extension == ".fava"
-                ? "Fava file (*.fava)|*.fava"
-                : "Text file (*.txt)|*.txt",
-            DefaultExt = extension
-        };
+            ConfirmRenameItem();
+            return;
+        }
 
-        if (dialog.ShowDialog() != true) return;
+        var isDirectory = _pendingCreateIsDirectory;
+        var itemName = NormalizePendingCreateFileName();
+        var path = Path.Combine(PendingCreateFileDirectory, itemName);
+        if (isDirectory)
+        {
+            Directory.CreateDirectory(path);
+        }
+        else
+        {
+            FileService.WriteText(path, "");
+        }
+        HideFileCreateDialog();
 
-        FileService.WriteText(dialog.FileName, "");
-        if (!AddProjectNodeInPlace(dialog.FileName))
-            RefreshProjectTree(dialog.FileName, parentPath: Path.GetDirectoryName(dialog.FileName));
-        var createdNode = FindNodeByPath(ProjectTree.FirstOrDefault(), dialog.FileName);
+        if (!AddProjectNodeInPlace(path))
+            RefreshProjectTree(path, parentPath: isDirectory ? path : Path.GetDirectoryName(path));
+        var createdNode = FindNodeByPath(ProjectTree.FirstOrDefault(), path);
         if (createdNode is not null)
+        {
+            if (isDirectory)
+                createdNode.IsExpanded = true;
             SetSelectedProjectNode(createdNode);
+        }
+
+        StatusText = $"Created {Path.GetFileName(path)}";
+        StatusColor = Brushes.LightGreen;
+    }
+
+    private void HideFileCreateDialog()
+    {
+        IsFileCreateDialogVisible = false;
+        PendingCreateFileDirectory = "";
+        PendingCreateFileName = "";
+        PendingCreateFileExtension = ".fava";
+        PendingCreateFileKind = "Fava file";
+        _pendingCreateIsDirectory = false;
+        _pendingCreateIsRename = false;
+        _pendingCreateOriginalPath = "";
+        RaiseItemDialogComputedChanged();
+        CreateFileConfirmCommand.RaiseCanExecuteChanged();
+    }
+
+    private string NormalizePendingCreateFileName()
+    {
+        var name = PendingCreateFileName.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return "";
+
+        if (_pendingCreateIsDirectory)
+            return name;
+
+        return Path.HasExtension(name)
+            ? name
+            : $"{name}{PendingCreateFileExtension}";
+    }
+
+    private static string GetAvailableFileName(string directory, string preferredName)
+    {
+        var extension = Path.GetExtension(preferredName);
+        var nameWithoutExtension = Path.GetFileNameWithoutExtension(preferredName);
+        var candidate = preferredName;
+        var suffix = 1;
+        while (File.Exists(Path.Combine(directory, candidate)))
+        {
+            suffix++;
+            candidate = $"{nameWithoutExtension}-{suffix}{extension}";
+        }
+
+        return candidate;
+    }
+
+    private static string GetAvailableFolderName(string directory, string preferredName)
+    {
+        var candidate = preferredName;
+        var suffix = 1;
+        while (Directory.Exists(Path.Combine(directory, candidate)))
+        {
+            suffix++;
+            candidate = $"{preferredName}{suffix}";
+        }
+
+        return candidate;
+    }
+
+    private void RaiseItemDialogComputedChanged()
+    {
+        OnPropertyChanged(nameof(ItemDialogTitle));
+        OnPropertyChanged(nameof(ItemDialogNameLabel));
+        OnPropertyChanged(nameof(ItemDialogPrimaryAction));
+        OnPropertyChanged(nameof(PendingCreateFilePathPreview));
+        OnPropertyChanged(nameof(PendingCreateFileValidationText));
     }
 
     private void NewDirectory(ProjectNode? node)
@@ -1444,23 +2011,102 @@ function main() {
         if (string.IsNullOrWhiteSpace(basePath) || !Directory.Exists(basePath))
             return;
 
-        var folderName = "NewFolder";
-        var candidate = Path.Combine(basePath, folderName);
-        var suffix = 1;
-        while (Directory.Exists(candidate))
+        PendingCreateFileDirectory = basePath;
+        PendingCreateFileExtension = "";
+        PendingCreateFileKind = "Folder";
+        _pendingCreateIsDirectory = true;
+        _pendingCreateIsRename = false;
+        _pendingCreateOriginalPath = "";
+        PendingCreateFileName = GetAvailableFolderName(basePath, "NewFolder");
+        IsFileCreateDialogVisible = true;
+        RaiseItemDialogComputedChanged();
+        CreateFileConfirmCommand.RaiseCanExecuteChanged();
+    }
+
+    private void RenameNode(ProjectNode? node)
+    {
+        if (node is null || node.IsRoot || string.IsNullOrWhiteSpace(node.FullPath))
+            return;
+
+        var parent = Path.GetDirectoryName(node.FullPath);
+        if (string.IsNullOrWhiteSpace(parent) || !Directory.Exists(parent))
+            return;
+
+        PendingCreateFileDirectory = parent;
+        PendingCreateFileExtension = node.IsDirectory ? "" : Path.GetExtension(node.Name);
+        PendingCreateFileKind = node.IsDirectory ? "Folder" : "File";
+        _pendingCreateIsDirectory = node.IsDirectory;
+        _pendingCreateIsRename = true;
+        _pendingCreateOriginalPath = node.FullPath;
+        PendingCreateFileName = node.Name;
+        IsFileCreateDialogVisible = true;
+        RaiseItemDialogComputedChanged();
+        CreateFileConfirmCommand.RaiseCanExecuteChanged();
+    }
+
+    private void ConfirmRenameItem()
+    {
+        var oldPath = _pendingCreateOriginalPath;
+        var newPath = Path.Combine(PendingCreateFileDirectory, NormalizePendingCreateFileName());
+        if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
         {
-            suffix++;
-            candidate = Path.Combine(basePath, $"{folderName}{suffix}");
+            HideFileCreateDialog();
+            return;
         }
 
-        Directory.CreateDirectory(candidate);
-        if (!AddProjectNodeInPlace(candidate))
-            RefreshProjectTree(candidate, parentPath: candidate);
-        var createdNode = FindNodeByPath(ProjectTree.FirstOrDefault(), candidate);
-        if (createdNode is not null)
-            createdNode.IsExpanded = true;
-        StatusText = $"Created directory: {Path.GetFileName(candidate)}";
+        if (_pendingCreateIsDirectory)
+            Directory.Move(oldPath, newPath);
+        else
+            File.Move(oldPath, newPath);
+
+        UpdateOpenTabsForRenamedPath(oldPath, newPath, _pendingCreateIsDirectory);
+        HideFileCreateDialog();
+        RefreshProjectTree(newPath, parentPath: Path.GetDirectoryName(newPath));
+        var renamedNode = FindNodeByPath(ProjectTree.FirstOrDefault(), newPath);
+        if (renamedNode is not null)
+            SetSelectedProjectNode(renamedNode);
+
+        StatusText = $"Renamed to {Path.GetFileName(newPath)}";
         StatusColor = Brushes.LightGreen;
+    }
+
+    private void UpdateOpenTabsForRenamedPath(string oldPath, string newPath, bool isDirectory)
+    {
+        foreach (var tab in OpenEditorTabs)
+        {
+            if (isDirectory)
+            {
+                if (!IsSameOrInsidePath(tab.FilePath, oldPath))
+                    continue;
+
+                var relative = Path.GetRelativePath(oldPath, tab.FilePath);
+                tab.FilePath = Path.Combine(newPath, relative);
+            }
+            else if (IsSamePath(tab.FilePath, oldPath))
+            {
+                tab.FilePath = newPath;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(_currentFile))
+        {
+            if (isDirectory && IsSameOrInsidePath(_currentFile, oldPath))
+                _currentFile = Path.Combine(newPath, Path.GetRelativePath(oldPath, _currentFile));
+            else if (!isDirectory && IsSamePath(_currentFile, oldPath))
+                _currentFile = newPath;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Settings.InterpreterEntryFile))
+        {
+            if (isDirectory && IsSameOrInsidePath(Settings.InterpreterEntryFile, oldPath))
+                InterpreterEntryFile = Path.Combine(newPath, Path.GetRelativePath(oldPath, Settings.InterpreterEntryFile));
+            else if (!isDirectory && IsSamePath(Settings.InterpreterEntryFile, oldPath))
+                InterpreterEntryFile = newPath;
+        }
+
+        OnPropertyChanged(nameof(CurrentFileName));
+        OnPropertyChanged(nameof(IsCurrentFavaFile));
+        OnPropertyChanged(nameof(IsCurrentModuleFile));
     }
 
     private void DeleteNode(ProjectNode? node)
@@ -1809,13 +2455,39 @@ function main() {
         }
     }
 
-    private async void RunCurrentFile()
+    private void RunConfiguredFile()
+    {
+        var file = ResolveInterpreterEntryFile();
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            StatusText = "Choose a .fava file to run.";
+            StatusColor = Brushes.Orange;
+            return;
+        }
+
+        RunFile(file);
+    }
+
+    private void RunCurrentFile()
     {
         if (string.IsNullOrWhiteSpace(_currentFile)) return;
-        if (!IsCurrentFavaFile)
+        RunFile(_currentFile);
+    }
+
+    private async void RunFile(string filePath)
+    {
+        if (!IsFavaFile(filePath))
         {
             StatusText = "Only .fava files can be run.";
             StatusColor = Brushes.Orange;
+            return;
+        }
+        if (IsModuleFile(filePath))
+        {
+            StatusText = "Modules cannot be run directly. Run a program that imports this module.";
+            StatusColor = Brushes.Orange;
+            LastRunStatus = "Module file";
+            LastRunStatusBrush = Brushes.Orange;
             return;
         }
         if (!CanRunCompiler(showStatus: true)) return;
@@ -1826,7 +2498,9 @@ function main() {
         IsExecutionRunning = true;
         StatusText = "Running…";
         StatusColor = Brushes.LightGray;
-        LastRunStatus = $"Running {Path.GetFileName(_currentFile)}";
+        HasRuntimeError = false;
+        RuntimeErrorMessage = "";
+        LastRunStatus = $"Running {Path.GetFileName(filePath)}";
         LastRunDurationText = "--";
         LastRunStatusBrush = Brushes.LightGray;
         _consoleInputWriter = null;
@@ -1838,7 +2512,7 @@ function main() {
         try
         {
             var result = await runner.RunFileAsync(
-                _currentFile,
+                filePath,
                 onOutputChanged: output => Application.Current.Dispatcher.Invoke(() => UpdateOutputs(output)),
                 onInputWriterChanged: writer => Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -1861,10 +2535,26 @@ function main() {
         LastRunStatus = result.Success ? "Run completed" : "Run failed";
         LastRunDurationText = FormatDuration(stopwatch.Elapsed);
         LastRunStatusBrush = result.Success ? Brushes.LightGreen : Brushes.IndianRed;
+        var runtimeError = DetectRuntimeError(result.Output);
+        HasRuntimeError = runtimeError is not null;
+        RuntimeErrorMessage = runtimeError ?? "";
+        if (runtimeError is not null)
+        {
+            StatusText = $"Runtime error: {runtimeError}";
+            StatusColor = Brushes.Red;
+            LastRunStatus = "Runtime error";
+            LastRunStatusBrush = Brushes.Red;
+        }
+        else if (!result.Success)
+        {
+            StatusText = "Execution failed";
+        }
         }
         catch (OperationCanceledException)
         {
             stopwatch.Stop();
+            HasRuntimeError = false;
+            RuntimeErrorMessage = "";
             StatusText = "Execution stopped.";
             StatusColor = Brushes.Orange;
             LastRunStatus = "Run stopped";
@@ -1985,6 +2675,19 @@ function main() {
         ClearOutputCommand.RaiseCanExecuteChanged();
     }
 
+    private static string? DetectRuntimeError(string output)
+    {
+        const string marker = "runtime error:";
+        var index = output.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+            return null;
+
+        var start = index + marker.Length;
+        var end = output.IndexOfAny(new[] { '\r', '\n' }, start);
+        var message = end >= 0 ? output[start..end] : output[start..];
+        return string.IsNullOrWhiteSpace(message) ? "Unknown runtime failure" : message.Trim();
+    }
+
     private void UpdateConsoleInputState(string fullOutput)
     {
         if (!IsExecutionRunning || _consoleInputWriter == null)
@@ -2037,6 +2740,8 @@ function main() {
     private void ClearConsoleOutput()
     {
         _lastFullOutput = "";
+        HasRuntimeError = false;
+        RuntimeErrorMessage = "";
         IsConsoleAcceptingInput = false;
         VmOutput = "";
         ConstantPoolOutput = "";
@@ -3176,6 +3881,20 @@ function main() {
         }
     }
 
+    private void BrowseRunTarget()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select Fava Run Target",
+            Filter = "Fava files (*.fava)|*.fava|All Files|*.*",
+            InitialDirectory = Directory.Exists(Settings.ProjectRoot) ? Settings.ProjectRoot : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            InterpreterEntryFile = dialog.FileName;
+        }
+    }
+
     private void BrowseFolder(Action<string> setter, string title)
     {
         var dialog = new OpenFolderDialog { Title = $"Select {title}" };
@@ -3267,6 +3986,8 @@ function main() {
         if (currentValue == newValue) return;
         assign(newValue);
         OnPropertyChanged(propertyName);
+        RefreshSyntaxColorPreviews();
+        RaiseRunButtonSkinChanged();
         StyleSettingsChanged?.Invoke();
     }
 
@@ -3370,7 +4091,38 @@ function main() {
         OnPropertyChanged(nameof(EditorFontSize));
         OnPropertyChanged(nameof(ConsoleFontSize));
         OnPropertyChanged(nameof(SyntaxColorMode));
+        RefreshSyntaxColorPreviews();
+        RaiseRunButtonSkinChanged();
         StyleSettingsChanged?.Invoke();
+    }
+
+    private void RaiseRunButtonSkinChanged()
+    {
+        OnPropertyChanged(nameof(RunButtonState));
+        OnPropertyChanged(nameof(RunButtonLabel));
+        OnPropertyChanged(nameof(RunButtonBackgroundBrush));
+        OnPropertyChanged(nameof(RunButtonBorderBrush));
+        OnPropertyChanged(nameof(RunButtonGlowBrush));
+        OnPropertyChanged(nameof(RunButtonForegroundBrush));
+    }
+
+    private Brush BuildRunButtonBrush(bool background, bool soft = false)
+    {
+        var panel = ParseMediaColorOr(Settings.UiPanelColor, Color.FromRgb(0x2B, 0x2D, 0x30));
+        var accent = ParseMediaColorOr(Settings.UiAccentColor, Color.FromRgb(0x56, 0xD6, 0xA3));
+        var color = RunButtonState switch
+        {
+            "Running" => BlendColor(accent, Color.FromRgb(0x7B, 0xC1, 0xFF), 0.52),
+            "Succeeded" => Color.FromRgb(0x47, 0xD1, 0x6A),
+            "Failed" => Color.FromRgb(0xFF, 0x5D, 0x5D),
+            "Stopped" => Color.FromRgb(0xFF, 0xB4, 0x54),
+            _ => accent
+        };
+
+        if (background)
+            return new SolidColorBrush(BlendColor(color, panel, RunButtonState == "Idle" ? 0.88 : 0.76));
+
+        return new SolidColorBrush(soft ? BlendColor(color, panel, 0.52) : color);
     }
 
     private void ChooseStyleColor(string? propertyName)
@@ -3537,6 +4289,64 @@ function main() {
         return grid;
     }
 
+    private void RefreshSyntaxColorPreviews()
+    {
+        foreach (var option in SyntaxColorModeOptions)
+        {
+            var colors = BuildSyntaxPreviewColors(option.Key);
+            option.StringColor = colors.String;
+            option.TypeColor = colors.Type;
+            option.KeywordColor = colors.Keyword;
+            option.FunctionColor = colors.Function;
+            option.IdentifierColor = colors.Identifier;
+        }
+    }
+
+    private (string String, string Type, string Keyword, string Function, string Identifier) BuildSyntaxPreviewColors(string mode)
+    {
+        if (string.Equals(mode, "default", StringComparison.OrdinalIgnoreCase))
+            return ("#E3C75F", "#5AD18A", "#7BC1FF", "#FF9A3D", "#C59BFF");
+
+        var text = ParseMediaColorOr(Settings.UiTextColor, Color.FromRgb(0xE6, 0xEA, 0xF0));
+        var accent = ParseMediaColorOr(Settings.UiAccentColor, Color.FromRgb(0x56, 0xD6, 0xA3));
+
+        if (string.Equals(mode, "simple", StringComparison.OrdinalIgnoreCase))
+        {
+            var simpleAccent = BlendColor(accent, text, 0.74);
+            return (
+                ToHex(BlendColor(Color.FromRgb(0xF8, 0xD8, 0x86), text, 0.72)),
+                ToHex(simpleAccent),
+                ToHex(simpleAccent),
+                ToHex(simpleAccent),
+                ToHex(simpleAccent));
+        }
+
+        return (
+            ToHex(BlendColor(Color.FromRgb(0xFF, 0xC8, 0x6E), accent, 0.72)),
+            ToHex(BlendColor(Color.FromRgb(0x65, 0xE4, 0xC7), text, 0.86)),
+            ToHex(BlendColor(accent, Color.FromRgb(0xB8, 0x8C, 0xFF), 0.68)),
+            ToHex(BlendColor(Color.FromRgb(0xFF, 0x8A, 0xE2), accent, 0.74)),
+            ToHex(BlendColor(Color.FromRgb(0x8E, 0xB7, 0xFF), text, 0.78)));
+    }
+
+    private static Color ParseMediaColorOr(string value, Color fallback)
+    {
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(value.Trim());
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private static Color BlendColor(Color foreground, Color background, double foregroundAmount) =>
+        Color.FromRgb(
+            (byte)Math.Clamp(foreground.R * foregroundAmount + background.R * (1 - foregroundAmount), 0, 255),
+            (byte)Math.Clamp(foreground.G * foregroundAmount + background.G * (1 - foregroundAmount), 0, 255),
+            (byte)Math.Clamp(foreground.B * foregroundAmount + background.B * (1 - foregroundAmount), 0, 255));
+
     private static string ToHex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 
     public void SetSelectedProjectNode(ProjectNode? node) => SelectedProjectNode = node;
@@ -3551,6 +4361,12 @@ function main() {
     {
         if (SelectedProjectNode is null) return;
         NewFile(".txt", SelectedProjectNode);
+    }
+
+    public void CreateNewMarkdownAtSelectedNode()
+    {
+        if (SelectedProjectNode is null) return;
+        NewFile(".md", SelectedProjectNode);
     }
 
     public void DeleteSelectedNode()
@@ -3925,7 +4741,9 @@ function main() {
 
         var query = (QuickOpenQuery ?? "").Trim();
         var files = Directory.GetFiles(Settings.ProjectRoot, "*.*", SearchOption.AllDirectories)
-            .Where(f => f.EndsWith(".fava", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+            .Where(f => f.EndsWith(".fava", StringComparison.OrdinalIgnoreCase) ||
+                        f.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) ||
+                        f.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
             .Where(f => string.IsNullOrWhiteSpace(query) || f.Contains(query, StringComparison.OrdinalIgnoreCase))
             .Take(100)
             .ToList();
@@ -4047,6 +4865,56 @@ function main() {
     private static bool IsFavaFile(string? path) =>
         !string.IsNullOrWhiteSpace(path) && path.EndsWith(".fava", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsMarkdownFile(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && path.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanRunConfiguredFile()
+    {
+        if (IsExecutionRunning)
+            return false;
+
+        var file = ResolveInterpreterEntryFile();
+        return IsFavaFile(file) && File.Exists(file) && !IsModuleFile(file);
+    }
+
+    private string ResolveInterpreterEntryFile()
+    {
+        if (!string.IsNullOrWhiteSpace(Settings.InterpreterEntryFile) && File.Exists(Settings.InterpreterEntryFile))
+            return Settings.InterpreterEntryFile;
+
+        return _currentFile ?? "";
+    }
+
+    private void UseCurrentFileAsRunTarget()
+    {
+        if (!IsCurrentFavaFile || string.IsNullOrWhiteSpace(_currentFile))
+            return;
+
+        InterpreterEntryFile = _currentFile;
+        StatusText = $"Run target set to {Path.GetFileName(_currentFile)}";
+        StatusColor = Brushes.LightGreen;
+    }
+
+    private bool IsModuleFile(string? path)
+    {
+        if (!IsFavaFile(path))
+            return false;
+
+        string text;
+        if (_selectedEditorTab is not null && IsSamePath(_selectedEditorTab.FilePath, path))
+        {
+            text = _editor.Text;
+        }
+        else
+        {
+            if (!File.Exists(path))
+                return false;
+            text = FileService.ReadText(path);
+        }
+
+        return Regex.IsMatch(text, @"(?im)^\s*module\s+[A-Za-z_][A-Za-z0-9_]*\s*;");
+    }
+
     private static bool IsSameOrInsidePath(string path, string rootPath) =>
         string.Equals(Path.GetFullPath(path), Path.GetFullPath(rootPath), StringComparison.OrdinalIgnoreCase)
         || IsPathInside(path, rootPath);
@@ -4091,7 +4959,9 @@ function main() {
         {
             var recentInProject = Settings.RecentFiles
                 .FirstOrDefault(path =>
-                    path.EndsWith(".fava", StringComparison.OrdinalIgnoreCase)
+                    (path.EndsWith(".fava", StringComparison.OrdinalIgnoreCase) ||
+                     path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+                     path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
                     && File.Exists(path)
                     && IsPathInside(path, folder));
             if (!string.IsNullOrWhiteSpace(recentInProject))
@@ -4100,6 +4970,8 @@ function main() {
 
         if (nodeToOpen is null)
             nodeToOpen = FindFirstFileNode(root, ".fava");
+        if (nodeToOpen is null)
+            nodeToOpen = FindFirstFileNode(root, ".md");
         if (nodeToOpen is null)
             nodeToOpen = FindFirstFileNode(root, ".txt");
 

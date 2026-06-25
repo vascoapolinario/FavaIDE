@@ -26,6 +26,13 @@ import java.util.Stack;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class vm {
+    private record ExceptionHandler(int catchAddress, int stackSize, int framePointer) {}
+    private static class FavaRuntimeException extends RuntimeException {
+        FavaRuntimeException(String message) {
+            super(message);
+        }
+    }
+
     private final boolean trace;
     private final byte[] bytecodes;
 
@@ -37,6 +44,7 @@ public class vm {
     private final List<Object> constantPool = new ArrayList<>();
     private final List<Object> globals = new ArrayList<>();
     private final List<String> traceBuffer = new ArrayList<>();
+    private final Stack<ExceptionHandler> exceptionHandlers = new Stack<>();
     private final BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
     private final Path fileRoot;
 
@@ -102,8 +110,7 @@ public class vm {
     }
 
     private void runtime_error(String msg) {
-        System.out.println("runtime error: " + msg);
-        System.exit(0);
+        throw new FavaRuntimeException(msg);
     }
 
     private Object constAt(int idx) {
@@ -475,6 +482,7 @@ public class vm {
         Object returnValue = stack.pop();
         int returnAddress = (Integer) stackAt(FP + 1);
         int previousFP = (Integer) stackAt(FP);
+        discardHandlersForCurrentFrame();
         stack.setSize(FP);
         stack.setSize(stack.size() - n);
         stack.push(returnValue);
@@ -485,6 +493,7 @@ public class vm {
     private void exec_ret(int n) {
         int returnAddress = (Integer) stackAt(FP + 1);
         int previousFP = (Integer) stackAt(FP);
+        discardHandlersForCurrentFrame();
         stack.setSize(FP);
         stack.setSize(stack.size() - n);
         FP = previousFP;
@@ -828,6 +837,38 @@ public class vm {
         }
     }
 
+    private void exec_pushexh(int catchAddress) {
+        exceptionHandlers.push(new ExceptionHandler(catchAddress, stack.size(), FP));
+    }
+
+    private void exec_popexh() {
+        if (exceptionHandlers.isEmpty()) {
+            runtime_error("exception handler stack underflow");
+        }
+        exceptionHandlers.pop();
+    }
+
+    private void discardHandlersForCurrentFrame() {
+        while (!exceptionHandlers.isEmpty() && exceptionHandlers.peek().framePointer() == FP) {
+            exceptionHandlers.pop();
+        }
+    }
+
+    private boolean handleRuntimeError(FavaRuntimeException error) {
+        if (exceptionHandlers.isEmpty()) {
+            System.out.println("runtime error: " + error.getMessage());
+            System.exit(1);
+            return false;
+        }
+
+        ExceptionHandler handler = exceptionHandlers.pop();
+        stack.setSize(handler.stackSize());
+        FP = handler.framePointer();
+        stack.push(error.getMessage());
+        IP = handler.catchAddress();
+        return true;
+    }
+
     private void exec_inst(Instruction inst) {
         if (trace) {
             String bytes = inst.nArgs() == 0
@@ -981,6 +1022,12 @@ public class vm {
             case toreal -> exec_toreal();
             case tostr -> exec_tostr();
             case tobool -> exec_tobool();
+
+            case pushexh -> {
+                arg = ((Instruction1Arg) inst).getArg();
+                exec_pushexh(arg);
+            }
+            case popexh -> exec_popexh();
         }
     }
 
@@ -994,8 +1041,14 @@ public class vm {
                 break;
             }
 
-            exec_inst(inst);
-            IP++;
+            try {
+                exec_inst(inst);
+                IP++;
+            } catch (FavaRuntimeException error) {
+                if (!handleRuntimeError(error)) {
+                    break;
+                }
+            }
         }
 
         if (trace && !traceBuffer.isEmpty()) {

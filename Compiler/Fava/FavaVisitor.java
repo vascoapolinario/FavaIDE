@@ -17,6 +17,18 @@ public interface FavaVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitProg(FavaParser.ProgContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link FavaParser#moduleDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitModuleDecl(FavaParser.ModuleDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link FavaParser#importDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitImportDecl(FavaParser.ImportDeclContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link FavaParser#funcDecl}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -114,6 +126,13 @@ public interface FavaVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitForEachStmt(FavaParser.ForEachStmtContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code TryCatchStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTryCatchStmt(FavaParser.TryCatchStmtContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code IfElseStmt}
 	 * labeled alternative in {@link FavaParser#stmt}.

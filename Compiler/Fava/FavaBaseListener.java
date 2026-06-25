@@ -29,6 +29,30 @@ public class FavaBaseListener implements FavaListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterModuleDecl(FavaParser.ModuleDeclContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitModuleDecl(FavaParser.ModuleDeclContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterImportDecl(FavaParser.ImportDeclContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitImportDecl(FavaParser.ImportDeclContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterFuncDecl(FavaParser.FuncDeclContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -204,6 +228,18 @@ public class FavaBaseListener implements FavaListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitForEachStmt(FavaParser.ForEachStmtContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterTryCatchStmt(FavaParser.TryCatchStmtContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitTryCatchStmt(FavaParser.TryCatchStmtContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

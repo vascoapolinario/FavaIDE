@@ -1,7 +1,15 @@
 grammar Fava;
 
 prog
-    : decl* funcDecl+ EOF
+    : moduleDecl? importDecl* decl* funcDecl* EOF
+    ;
+
+moduleDecl
+    : MODULE ID ';'
+    ;
+
+importDecl
+    : IMPORT ID ';'?
     ;
 
 funcDecl
@@ -45,6 +53,7 @@ stmt
     | WHILE LPAREN expr RPAREN stmt            # WhileStmt
     | FOR LPAREN type ID ASSIGN expr ';' expr ';' ID INC RPAREN stmt # ForStmt
     | FOR ID IN expr stmt                      # ForEachStmt
+    | TRY stmt CATCH (LPAREN EXCEPTION AS ID RPAREN)? stmt # TryCatchStmt
     | IF LPAREN expr RPAREN stmt ELSE stmt     # IfElseStmt
     | IF LPAREN expr RPAREN stmt               # IfStmt
     | ';'                                      # EmptyStmt
@@ -109,6 +118,8 @@ BOOL             : TRUE | FALSE;
 STRING           : '"' .*? '"';
 
 FUNCTION         : [fF] [uU] [nN] [cC] [tT] [iI] [oO] [nN];
+MODULE           : [mM] [oO] [dD] [uU] [lL] [eE];
+IMPORT           : [iI] [mM] [pP] [oO] [rR] [tT];
 PRINT            : [pP] [rR] [iI] [nN] [tT];
 RETURN           : [rR] [eE] [tT] [uU] [rR] [nN];
 WHILE            : [wW] [hH] [iI] [lL] [eE];
@@ -116,6 +127,10 @@ FOR              : [fF] [oO] [rR];
 IN               : [iI] [nN];
 IF               : [iI] [fF];
 ELSE             : [eE] [lL] [sS] [eE];
+TRY              : [tT] [rR] [yY];
+CATCH            : [cC] [aA] [tT] [cC] [hH];
+EXCEPTION        : [eE] [xX] [cC] [eE] [pP] [tT] [iI] [oO] [nN];
+AS               : [aA] [sS];
 NEW              : [nN] [eE] [wW];
 
 TYPEBOOL         : [bB] [oO] [oO] [lL];

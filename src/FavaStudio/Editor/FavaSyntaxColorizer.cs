@@ -30,7 +30,7 @@ public sealed class FavaSyntaxColorizer : DocumentColorizingTransformer
     private static readonly Regex LineCommentRegex = new("//.*$", RegexOptions.Compiled);
     private static readonly Regex BlockCommentRegex = new(@"/\*.*?\*/", RegexOptions.Compiled);
     private static readonly Regex TypeRegex = new(@"\b(integer|real|bool|string)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex KeywordRegex = new(@"\b(function|return|if|else|while|for|in|print|true|false|new)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KeywordRegex = new(@"\b(function|module|import|return|if|else|while|for|in|try|catch|exception|as|print|true|false|new)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex FunctionDeclarationRegex = new(@"\bfunction\s+([A-Za-z_][A-Za-z0-9_]*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex ForEachHeaderRegex = new(@"\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+(.+?)(?=\s*(?:\{|$))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex IdentifierRegex = new(@"\b[A-Za-z_][A-Za-z0-9_]*\b", RegexOptions.Compiled);
@@ -38,7 +38,7 @@ public sealed class FavaSyntaxColorizer : DocumentColorizingTransformer
 
     private static readonly HashSet<string> NonCallIdentifiers = new(StringComparer.OrdinalIgnoreCase)
     {
-        "if", "while", "for", "in", "print", "function", "return", "integer", "real", "bool", "string", "true", "false", "else", "new"
+        "if", "while", "for", "in", "try", "catch", "exception", "as", "print", "function", "module", "import", "return", "integer", "real", "bool", "string", "true", "false", "else", "new"
     };
 
     public FavaSyntaxColorizer(Func<FavaSyntaxPalette>? paletteProvider = null)

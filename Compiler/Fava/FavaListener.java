@@ -18,6 +18,26 @@ public interface FavaListener extends ParseTreeListener {
 	 */
 	void exitProg(FavaParser.ProgContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link FavaParser#moduleDecl}.
+	 * @param ctx the parse tree
+	 */
+	void enterModuleDecl(FavaParser.ModuleDeclContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link FavaParser#moduleDecl}.
+	 * @param ctx the parse tree
+	 */
+	void exitModuleDecl(FavaParser.ModuleDeclContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link FavaParser#importDecl}.
+	 * @param ctx the parse tree
+	 */
+	void enterImportDecl(FavaParser.ImportDeclContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link FavaParser#importDecl}.
+	 * @param ctx the parse tree
+	 */
+	void exitImportDecl(FavaParser.ImportDeclContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link FavaParser#funcDecl}.
 	 * @param ctx the parse tree
 	 */
@@ -183,6 +203,18 @@ public interface FavaListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitForEachStmt(FavaParser.ForEachStmtContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code TryCatchStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 */
+	void enterTryCatchStmt(FavaParser.TryCatchStmtContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code TryCatchStmt}
+	 * labeled alternative in {@link FavaParser#stmt}.
+	 * @param ctx the parse tree
+	 */
+	void exitTryCatchStmt(FavaParser.TryCatchStmtContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code IfElseStmt}
 	 * labeled alternative in {@link FavaParser#stmt}.

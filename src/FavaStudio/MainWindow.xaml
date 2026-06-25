@@ -29,6 +29,24 @@
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
         <conv:HexColorBrushConverter x:Key="HexColorBrushConverter"/>
 
+        <DataTemplate x:Key="SyntaxColorModeTemplate">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Left"
+                            Orientation="Horizontal"
+                            Margin="0,0,9,0"
+                            VerticalAlignment="Center">
+                    <Border Width="8" Height="18" CornerRadius="2,0,0,2" Background="{Binding StringColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                    <Border Width="8" Height="18" Background="{Binding TypeColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                    <Border Width="8" Height="18" Background="{Binding KeywordColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                    <Border Width="8" Height="18" Background="{Binding FunctionColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                    <Border Width="8" Height="18" CornerRadius="0,2,2,0" Background="{Binding IdentifierColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                </StackPanel>
+                <TextBlock Text="{Binding Label}"
+                           Foreground="{DynamicResource TextMainBrush}"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
+        </DataTemplate>
+
         <Style x:Key="WindowControlButton" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}"/>
             <Setter Property="Background" Value="Transparent"/>
@@ -145,11 +163,11 @@
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
                             </Border>
-                            <TextBlock Text="Fava Studio"
+                            <TextBlock Text="FavaStudio"
                                        FontWeight="Bold"
                                        FontSize="18"
                                        FontFamily="Segoe UI Semibold"
-                                       Foreground="#FF9A3D"
+                                       Foreground="{DynamicResource BrandBrush}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -194,7 +212,9 @@
                         <MenuItem Header="Toggle Errors Panel" Command="{Binding ToggleDiagnosticsCommand}"/>
                     </MenuItem>
                     <MenuItem Header="Run">
-                        <MenuItem Header="Run Current File" Command="{Binding RunCurrentCommand}"/>
+                        <MenuItem Header="Run Configured Target" Command="{Binding RunCurrentCommand}"/>
+                        <MenuItem Header="Run This File" Command="{Binding RunThisFileCommand}"/>
+                        <MenuItem Header="Use This File as Run Target" Command="{Binding UseCurrentFileAsRunTargetCommand}"/>
                         <MenuItem Header="Stop Execution (Shift+F5)" Command="{Binding StopExecutionCommand}"/>
                         <Separator/>
                         <MenuItem Header="Start Debug (F5)" Command="{Binding StartDebugCommand}"/>
@@ -211,18 +231,43 @@
                             Orientation="Horizontal"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             VerticalAlignment="Center">
-                    <Button Command="{Binding RunCurrentCommand}"
-                            Style="{StaticResource AccentButton}"
-                            ToolTip="Run current file"
-                            Padding="16,5"
-                            Margin="8,0,4,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Viewbox Width="12" Height="12" Margin="0,0,7,0">
-                                <Path Fill="White" Data="M 3 1 L 15 8 L 3 15 Z"/>
-                            </Viewbox>
-                            <TextBlock Text="Run" FontWeight="SemiBold"/>
-                        </StackPanel>
-                    </Button>
+                    <StackPanel Orientation="Horizontal" Margin="8,0,4,0">
+                        <Button Command="{Binding RunCurrentCommand}"
+                                Style="{StaticResource RunStateButton}"
+                                ToolTip="Run configured target"
+                                Background="{Binding RunButtonBackgroundBrush}"
+                                BorderBrush="{Binding RunButtonBorderBrush}"
+                                Foreground="{Binding RunButtonForegroundBrush}"
+                                Padding="14,5"
+                                Margin="0,0,1,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="6"
+                                         Height="6"
+                                         Fill="{Binding RunButtonBorderBrush}"
+                                         Stroke="White"
+                                         StrokeThickness="0.6"
+                                         Opacity="0.9"
+                                         Margin="0,0,8,0"
+                                         VerticalAlignment="Center"/>
+                                <Viewbox Width="12" Height="12" Margin="0,0,7,0">
+                                    <Path Fill="{Binding RunButtonForegroundBrush}" Data="M 3 1 L 15 8 L 3 15 Z"/>
+                                </Viewbox>
+                                <TextBlock Text="{Binding RunButtonLabel}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding RunThisFileCommand}"
+                                ToolTip="Run this file"
+                                Padding="9,5"
+                                Margin="0">
+                            <TextBlock Text="File" FontWeight="SemiBold"/>
+                        </Button>
+                        <Button Command="{Binding OpenSettingsCommand}"
+                                ToolTip="Interpreter settings"
+                                Padding="8,5"
+                                Margin="1,0,0,0">
+                            <TextBlock Text="⚙" FontWeight="SemiBold"/>
+                        </Button>
+                    </StackPanel>
                     <Button Command="{Binding StartDebugCommand}"
                             ToolTip="Start debug session"
                             Padding="12,5"
@@ -395,18 +440,29 @@
                                       BorderThickness="0">
                                 <TreeView.Resources>
                                     <HierarchicalDataTemplate DataType="{x:Type local:ProjectNode}" ItemsSource="{Binding Children}">
-                                        <Grid Height="24" Margin="0,1" ToolTip="{Binding FullPath}">
+                                        <Grid Height="26" Margin="0,1" ToolTip="{Binding FullPath}">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="26"/>
                                                 <ColumnDefinition Width="220"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock x:Name="ProjectTreeIcon"
-                                                       Text="&#xE8A5;"
-                                                       FontFamily="Segoe MDL2 Assets"
-                                                       Foreground="{Binding TreeIconBrush}"
-                                                       FontSize="13"
-                                                       VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center"/>
+                                            <Border x:Name="ProjectTreeIconBadge"
+                                                    Width="20"
+                                                    Height="20"
+                                                    CornerRadius="5"
+                                                    Background="{Binding TreeIconBackgroundBrush}"
+                                                    BorderBrush="{Binding TreeIconBorderBrush}"
+                                                    BorderThickness="1"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Center">
+                                                <TextBlock x:Name="ProjectTreeIcon"
+                                                           Text="{Binding TreeIcon}"
+                                                           FontFamily="{Binding TreeIconFontFamily}"
+                                                           Foreground="{Binding TreeIconBrush}"
+                                                           FontSize="10"
+                                                           FontWeight="Bold"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center"/>
+                                            </Border>
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Name}"
                                                        Foreground="{DynamicResource TextMainBrush}"
@@ -417,6 +473,7 @@
                                         <HierarchicalDataTemplate.Triggers>
                                             <DataTrigger Binding="{Binding IsDirectory}" Value="True">
                                                 <Setter TargetName="ProjectTreeIcon" Property="Text" Value="&#xE8B7;"/>
+                                                <Setter TargetName="ProjectTreeIcon" Property="FontSize" Value="12"/>
                                             </DataTrigger>
                                             <MultiDataTrigger>
                                                 <MultiDataTrigger.Conditions>
@@ -447,9 +504,15 @@
                                                         <MenuItem Header="New Text File"
                                                                   Command="{Binding NewTextFileCommand}"
                                                                   CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                        <MenuItem Header="New Markdown File"
+                                                                  Command="{Binding NewMarkdownFileCommand}"
+                                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                     </MenuItem>
                                                     <MenuItem Header="Open in File Explorer"
                                                               Command="{Binding OpenNodeInExplorerCommand}"
+                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                    <MenuItem Header="Rename"
+                                                              Command="{Binding RenameNodeCommand}"
                                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                     <Separator/>
                                                     <MenuItem Header="Delete"
@@ -768,6 +831,13 @@
                                         FontSize="12"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="{Binding MarkdownPreviewButtonText}"
+                                        Command="{Binding ToggleMarkdownPreviewCommand}"
+                                        Visibility="{Binding IsCurrentMarkdownFile, Converter={StaticResource BoolToVisibility}}"
+                                        Padding="9,3"
+                                        FontSize="12"
+                                        Margin="0,0,10,0"
+                                        ToolTip="Toggle Markdown preview"/>
                                 <TextBlock Text="{Binding CurrentFileName}"
                                            Foreground="{DynamicResource TextMainBrush}"
                                            FontSize="13"
@@ -953,8 +1023,10 @@
                                 </DockPanel>
                             </Border>
 
-                            <avalonedit:TextEditor Grid.Row="1"
+                            <Grid Grid.Row="1">
+                            <avalonedit:TextEditor
                                                    x:Name="Editor"
+                                                   Visibility="{Binding IsMarkdownPreviewVisible, Converter={StaticResource InverseBoolToVisibility}}"
                                                    FontFamily="Consolas"
                                                    FontSize="15"
                                                    ShowLineNumbers="True"
@@ -986,10 +1058,18 @@
                                         <Separator/>
                                         <MenuItem Header="Toggle Breakpoint" Click="EditorContextToggleBreakpoint_OnClick"/>
                                         <MenuItem Header="Save File" Click="EditorContextSaveFile_OnClick"/>
-                                        <MenuItem Header="Run Current File" Click="EditorContextRunCurrentFile_OnClick"/>
+                                        <MenuItem Header="Run This File" Click="EditorContextRunCurrentFile_OnClick"/>
                                     </ContextMenu>
                                 </avalonedit:TextEditor.ContextMenu>
                             </avalonedit:TextEditor>
+                            <FlowDocumentScrollViewer Document="{Binding MarkdownPreviewDocument}"
+                                                      Visibility="{Binding IsMarkdownPreviewVisible, Converter={StaticResource BoolToVisibility}}"
+                                                      Background="{DynamicResource BgMainBrush}"
+                                                      Foreground="{DynamicResource TextMainBrush}"
+                                                      IsToolBarVisible="False"
+                                                      VerticalScrollBarVisibility="Auto"
+                                                      Padding="0"/>
+                            </Grid>
                         </Grid>
 
                         <GridSplitter Grid.Column="1"
@@ -1272,13 +1352,13 @@
                                   Background="{DynamicResource BorderBrush}"/>
 
                     <Border Grid.Row="4"
-                            Background="#181A1F"
-                            BorderBrush="#4A4F58"
+                            Background="{DynamicResource BgMainBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="0,1,0,1"
                             SnapsToDevicePixels="True">
                         <DockPanel>
                             <Border DockPanel.Dock="Top"
-                                    Background="#202226"
+                                    Background="{DynamicResource BgPanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1"
                                     Padding="10,7">
@@ -1353,7 +1433,7 @@
                                     </StackPanel>
                                 </DockPanel>
                             </Border>
-                            <TabControl Background="#181A1F"
+                            <TabControl Background="{DynamicResource BgMainBrush}"
                                         BorderThickness="0">
                                 <TabControl.Resources>
                                     <Style TargetType="TabItem" BasedOn="{x:Null}">
@@ -1361,8 +1441,8 @@
                                         <Setter Property="Padding" Value="14,8"/>
                                         <Setter Property="Margin" Value="0"/>
                                         <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
-                                        <Setter Property="Background" Value="#22252B"/>
-                                        <Setter Property="BorderBrush" Value="#30343B"/>
+                                        <Setter Property="Background" Value="{DynamicResource BgPanelAltBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
                                         <Setter Property="BorderThickness" Value="0,0,1,1"/>
                                         <Setter Property="FontSize" Value="13"/>
                                         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -1389,13 +1469,13 @@
                                                     </Grid>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="TabSurface" Property="Background" Value="#2A2E35"/>
+                                                            <Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource HoverBrush}"/>
                                                             <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}"/>
                                                         </Trigger>
                                                         <Trigger Property="IsSelected" Value="True">
-                                                            <Setter Property="Background" Value="#181A1F"/>
+                                                            <Setter Property="Background" Value="{DynamicResource BgMainBrush}"/>
                                                             <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}"/>
-                                                            <Setter Property="BorderBrush" Value="#181A1F"/>
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource BgMainBrush}"/>
                                                             <Setter TargetName="ActiveRail" Property="Opacity" Value="1"/>
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
@@ -1406,28 +1486,71 @@
                                 </TabControl.Resources>
                                 <TabItem Header="Console">
                                     <Border x:Name="TerminalSurface"
-                                            Background="#181A1F"
+                                            Background="{DynamicResource BgMainBrush}"
                                             MouseDown="TerminalSurface_OnMouseDown"
                                             PreviewTextInput="TerminalSurface_OnPreviewTextInput"
                                             PreviewKeyDown="TerminalSurface_OnPreviewKeyDown">
-                                        <TextBox x:Name="VmOutputBox"
-                                                 Text="{Binding VmOutput, Mode=OneWay}"
-                                                 IsReadOnly="True"
-                                                 TextWrapping="Wrap"
-                                                 AcceptsReturn="True"
-                                                 AcceptsTab="False"
-                                                 FontFamily="Consolas"
-                                                 FontSize="15"
-                                                 Background="#181A1F"
-                                                 Foreground="{DynamicResource TextMainBrush}"
-                                                 BorderThickness="0"
-                                                 Padding="18,16,18,22"
-                                                 Cursor="IBeam"
-                                                 CaretBrush="{DynamicResource TextMainBrush}"
-                                                 HorizontalScrollBarVisibility="Disabled"
-                                                 VerticalScrollBarVisibility="Auto"
-                                                 PreviewKeyDown="VmOutputBox_OnPreviewKeyDown"
-                                                 PreviewTextInput="VmOutputBox_OnPreviewTextInput"/>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                            </Grid.RowDefinitions>
+
+                                            <Border Grid.Row="0"
+                                                    Visibility="{Binding HasRuntimeError, Converter={StaticResource BoolToVisibility}}"
+                                                    Background="#461116"
+                                                    BorderBrush="{DynamicResource DangerBrush}"
+                                                    BorderThickness="0,0,0,2"
+                                                    Padding="16,12">
+                                                <DockPanel LastChildFill="True">
+                                                    <Border DockPanel.Dock="Left"
+                                                            Width="34"
+                                                            Height="34"
+                                                            CornerRadius="17"
+                                                            Background="{DynamicResource DangerBrush}"
+                                                            Margin="0,0,12,0">
+                                                        <TextBlock Text="!"
+                                                                   Foreground="White"
+                                                                   FontSize="21"
+                                                                   FontWeight="Black"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="Runtime error"
+                                                                   Foreground="{DynamicResource DangerBrush}"
+                                                                   FontSize="15"
+                                                                   FontWeight="Black"/>
+                                                        <TextBlock Text="{Binding RuntimeErrorMessage}"
+                                                                   Foreground="{DynamicResource TextMainBrush}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="13"
+                                                                   TextWrapping="Wrap"
+                                                                   Margin="0,3,0,0"/>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Border>
+
+                                            <TextBox Grid.Row="1"
+                                                     x:Name="VmOutputBox"
+                                                     Text="{Binding VmOutput, Mode=OneWay}"
+                                                     IsReadOnly="True"
+                                                     TextWrapping="Wrap"
+                                                     AcceptsReturn="True"
+                                                     AcceptsTab="False"
+                                                     FontFamily="Consolas"
+                                                     FontSize="15"
+                                                     Background="{DynamicResource BgMainBrush}"
+                                                     Foreground="{DynamicResource TextMainBrush}"
+                                                     BorderThickness="0"
+                                                     Padding="18,16,18,22"
+                                                     Cursor="IBeam"
+                                                     CaretBrush="{DynamicResource TextMainBrush}"
+                                                     HorizontalScrollBarVisibility="Disabled"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     PreviewKeyDown="VmOutputBox_OnPreviewKeyDown"
+                                                     PreviewTextInput="VmOutputBox_OnPreviewTextInput"/>
+                                        </Grid>
                                     </Border>
                                 </TabItem>
                                 <TabItem Header="Constant Pool">
@@ -1437,7 +1560,7 @@
                                              TextWrapping="NoWrap"
                                              FontFamily="Consolas"
                                              FontSize="12"
-                                             Background="#181A1F"
+                                             Background="{DynamicResource BgMainBrush}"
                                              Foreground="{DynamicResource TextMainBrush}"
                                              BorderThickness="0"
                                              Padding="14,12"
@@ -1451,7 +1574,7 @@
                                              TextWrapping="NoWrap"
                                              FontFamily="Consolas"
                                              FontSize="12"
-                                             Background="#181A1F"
+                                             Background="{DynamicResource BgMainBrush}"
                                              Foreground="{DynamicResource TextMainBrush}"
                                              BorderThickness="0"
                                              Padding="14,12"
@@ -1747,6 +1870,58 @@
                                 Margin="0,0,0,14"
                                 Background="{DynamicResource BgPanelBrush}">
                             <StackPanel>
+                                <TextBlock Text="Interpreter" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}"/>
+                                <TextBlock Text="Choose what the main Run button launches. The small File button always runs the active editor file."
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,12"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="Run target"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding InterpreterEntryFile, UpdateSourceTrigger=PropertyChanged}"
+                                             FontFamily="Consolas"/>
+                                    <Button Grid.Column="2"
+                                            Content="Browse"
+                                            Command="{Binding BrowseRunTargetCommand}"
+                                            Margin="8,0,0,0"
+                                            Padding="12,5"/>
+                                    <Button Grid.Column="3"
+                                            Content="Use Current"
+                                            Command="{Binding UseCurrentFileAsRunTargetCommand}"
+                                            Margin="8,0,0,0"
+                                            Padding="12,5"/>
+                                    <Button Grid.Column="4"
+                                            Content="Clear"
+                                            Command="{Binding ClearRunTargetCommand}"
+                                            Margin="8,0,0,0"
+                                            Padding="12,5"/>
+                                </Grid>
+                                <TextBlock Text="{Binding InterpreterEntryFileDisplay}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           FontFamily="Consolas"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="140,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="16,14"
+                                Margin="0,0,0,14"
+                                Background="{DynamicResource BgPanelBrush}">
+                            <StackPanel>
                                 <DockPanel Margin="0,0,0,14">
                                     <Border DockPanel.Dock="Right"
                                             Width="164"
@@ -1978,7 +2153,7 @@
                                                        Margin="0,0,10,0"/>
                                             <ComboBox Width="220"
                                                       ItemsSource="{Binding SyntaxColorModeOptions}"
-                                                      DisplayMemberPath="Label"
+                                                      ItemTemplate="{StaticResource SyntaxColorModeTemplate}"
                                                       SelectedValuePath="Key"
                                                       SelectedValue="{Binding SyntaxColorMode, UpdateSourceTrigger=PropertyChanged}"/>
                                         </DockPanel>
@@ -2005,34 +2180,34 @@
 
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="App background" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="2" Grid.Column="0">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiBackgroundColor" Background="{Binding UiBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiBackgroundColor" Background="{Binding UiBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding UiBackgroundColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
                                     <TextBlock Grid.Row="4" Grid.Column="0" Text="Panel" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="6" Grid.Column="0">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiPanelColor" Background="{Binding UiPanelColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiPanelColor" Background="{Binding UiPanelColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding UiPanelColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
 
                                     <TextBlock Grid.Row="0" Grid.Column="2" Text="Panel alt" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="2" Grid.Column="2">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiPanelAltColor" Background="{Binding UiPanelAltColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiPanelAltColor" Background="{Binding UiPanelAltColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding UiPanelAltColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
                                     <TextBlock Grid.Row="4" Grid.Column="2" Text="Border" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="6" Grid.Column="2">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiBorderColor" Background="{Binding UiBorderColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiBorderColor" Background="{Binding UiBorderColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding UiBorderColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
 
                                     <TextBlock Grid.Row="0" Grid.Column="4" Text="Accent" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="2" Grid.Column="4">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiAccentColor" Background="{Binding UiAccentColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiAccentColor" Background="{Binding UiAccentColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding UiAccentColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
                                     <TextBlock Grid.Row="4" Grid.Column="4" Text="Text" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="6" Grid.Column="4">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiTextColor" Background="{Binding UiTextColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiTextColor" Background="{Binding UiTextColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding UiTextColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
                                 </Grid>
@@ -2055,19 +2230,19 @@
 
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Muted text" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="2" Grid.Column="0">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiMutedTextColor" Background="{Binding UiMutedTextColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="UiMutedTextColor" Background="{Binding UiMutedTextColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding UiMutedTextColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
 
                                     <TextBlock Grid.Row="0" Grid.Column="2" Text="Editor background" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="2" Grid.Column="2">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="EditorBackgroundColor" Background="{Binding EditorBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="EditorBackgroundColor" Background="{Binding EditorBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding EditorBackgroundColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
 
                                     <TextBlock Grid.Row="0" Grid.Column="4" Text="Console background" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"/>
                                     <DockPanel Grid.Row="2" Grid.Column="4">
-                                        <Button DockPanel.Dock="Right" Width="30" Margin="6,0,0,0" Padding="0" Command="{Binding ChooseStyleColorCommand}" CommandParameter="ConsoleBackgroundColor" Background="{Binding ConsoleBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource ColorSwatchButton}" Command="{Binding ChooseStyleColorCommand}" CommandParameter="ConsoleBackgroundColor" Background="{Binding ConsoleBackgroundColor, Converter={StaticResource HexColorBrushConverter}}"/>
                                         <TextBox Text="{Binding ConsoleBackgroundColor, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
                                     </DockPanel>
 
@@ -2605,6 +2780,108 @@
                 </ScrollViewer>
             </Grid>
 
+            <Border Visibility="{Binding IsFileCreateDialogVisible, Converter={StaticResource BoolToVisibility}}"
+                    Background="#CC111218"
+                    Panel.ZIndex="90">
+                <Grid>
+                    <Border Width="560"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource BgPanelBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="20">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,14">
+                                <Border DockPanel.Dock="Right"
+                                        Background="{DynamicResource SelectionBrush}"
+                                        BorderBrush="{DynamicResource SelectionBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="5"
+                                        Padding="8,3"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding PendingCreateFileKind}"
+                                               Foreground="{DynamicResource AccentSoftBrush}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                </Border>
+                                <TextBlock Text="{Binding ItemDialogTitle}"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextMainBrush}"/>
+                            </DockPanel>
+
+                            <Border Background="{DynamicResource BgPanelAltBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10,8"
+                                    Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="Location"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding PendingCreateFileDirectory}"
+                                               FontFamily="Consolas"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextMainBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="{Binding ItemDialogNameLabel}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding PendingCreateFileName, UpdateSourceTrigger=PropertyChanged}"
+                                     FontFamily="Consolas"
+                                     FontSize="16"
+                                     Padding="10,8"/>
+                            <Border Background="{DynamicResource ControlDarkerBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10,8"
+                                    Margin="0,10,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Preview path"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding PendingCreateFilePathPreview}"
+                                               FontFamily="Consolas"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextMainBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="{Binding PendingCreateFileValidationText}"
+                                       Foreground="{DynamicResource DangerBrush}"
+                                       FontSize="12"
+                                       Margin="0,8,0,0"/>
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        Margin="0,16,0,0">
+                                <Button Content="Cancel"
+                                        Command="{Binding CancelFileCreateCommand}"
+                                        Padding="16,7"
+                                        Margin="0,0,8,0"/>
+                                <Button Content="{Binding ItemDialogPrimaryAction}"
+                                        Command="{Binding CreateFileConfirmCommand}"
+                                        Style="{StaticResource AccentButton}"
+                                        Padding="16,7"
+                                        IsDefault="True"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
             <Border Visibility="{Binding IsProjectDeleteDialogVisible, Converter={StaticResource BoolToVisibility}}"
                     Background="#CC111218"
                     Panel.ZIndex="90">
@@ -2699,7 +2976,7 @@
                              Text="{Binding QuickOpenQuery, UpdateSourceTrigger=PropertyChanged}"
                              FontSize="15"
                              Padding="10,8"
-                             ToolTip="Type to filter project files (.fava/.txt), Enter to open, Esc to close">
+                             ToolTip="Type to filter project files (.fava/.txt/.md), Enter to open, Esc to close">
                         <TextBox.InputBindings>
                             <KeyBinding Key="Enter" Command="{Binding OpenSelectedQuickOpenFileCommand}"/>
                         </TextBox.InputBindings>

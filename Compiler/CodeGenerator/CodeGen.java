@@ -378,6 +378,9 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         if (stmt instanceof FavaParser.IfElseStmtContext ifElseStmt) {
             return alwaysReturns(ifElseStmt.stmt(0)) && alwaysReturns(ifElseStmt.stmt(1));
         }
+        if (stmt instanceof FavaParser.TryCatchStmtContext tryCatchStmt) {
+            return alwaysReturns(tryCatchStmt.stmt(0)) && alwaysReturns(tryCatchStmt.stmt(1));
+        }
         return false;
     }
 
@@ -723,6 +726,38 @@ public class CodeGen extends FavaBaseVisitor<Void> {
         emit(OpCode.jump, loopStart);
         patchJump(jumpFalse, currentAddress());
         emit(OpCode.pop, 3);
+
+        exitSource(previous);
+        return null;
+    }
+
+    @Override
+    public Void visitTryCatchStmt(FavaParser.TryCatchStmtContext ctx) {
+        int previous = enterSource(ctx);
+        Symbol catchSymbol = ctx.ID() == null ? null : resolvedSymbols.get(ctx.ID());
+        if (catchSymbol != null) {
+            emit(OpCode.lalloc, 1);
+        }
+
+        int pushHandler = currentAddress();
+        emit(OpCode.pushexh, -1);
+        visit(ctx.stmt(0));
+        emit(OpCode.popexh);
+        int jumpEnd = currentAddress();
+        emit(OpCode.jump, -1);
+
+        int catchStart = currentAddress();
+        patchJump(pushHandler, catchStart);
+        if (catchSymbol != null) {
+            emitStore(catchSymbol);
+        } else {
+            emit(OpCode.pop, 1);
+        }
+        visit(ctx.stmt(1));
+        patchJump(jumpEnd, currentAddress());
+        if (catchSymbol != null) {
+            emit(OpCode.pop, 1);
+        }
 
         exitSource(previous);
         return null;

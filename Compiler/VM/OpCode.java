@@ -96,7 +96,10 @@ public enum OpCode {
     toint (79, 0),
     toreal(80, 0),
     tostr (81, 0),
-    tobool(82, 0);
+    tobool(82, 0),
+
+    pushexh(83, 1),
+    popexh (84, 0);
 
     private final int code;
     private final int nArgs;
